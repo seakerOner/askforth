@@ -5,13 +5,13 @@
 
 // dont use a value superior to 255 ( treated as a u8 type )
 #define ASKF_STACK_64BIT_SIZE 16
-#define ASKF_STACK_32BIT_SIZE 32
-#define ASKF_STACK_16BIT_SIZE 64
-#define ASKF_STACK_8BIT_SIZE 128
+#define ASKF_STACK_32BIT_SIZE ( ASKF_STACK_64BIT_SIZE * 2 )
+#define ASKF_STACK_16BIT_SIZE ( ASKF_STACK_32BIT_SIZE * 2 )
+#define ASKF_STACK_8BIT_SIZE  ( ASKF_STACK_16BIT_SIZE * 2 )
 
 typedef enum { 
     ASKF_BITS8 = 8, ASKF_BITS16 = 16, ASKF_BITS32 = 32, ASKF_BITS64 = 64
-} CellSize;
+} AskForth_CellSize;
 
 typedef struct {
   union {
@@ -21,11 +21,25 @@ typedef struct {
     u8  space_8 [ASKF_STACK_8BIT_SIZE];
   } cells;
 
-  CellSize cell_scale; 
+  AskForth_CellSize cell_scale; 
   u8 index;
   u8 current_max_depth;
 } AskForth_Stack;
 
-u32 askf_start_stack( CellSize cell_scale );
+typedef union {
+    union {
+     u64 _64;
+     u32 _32;
+     u16 _16;
+     u8  _8;
+    } val;
+
+    AskForth_CellSize* cell_scale;
+} AskForth_Cell;
+
+u32 askf_start_stack( AskForth_CellSize cell_scale, AskForth_Stack* stack );
+AskForth_Cell askf_new_cell_payload( AskForth_Stack* stack );
+
+void askf_stack_push( AskForth_Cell* cell, AskForth_Stack* stack );
 
 #endif
