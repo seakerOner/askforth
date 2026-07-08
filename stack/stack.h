@@ -38,8 +38,16 @@ typedef union {
 } AskForth_Cell;
 
 u32 askf_start_stack( AskForth_CellSize cell_scale, AskForth_Stack* stack );
-AskForth_Cell askf_new_cell_payload( AskForth_Stack* stack );
+
+inline AskForth_Cell askf_new_cell_payload( AskForth_Stack* stack ) {
+    AskForth_Cell cell  = {0};
+    cell.cell_scale     = &stack->cell_scale;
+
+    return cell;
+}
 
 void askf_stack_push( AskForth_Cell* cell, AskForth_Stack* stack );
+
+u32 askf_stack_pop( AskForth_Cell* out_cell , AskForth_Stack* stack );
 
 #endif

@@ -3,11 +3,14 @@
 #include "./memory/backend_blob.h"
 #include "./stack/stack.h"
 #include "./vm/forth_vm.h"
+#include "./input/input.h"
 
 #define ASKFORTH_RAW_RAM_START_ADDRESS NULL
 #define ASKFORTH_INPUT_BUFFER_MAX_CHARS 512
 
 #ifdef TARGET_LINUX
+    #define RAW_RAM_START_ADDRESS NULL
+#else
     #define RAW_RAM_START_ADDRESS NULL
 #endif
 
@@ -36,14 +39,11 @@ int main( void ) {
     vm.stack        = &stack;
     vm.input_buffer = &input_buffer;
 
-    boolean will_exec  = FALSE;
-
     while ( TRUE ) {
+        askf_read_input_blocking( &vm );
 
-        if ( will_exec ) {
-            askf_exec( vm.input_buffer );
-            will_exec = FALSE;
-        }
+        if ( vm.input_buffer->index > 0 ) 
+            askf_exec( &vm );
     };
 
     return 0;

@@ -5,11 +5,11 @@ TARGET = -DTARGET_LINUX
 
 EXECUTABLE_NAME = askforth
 
-FLAGS = -std=c11 -Wall -Wextra 
+FLAGS = -std=c11 -Wall -Wextra -x c
 
 FLAGS += $(TARGET)
 
-askforth: main.o stack.o mem_backend_blob.o vm.o
+askforth: main.o stack.o mem_backend_blob.o vm.o input.o
 	$(CC) $(BUILD)/*.o -o $(BUILD)/$(EXECUTABLE_NAME)
 
 main.o: ./main.c 
@@ -23,6 +23,9 @@ mem_backend_blob.o: ./memory/backend_blob.c
 
 vm.o: ./vm/forth_vm.c 
 	$(CC) $(FLAGS)	-c ./vm/forth_vm.c -o $(BUILD)/vm.o
+
+input.o: ./input/input.c
+	$(CC) $(FLAGS)	-c ./input/input.c -o $(BUILD)/input.o
 
 clean:
 	rm -f $(BUILD)/*

@@ -16,6 +16,6 @@ typedef struct {
     AskForthInputBuffer*    input_buffer;
 } AskForthVm;
 
-void askf_exec( AskForthInputBuffer* buffer );
+void askf_exec( AskForthVm* vm );
 
 #endif
