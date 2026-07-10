@@ -2,8 +2,9 @@
 #include "inttype.h"
 #include "./memory/backend_blob.h"
 #include "./stack/stack.h"
-#include "./vm/forth_vm.h"
+#include "./library/library.h"
 #include "./input/input.h"
+#include "./vm/forth_vm.h"
 
 #define ASKFORTH_RAW_RAM_START_ADDRESS NULL
 #define ASKFORTH_INPUT_BUFFER_MAX_CHARS 512
@@ -11,7 +12,7 @@
 #ifdef TARGET_LINUX
     #define RAW_RAM_START_ADDRESS NULL
 #else
-    #define RAW_RAM_START_ADDRESS NULL
+    #define RAW_RAM_START_ADDRESS POISON
 #endif
 
 int main( void ) {
@@ -29,8 +30,14 @@ int main( void ) {
     u64 ram_size = 0;
 
     #ifdef TARGET_LINUX 
+        ram_size = MB( 16 );
+    #else
         ram_size = MB( 4 );
     #endif
+
+    if ( RAW_RAM_START_ADDRESS == POISON ) {
+        // Something is not quite right..
+    }
 
     askf_create_backend_blob( ram_size, RAW_RAM_START_ADDRESS, &ram );
     askf_start_stack( initial_cell_base_scale, &stack );
@@ -38,6 +45,8 @@ int main( void ) {
     vm.ram          = &ram;
     vm.stack        = &stack;
     vm.input_buffer = &input_buffer;
+
+    vm.lib          = ( void* )askf_create_library( &vm );
 
     while ( TRUE ) {
         askf_read_input_blocking( &vm );

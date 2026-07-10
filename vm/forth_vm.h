@@ -14,6 +14,7 @@ typedef struct {
     AskForth_Stack*         stack;
     AskForth_Ram*           ram;
     AskForthInputBuffer*    input_buffer;
+    void*       lib;
 } AskForthVm;
 
 void askf_exec( AskForthVm* vm );

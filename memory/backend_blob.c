@@ -4,8 +4,6 @@
     #include "sys/mman.h"
 #endif
 
-#include "sys/mman.h"
-
 void askf_create_backend_blob( u64 length_bytes, void* opt_addr, AskForth_Ram* ram_struct ) {
     void* blob = NULL;
 
@@ -23,5 +21,17 @@ void askf_create_backend_blob( u64 length_bytes, void* opt_addr, AskForth_Ram* r
 
     ram_struct->length      = length_bytes;
     ram_struct->start_ptr   = blob;
+    ram_struct->byte_index  = 0;
 
 };
+
+void* askf_blob_alloc( AskForth_Ram* ram_struct, u64 bytes ) {
+    u64 remaining = ram_struct->length - ram_struct->byte_index;
+    if ( remaining <= bytes )
+        return NULL;
+
+    void* ptr = ram_struct->start_ptr + ram_struct->byte_index;
+    ram_struct->byte_index += bytes;
+
+    return ptr;
+}

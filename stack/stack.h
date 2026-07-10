@@ -4,10 +4,17 @@
 #include "../inttype.h"
 
 // dont use a value superior to 255 ( treated as a u8 type )
-#define ASKF_STACK_64BIT_SIZE 16
-#define ASKF_STACK_32BIT_SIZE ( ASKF_STACK_64BIT_SIZE * 2 )
-#define ASKF_STACK_16BIT_SIZE ( ASKF_STACK_32BIT_SIZE * 2 )
-#define ASKF_STACK_8BIT_SIZE  ( ASKF_STACK_16BIT_SIZE * 2 )
+#define ASKF_STACK_SCALE_BASE 16
+
+#define ASKF_STACK_64BITS_SCALE 1
+#define ASKF_STACK_32BITS_SCALE 2
+#define ASKF_STACK_16BITS_SCALE 3
+#define ASKF_STACK_8BITS_SCALE  4
+
+#define ASKF_STACK_64BIT_SIZE ( ASKF_STACK_SCALE_BASE * ASKF_STACK_64BITS_SCALE )
+#define ASKF_STACK_32BIT_SIZE ( ASKF_STACK_SCALE_BASE * ASKF_STACK_32BITS_SCALE )
+#define ASKF_STACK_16BIT_SIZE ( ASKF_STACK_SCALE_BASE * ASKF_STACK_16BITS_SCALE )
+#define ASKF_STACK_8BIT_SIZE  ( ASKF_STACK_SCALE_BASE * ASKF_STACK_8BITS_SCALE  )
 
 typedef enum { 
     ASKF_BITS8 = 8, ASKF_BITS16 = 16, ASKF_BITS32 = 32, ASKF_BITS64 = 64
@@ -26,7 +33,7 @@ typedef struct {
   u8 current_max_depth;
 } AskForth_Stack;
 
-typedef union {
+typedef struct {
     union {
      u64 _64;
      u32 _32;
