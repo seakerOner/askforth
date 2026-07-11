@@ -12,12 +12,12 @@ void askf_create_backend_blob( u64 length_bytes, void* opt_addr, AskForth_Ram* r
     }
 
     #ifdef TARGET_LINUX 
-        blob = mmap( NULL, length_bytes, PROT_EXEC | PROT_READ | PROT_WRITE , MAP_ANONYMOUS, -1, 0 );
-    #endif
+        blob = mmap( NULL, length_bytes, PROT_EXEC | PROT_READ | PROT_WRITE , MAP_ANONYMOUS | MAP_SHARED, -1, 0 );
 
-    if ( blob == NULL ) {
-        // TODO: throw error
-    }
+        if ( blob == MAP_FAILED ) {
+            // TODO: throw error
+        }
+    #endif
 
     ram_struct->length      = length_bytes;
     ram_struct->start_ptr   = blob;
@@ -30,7 +30,7 @@ void* askf_blob_alloc( AskForth_Ram* ram_struct, u64 bytes ) {
     if ( remaining <= bytes )
         return NULL;
 
-    void* ptr = ram_struct->start_ptr + ram_struct->byte_index;
+    void* ptr = (void *) ( (( u8* ) ram_struct->start_ptr) + ram_struct->byte_index ) ;
     ram_struct->byte_index += bytes;
 
     return ptr;

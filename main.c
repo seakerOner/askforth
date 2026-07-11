@@ -10,7 +10,7 @@
 #define ASKFORTH_INPUT_BUFFER_MAX_CHARS 512
 
 #ifdef TARGET_LINUX
-    #define RAW_RAM_START_ADDRESS NULL
+    #define RAW_RAM_START_ADDRESS 0x0
 #else
     #define RAW_RAM_START_ADDRESS POISON
 #endif
@@ -39,7 +39,7 @@ int main( void ) {
         // Something is not quite right..
     }
 
-    askf_create_backend_blob( ram_size, RAW_RAM_START_ADDRESS, &ram );
+    askf_create_backend_blob( ram_size, ( void* )RAW_RAM_START_ADDRESS, &ram );
     askf_start_stack( initial_cell_base_scale, &stack );
 
     vm.ram          = &ram;
