@@ -18,10 +18,10 @@ typedef struct AskForth_Word_t {
 } AskForth_Word;
 
 typedef struct AskForth_Dictionary_t {
-    ascii                   name[ASKF_MAX_NAME_LEN];
     AskForth_Word*          words_base;
     AskForth_Word*          recent_word;
-    void* next;
+    void*                   next;
+    ascii                   name[ASKF_MAX_NAME_LEN];
 } AskForth_Dictionary;
 
 typedef struct {

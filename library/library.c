@@ -3,23 +3,53 @@
 AskForth_Library* askf_create_library( AskForthVm* vm ) {
     AskForth_Library* lib = NULL;
 
-    lib = askf_blob_alloc( vm->ram, sizeof( AskForth_Library ) );
+    lib = ( AskForth_Library * ) askf_blob_alloc( vm->ram, sizeof( AskForth_Library ) );
 
-    if ( lib == NULL )
+    if ( lib == NULL ) {
+        // TODO: throw error
         return NULL;
+    }
 
-    // TODO: linked list style
+    lib->dictionaries_base = ( AskForth_Dictionary* ) askf_blob_alloc( vm->ram, sizeof( AskForth_Dictionary ) );
+
+    if ( lib->dictionaries_base == NULL ) {
+        // TODO: throw error
+        return NULL;
+    }
+
+    lib->recent_dic = lib->dictionaries_base;
+
+    ascii core_dic_name[ASKF_MAX_NAME_LEN] = "Core";
+
+    COPY( core_dic_name, lib->dictionaries_base->name, ASKF_MAX_NAME_LEN );
+
+    lib->dictionaries_base->words_base  = NULL;
+    lib->dictionaries_base->next        = NULL;
+    lib->dictionaries_base->recent_word = NULL;
 
     return lib;
 }
 
 AskForth_Dictionary* askf_create_dic( AskForthVm* vm, ascii name[ASKF_MAX_NAME_LEN] ) {
-    AskForth_Library* lib    = ( AskForth_Library* )vm->lib;
-    AskForth_Dictionary* dic = NULL;
+    AskForth_Library*    lib        = ( AskForth_Library* )vm->lib;
+    AskForth_Dictionary* dic        = lib->recent_dic;
+    AskForth_Dictionary* new_dic    = NULL;
 
-    // TODO: linked list style
+    new_dic = ( AskForth_Dictionary* )askf_blob_alloc( vm->ram, sizeof( AskForth_Dictionary ) );
 
-    COPY(name, dic->name, ASKF_MAX_NAME_LEN );
+    if ( new_dic == NULL ) {
+        // TODO: throw error
+        return NULL;
+    }
+
+    new_dic->next        = NULL;
+    new_dic->recent_word = NULL;
+    new_dic->words_base  = NULL;
+    COPY(name, new_dic->name, ASKF_MAX_NAME_LEN );
+
+    dic->next = new_dic;
+    lib->recent_dic = new_dic;
+
 
     return dic;
 }
