@@ -23,6 +23,7 @@ void askf_create_backend_blob( u64 length_bytes, void* opt_addr, AskForth_Ram* r
     ram_struct->start_ptr   = blob;
     ram_struct->byte_index  = 0;
 
+    FILL( ram_struct->start_ptr, 0, ram_struct->length );
 };
 
 void* askf_blob_alloc( AskForth_Ram* ram_struct, u64 bytes ) {

@@ -58,3 +58,11 @@ void askf_vm_change_outer_state( AskForthVmOuterState new_state ) {
    
     }
 }
+
+void askf_vm_trace_error( AskForthError error ) {
+    AskForthErrorTrace* tracer  = global_vm->error_tracer;
+
+    u64 absolute_idx            = tracer->head % tracer->capacity;
+
+    COPY( &error, &tracer->errors[absolute_idx], sizeof( AskForthError ) );
+};

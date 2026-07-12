@@ -1,4 +1,5 @@
 #include "library.h"
+#include "../vm/forth_vm.h"
 
 AskForth_Library* askf_create_library( AskForthVm* vm ) {
     AskForth_Library* lib = NULL;
@@ -6,14 +7,23 @@ AskForth_Library* askf_create_library( AskForthVm* vm ) {
     lib = ( AskForth_Library * ) askf_blob_alloc( vm->ram, sizeof( AskForth_Library ) );
 
     if ( lib == NULL ) {
-        // TODO: throw error
+        AskForthError err = 
+            {   .zone = ASKF_ERROR_ZONE_OUTER, 
+                .error = ASKF_ERROR_FAILED_LIB_ALLOC 
+            };
+        askf_throw_error( err );
         return NULL;
     }
 
     lib->dictionaries_base = ( AskForth_Dictionary* ) askf_blob_alloc( vm->ram, sizeof( AskForth_Dictionary ) );
 
     if ( lib->dictionaries_base == NULL ) {
-        // TODO: throw error
+        AskForthError err = 
+            {   .zone = ASKF_ERROR_ZONE_OUTER, 
+                .error = ASKF_ERROR_FAILED_CORE_DIC_ALLOC 
+            };
+        askf_throw_error( err );
+
         return NULL;
     }
 
@@ -39,6 +49,12 @@ AskForth_Dictionary* askf_create_dic( AskForthVm* vm, ascii name[ASKF_MAX_NAME_L
 
     if ( new_dic == NULL ) {
         // TODO: throw error
+        AskForthError err = 
+            {   .zone = ASKF_ERROR_ZONE_OUTER, 
+                .error = ASKF_ERROR_FAILED_DIC_ALLOC 
+            };
+        askf_throw_error( err );
+
         return NULL;
     }
 

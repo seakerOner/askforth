@@ -9,7 +9,7 @@ FLAGS = -std=c11 -Wall -Wextra -x c
 
 FLAGS += $(TARGET)
 
-askforth: main.o stack.o mem_backend_blob.o vm.o input.o library.o
+askforth: main.o stack.o mem_backend_blob.o vm.o input.o library.o errors.o
 	$(CC) $(BUILD)/*.o -o $(BUILD)/$(EXECUTABLE_NAME)
 
 main.o: ./main.c 
@@ -29,6 +29,9 @@ input.o: ./input/input.c
 
 library.o: ./library/library.c
 	$(CC) $(FLAGS)	-c ./library/library.c -o $(BUILD)/library.o
+
+errors.o: ./errors/error_thrower.c
+	$(CC) $(FLAGS)	-c ./errors/error_thrower.c -o $(BUILD)/errors.o
 
 clean:
 	rm -f $(BUILD)/*
