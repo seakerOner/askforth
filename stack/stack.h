@@ -29,26 +29,32 @@ typedef struct {
   } cells;
 
   AskForth_CellSize cell_scale; 
+  boolean is_signed;
   u8 index;
   u8 current_max_depth;
 } AskForth_Stack;
 
 typedef struct {
     union {
-     u64 _64;
-     u32 _32;
-     u16 _16;
-     u8  _8;
+     i64 _64s;
+     i32 _32s;
+     i16 _16s;
+     i8  _8s;
+     u64 _64u;
+     u32 _32u;
+     u16 _16u;
+     u8  _8u;
     } val;
-
     AskForth_CellSize* cell_scale;
+    boolean is_signed;
 } AskForth_Cell;
 
 u32 askf_start_stack( AskForth_CellSize cell_scale, AskForth_Stack* stack );
 
-inline AskForth_Cell askf_new_cell_payload( AskForth_Stack* stack ) {
+inline AskForth_Cell askf_new_cell_payload( AskForth_Stack* stack, boolean is_signed ) {
     AskForth_Cell cell  = {0};
     cell.cell_scale     = &stack->cell_scale;
+    cell.is_signed      = is_signed;
 
     return cell;
 }

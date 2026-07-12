@@ -45,15 +45,33 @@ int main( void ) {
     vm.ram          = &ram;
     vm.stack        = &stack;
     vm.input_buffer = &input_buffer;
+    vm.outer_state  = ASKF_VM_OUTER_STATE_BLOCKING_INPUT;
 
     vm.lib          = ( void* )askf_create_library( &vm );
 
-    while ( TRUE ) {
-        askf_read_input_blocking( &vm );
+    askf_vm_to_global_state( &vm );
 
-        if ( vm.input_buffer->index > 0 ) 
-            askf_exec( &vm );
+    while ( vm.outer_state != ASKF_VM_OUTER_STATE_SHUTDOWN_REQUEST ) {
+
+        switch ( vm.outer_state ) {
+            case ASKF_VM_OUTER_STATE_BLOCKING_INPUT:
+                askf_read_input_blocking( &vm );
+                break;
+            case ASKF_VM_OUTER_STATE_EXECUTE:
+                askf_exec( &vm );
+                break;
+            case ASKF_VM_OUTER_STATE_FAILED_CRITICAL:
+                break;
+            case ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL:
+                break;
+            case ASKF_VM_OUTER_STATE_SHUTDOWN_REQUEST:
+                break;
+            default:
+                break;
+        }
     };
+
+    // TODO: shutdown protocol and memory conservation
 
     return 0;
 }

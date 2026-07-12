@@ -15,6 +15,8 @@ void askf_read_input_blocking( AskForthVm* vm  ) {
 
         vm->input_buffer->index = vm->input_buffer->index + res;
     #endif
+
+    askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_EXECUTE );
 }
 
 void askf_print( ascii* buff, u32 len ) {

@@ -30,7 +30,7 @@ void* askf_blob_alloc( AskForth_Ram* ram_struct, u64 bytes ) {
     if ( remaining <= bytes )
         return NULL;
 
-    void* ptr = (void *) ( (( u8* ) ram_struct->start_ptr) + ram_struct->byte_index ) ;
+    void* ptr = (void *) ( (( u8* ) ram_struct->start_ptr ) + ram_struct->byte_index ) ;
     ram_struct->byte_index += bytes;
 
     return ptr;

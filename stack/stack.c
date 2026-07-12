@@ -21,6 +21,7 @@ u32 askf_start_stack( AskForth_CellSize cell_scale, AskForth_Stack* stack ) {
 
     stack->cell_scale = cell_scale;
     stack->index      = 0;
+    stack->is_signed  = FALSE;
 
     FILL( &stack->cells.space_64, 0, sizeof( stack->cells ) );
 
@@ -32,19 +33,32 @@ void askf_stack_push( AskForth_Cell* cell, AskForth_Stack* stack ) {
         // TODO: throw error
         return;
     }
+    boolean is_signed = stack->is_signed;
 
     switch ( stack->cell_scale ) {
         case ASKF_BITS64:
-            stack->cells.space_64[stack->index]     = cell->val._64;
+            if ( is_signed )
+                stack->cells.space_64[stack->index] = cell->val._64s;
+            else
+                stack->cells.space_64[stack->index] = cell->val._64u;
             break;
         case ASKF_BITS32:
-            stack->cells.space_32[stack->index]     = cell->val._32;
+            if ( is_signed )
+                stack->cells.space_32[stack->index] = cell->val._32s;
+            else
+                stack->cells.space_32[stack->index] = cell->val._32u;
             break;
         case ASKF_BITS16:
-            stack->cells.space_16[stack->index]     = cell->val._16;
+            if ( is_signed )
+                stack->cells.space_16[stack->index] = cell->val._16s;
+            else
+                stack->cells.space_16[stack->index] = cell->val._16u;
             break;
         case ASKF_BITS8:
-            stack->cells.space_8[stack->index]      = cell->val._8;
+            if ( is_signed )
+                stack->cells.space_8[stack->index]  = cell->val._8s;
+            else
+                stack->cells.space_8[stack->index]  = cell->val._8u;
             break;
         default:
             // TODO: fallback reset
@@ -63,25 +77,39 @@ u32 askf_stack_pop( AskForth_Cell* out_cell , AskForth_Stack* stack ) {
     }
 
     out_cell->cell_scale = &stack->cell_scale;
+    stack->index--;
+
+    boolean is_signed = stack->is_signed;
 
     switch ( *out_cell->cell_scale ) {
         case ASKF_BITS64:
-            out_cell->val._64 = stack->cells.space_64[stack->index];
+            if ( is_signed )
+                out_cell->val._64s = stack->cells.space_64[stack->index];
+            else
+                out_cell->val._64u = stack->cells.space_64[stack->index];
             break;
         case ASKF_BITS32:
-            out_cell->val._32 = stack->cells.space_32[stack->index];
+            if ( is_signed )
+                out_cell->val._32s = stack->cells.space_32[stack->index];
+            else
+                out_cell->val._32u = stack->cells.space_32[stack->index];
             break;
         case ASKF_BITS16:
-            out_cell->val._16 = stack->cells.space_16[stack->index];
+            if ( is_signed )
+                out_cell->val._16s = stack->cells.space_16[stack->index];
+            else
+                out_cell->val._16u = stack->cells.space_16[stack->index];
             break;
         case ASKF_BITS8:
-            out_cell->val._8 = stack->cells.space_8[stack->index];
+            if ( is_signed )
+                out_cell->val._8s = stack->cells.space_8[stack->index];
+            else 
+                out_cell->val._8u = stack->cells.space_8[stack->index];
             break;
         default:
             break;
     }
 
-    stack->index--;
 
     return 1;
 }

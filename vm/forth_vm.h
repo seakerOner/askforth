@@ -4,6 +4,14 @@
 #include "../memory/backend_blob.h"
 #include "../stack/stack.h"
 
+typedef enum {
+    ASKF_VM_OUTER_STATE_BLOCKING_INPUT,
+    ASKF_VM_OUTER_STATE_EXECUTE,
+    ASKF_VM_OUTER_STATE_FAILED_CRITICAL,
+    ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL,
+    ASKF_VM_OUTER_STATE_SHUTDOWN_REQUEST,
+} AskForthVmOuterState;
+
 typedef struct {
     ascii*  base;
     u64     capacity;
@@ -14,9 +22,16 @@ typedef struct {
     AskForth_Stack*         stack;
     AskForth_Ram*           ram;
     AskForthInputBuffer*    input_buffer;
-    void*       lib;
+    void*                   lib;
+    AskForthVmOuterState    outer_state;
 } AskForthVm;
 
+void askf_vm_to_global_state( AskForthVm* vm );
+
 void askf_exec( AskForthVm* vm );
+
+void askf_vm_change_cell_scale( AskForth_CellSize new_cell_size );
+
+void askf_vm_change_outer_state( AskForthVmOuterState new_state );
 
 #endif
