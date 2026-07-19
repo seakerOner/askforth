@@ -4,6 +4,7 @@
 #include "./stack/stack.h"
 #include "./library/library.h"
 #include "./input/input.h"
+#include "./input/tokenizer.h"
 #include "./vm/forth_vm.h"
 
 #define ASKFORTH_RAW_RAM_START_ADDRESS  NULL
@@ -24,6 +25,7 @@ int main( void ) {
     AskForthInputBuffer input_buffer                = {0};
     AskForth_CellSize   initial_cell_base_scale     = ASKF_BITS64;
     AskForthErrorTrace  tracer                      = {0};
+    AskForthTokenizer   tokenizer                   = {0};
 
     ascii scratch[ASKFORTH_INPUT_BUFFER_MAX_CHARS]  = {0};
     input_buffer.base                               = scratch;
@@ -52,10 +54,12 @@ int main( void ) {
     vm.input_buffer = &input_buffer;
     vm.outer_state  = ASKF_VM_OUTER_STATE_BLOCKING_INPUT;
     vm.error_tracer = &tracer;
+    vm.tokenizer    = &tokenizer;
 
     vm.lib          = ( void* )askf_create_library( &vm );
 
     askf_vm_to_global_state( &vm );
+    askf_tokenizer_new( &tokenizer, ( ASKFORTH_INPUT_BUFFER_MAX_CHARS / 2 ));
 
     while ( vm.outer_state != ASKF_VM_OUTER_STATE_SHUTDOWN_REQUEST ) {
 

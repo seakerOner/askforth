@@ -48,7 +48,6 @@ AskForth_Dictionary* askf_create_dic( AskForthVm* vm, ascii name[ASKF_MAX_NAME_L
     new_dic = ( AskForth_Dictionary* )askf_blob_alloc( vm->ram, sizeof( AskForth_Dictionary ) );
 
     if ( new_dic == NULL ) {
-        // TODO: throw error
         AskForthError err = 
             {   .zone = ASKF_ERROR_ZONE_OUTER, 
                 .error = ASKF_ERROR_FAILED_DIC_ALLOC 

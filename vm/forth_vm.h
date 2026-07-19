@@ -4,6 +4,7 @@
 #include "../memory/backend_blob.h"
 #include "../stack/stack.h"
 #include "../errors/error_thrower.h"
+#include "../input/tokenizer.h"
 
 typedef enum {
     ASKF_VM_OUTER_STATE_BLOCKING_INPUT,
@@ -26,9 +27,12 @@ typedef struct {
     void*                   lib;
     AskForthVmOuterState    outer_state;
     AskForthErrorTrace*     error_tracer;
+
+    AskForthTokenizer*      tokenizer;
 } AskForthVm;
 
 void askf_vm_to_global_state( AskForthVm* vm );
+AskForthVm* askf_get_global_vm( void );
 
 void askf_exec( AskForthVm* vm );
 

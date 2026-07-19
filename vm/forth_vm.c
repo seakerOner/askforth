@@ -1,4 +1,6 @@
 #include "forth_vm.h"
+#include "../input/input.h"
+#include <stdio.h>
 
 AskForthVm* global_vm = NULL;
 
@@ -6,8 +8,50 @@ void askf_vm_to_global_state( AskForthVm* vm ) {
     global_vm = vm;
 }
 
-void askf_exec( AskForthVm* vm ) {
+AskForthVm* askf_get_global_vm( void ) {
+    return global_vm;
+}
 
+static void _askf_parse_input_buffer( AskForthVm* forth_vm ) {
+    AskForthInputBuffer* ib     = forth_vm->input_buffer;
+    AskForthTokenizer* tknzr    = forth_vm->tokenizer;
+
+    if (ib->index == 0)
+        return;
+
+    ascii*  base_token  = ib->base;
+    u64     length      = 0;
+    
+    for ( u64 x = 0; x < ib->index; x++ ) {
+        if ( ib->base[x] == ' ' || ib->base[x] == '\n' ) {
+            if ( length > 0 ) {
+                AskForthToken new_token = {0};
+                new_token.base          = base_token;
+                new_token.length        = length;
+
+                askf_tokenizer_add( tknzr, new_token );
+
+                length = 0;
+
+            } 
+
+            if ( x + 1 < ib->index )
+                base_token  = &ib->base[x + 1];
+        } else  {
+            length++;
+        }
+    }
+
+}
+
+void askf_exec( AskForthVm* vm ) {
+    // parse input
+    _askf_parse_input_buffer( vm );
+
+    // TODO: exec on words
+    
+    askf_tokenizer_reset(vm->tokenizer);
+    askf_reset_input_buffer( vm );
     askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_BLOCKING_INPUT );
 }
 
