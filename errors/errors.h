@@ -2,11 +2,11 @@
 #define ASKF_ERRORS_H
 
 typedef enum {
-    ASKF_ERROR_FAILED_LIB_ALLOC         = 0x00,
-    ASKF_ERROR_FAILED_CORE_DIC_ALLOC    = 0x01,
-    ASKF_ERROR_FAILED_DIC_ALLOC         = 0x02,
+    ASKF_ERROR_FAILED_LIB_ALLOC         = 0,
+    ASKF_ERROR_FAILED_CORE_DIC_ALLOC    = 1,
+    ASKF_ERROR_FAILED_DIC_ALLOC         = 2,
 
-    ASKF_ERROR_UNKNOWN_WORD             = 0x03,
+    ASKF_ERROR_UNKNOWN_WORD             = 3,
 } AskForthErrorType;
 
 typedef enum {

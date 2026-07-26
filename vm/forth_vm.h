@@ -14,6 +14,11 @@ typedef enum {
     ASKF_VM_OUTER_STATE_SHUTDOWN_REQUEST,
 } AskForthVmOuterState;
 
+typedef enum {
+    ASKF_INTERPRET,
+    ASKF_COMPILE
+} AskForthVmInterpreterState;
+
 typedef struct {
     ascii*  base;
     u64     capacity;
@@ -21,14 +26,15 @@ typedef struct {
 } AskForthInputBuffer;
 
 typedef struct {
-    AskForth_Stack*         stack;
-    AskForth_Ram*           ram;
-    AskForthInputBuffer*    input_buffer;
-    void*                   lib;
-    AskForthVmOuterState    outer_state;
-    AskForthErrorTrace*     error_tracer;
+    AskForth_Stack*                         stack;
+    AskForth_Ram*                           ram;
+    AskForthInputBuffer*                    input_buffer;
+    void*                                   lib;
+    volatile AskForthVmOuterState           outer_state;
+    volatile AskForthVmInterpreterState     interpret_state;
+    AskForthErrorTrace*                     error_tracer;
 
-    AskForthTokenizer*      tokenizer;
+    AskForthTokenizer*                      tokenizer;
 } AskForthVm;
 
 void askf_vm_to_global_state( AskForthVm* vm );
@@ -41,5 +47,6 @@ void askf_vm_change_cell_scale( AskForth_CellSize new_cell_size );
 void askf_vm_change_outer_state( AskForthVmOuterState new_state );
 
 void askf_vm_trace_error( AskForthError error );
+AskForthError* askf_vm_get_most_recent_error( void );
 
 #endif

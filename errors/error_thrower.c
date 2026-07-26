@@ -1,6 +1,29 @@
 #include "error_thrower.h"
 #include "../vm/forth_vm.h"
+#include "../input/input.h"
 
+AskForthErrorMessage error_messages[4] = {
+    {
+        // ASKF_ERROR_FAILED_LIB_ALLOC  
+        .message = ( ascii* )"Failed to allocate memory for the library\n",        
+        .length  = 42
+    },
+    {
+        // ASKF_ERROR_FAILED_CORE_DIC_ALLOC
+        .message = ( ascii* )"Failed to allocate memory for dictionary 'core'\n", 
+        .length  = 48
+    },
+    {
+        // ASKF_ERROR_FAILED_DIC_ALLOC 
+        .message = ( ascii* )"Failed to allocate memory for new dictionary\n",     
+        .length  = 45
+    },
+    {
+        // ASKF_ERROR_UNKNOWN_WORD 
+        .message = ( ascii* )"Unknown word found: \n",
+        .length  = 20
+    }
+};
 
 void askf_start_error_tracer( AskForth_Ram* ram, AskForthErrorTrace* tracer, u64 tracer_capacity ) {
     tracer->capacity = tracer_capacity;
@@ -28,4 +51,13 @@ void askf_throw_error( AskForthError error ) {
     askf_vm_trace_error( error );
 }
 
+void askf_print_error( AskForthError* error ) {
+    if ( error == NULL )
+        return;
+
+    AskForthErrorMessage* msg = &error_messages[error->error];
+
+    askf_print( (ascii*)"[ERROR] ", 8 );
+    askf_print( msg->message, msg->length );
+}
 

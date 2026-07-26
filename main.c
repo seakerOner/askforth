@@ -6,6 +6,8 @@
 #include "./input/input.h"
 #include "./input/tokenizer.h"
 #include "./vm/forth_vm.h"
+#include "./errors/errors.h"
+#include "./errors/error_thrower.h"
 
 #define ASKFORTH_RAW_RAM_START_ADDRESS  NULL
 #define ASKFORTH_INPUT_BUFFER_MAX_CHARS 512
@@ -49,14 +51,15 @@ int main( void ) {
 
     askf_start_error_tracer( &ram, &tracer, ASKFORTH_ERROR_TRACER_CAPACITY );
 
-    vm.ram          = &ram;
-    vm.stack        = &stack;
-    vm.input_buffer = &input_buffer;
-    vm.outer_state  = ASKF_VM_OUTER_STATE_BLOCKING_INPUT;
-    vm.error_tracer = &tracer;
-    vm.tokenizer    = &tokenizer;
+    vm.ram              = &ram;
+    vm.stack            = &stack;
+    vm.input_buffer     = &input_buffer;
+    vm.outer_state      = ASKF_VM_OUTER_STATE_BLOCKING_INPUT;
+    vm.interpret_state  = ASKF_INTERPRET;
+    vm.error_tracer     = &tracer;
+    vm.tokenizer        = &tokenizer;
 
-    vm.lib          = ( void* )askf_create_library( &vm );
+    vm.lib              = ( void* )askf_create_library( &vm );
 
     askf_vm_to_global_state( &vm );
     askf_tokenizer_new( &tokenizer, ( ASKFORTH_INPUT_BUFFER_MAX_CHARS / 2 ));
@@ -64,7 +67,11 @@ int main( void ) {
     ascii* message = ( ascii* )"Welcome to the Agnostic Seaker's Forth :D \n";
     askf_print( message, sizeof( message ) );
 
+    AskForthError* err = NULL;
+
     while ( vm.outer_state != ASKF_VM_OUTER_STATE_SHUTDOWN_REQUEST ) {
+        // if ( vm.outer_state == ASKF_VM_OUTER_STATE_EXECUTE )
+        //     askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_BLOCKING_INPUT );
 
         switch ( vm.outer_state ) {
             case ASKF_VM_OUTER_STATE_BLOCKING_INPUT:
@@ -73,13 +80,25 @@ int main( void ) {
                 break;
             case ASKF_VM_OUTER_STATE_EXECUTE:
                 askf_exec( &vm );
+
+                if ( vm.outer_state == ASKF_VM_OUTER_STATE_EXECUTE )
+                    askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_BLOCKING_INPUT );
+
                 break;
             case ASKF_VM_OUTER_STATE_FAILED_CRITICAL:
-                // TODO: print error
+                // TODO: make user choose what to do
+                err = askf_vm_get_most_recent_error();
+                askf_print_error(err);
+
+                askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_BLOCKING_INPUT );
                 break;
             case ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL:
+                // TODO:
+                askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_BLOCKING_INPUT );
                 break;
             case ASKF_VM_OUTER_STATE_SHUTDOWN_REQUEST:
+                // TODO:
+                askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_BLOCKING_INPUT );
                 break;
             default:
                 break;

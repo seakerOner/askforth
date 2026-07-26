@@ -68,7 +68,14 @@ void askf_exec( AskForthVm* vm ) {
     
     askf_tokenizer_reset(vm->tokenizer);
     askf_reset_input_buffer( vm );
-    askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_BLOCKING_INPUT );
+
+    if ( vm->outer_state == ASKF_VM_OUTER_STATE_EXECUTE ) {
+        if ( vm->interpret_state == ASKF_INTERPRET ) 
+            askf_print( ( ascii* )"ok.\n", 4 );
+        else if ( vm->interpret_state == ASKF_COMPILE ) 
+            askf_print( ( ascii* )"compiling.\n", 4 );
+    }
+
 }
 
 void askf_vm_change_cell_scale( AskForth_CellSize new_cell_size ) {
@@ -125,4 +132,14 @@ void askf_vm_trace_error( AskForthError error ) {
     u64 absolute_idx            = tracer->head % tracer->capacity;
 
     COPY( &error, &tracer->errors[absolute_idx], sizeof( AskForthError ) );
+
+    tracer->head++;
 };
+
+AskForthError* askf_vm_get_most_recent_error( void ) {
+    AskForthErrorTrace* tracer  = global_vm->error_tracer;
+
+    u64 absolute_idx            = ( tracer->head - 1 ) % tracer->capacity;
+
+    return &tracer->errors[absolute_idx];
+}

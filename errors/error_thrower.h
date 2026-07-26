@@ -11,8 +11,15 @@ typedef struct {
     AskForthError* errors;
 } AskForthErrorTrace;
 
+typedef struct {
+    ascii* message;
+    u64    length;
+} AskForthErrorMessage;
+
 void askf_start_error_tracer( AskForth_Ram* ram, AskForthErrorTrace* tracer, u64 tracer_capacity );
 
 void askf_throw_error( AskForthError error );
+
+void askf_print_error( AskForthError* error );
 
 #endif
