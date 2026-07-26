@@ -68,3 +68,32 @@ AskForth_Dictionary* askf_create_dic( AskForthVm* vm, ascii name[ASKF_MAX_NAME_L
 
     return dic;
 }
+
+AskForth_Word* askf_library_find( AskForthVm* vm, AskForthToken* token ) {
+    AskForth_Library* lib = ( AskForth_Library*) vm->lib;
+
+    AskForth_Dictionary* base_dic = lib->dictionaries_base;
+
+    while ( base_dic != NULL ) {
+        AskForth_Word* base_word = base_dic->words_base;
+
+        while ( base_word != NULL ) {
+
+            if ( token->length != base_word->name_len )
+                goto skip_token;
+
+            for (u64 x = 0; x < token->length; x++) 
+                if ( token->base[x] != base_word->name[x] )
+                    goto skip_token;
+
+            return base_word;
+
+            skip_token:
+            base_word = ( AskForth_Word* ) base_word->next;
+        }
+
+        base_dic = ( AskForth_Dictionary* ) base_dic->next;
+    }
+
+    return NULL;
+}

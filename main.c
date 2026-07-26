@@ -61,16 +61,21 @@ int main( void ) {
     askf_vm_to_global_state( &vm );
     askf_tokenizer_new( &tokenizer, ( ASKFORTH_INPUT_BUFFER_MAX_CHARS / 2 ));
 
+    ascii* message = ( ascii* )"Welcome to the Agnostic Seaker's Forth :D \n";
+    askf_print( message, sizeof( message ) );
+
     while ( vm.outer_state != ASKF_VM_OUTER_STATE_SHUTDOWN_REQUEST ) {
 
         switch ( vm.outer_state ) {
             case ASKF_VM_OUTER_STATE_BLOCKING_INPUT:
+                askf_print( (ascii*)">", 1 );
                 askf_read_input_blocking( &vm );
                 break;
             case ASKF_VM_OUTER_STATE_EXECUTE:
                 askf_exec( &vm );
                 break;
             case ASKF_VM_OUTER_STATE_FAILED_CRITICAL:
+                // TODO: print error
                 break;
             case ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL:
                 break;

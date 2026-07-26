@@ -14,6 +14,7 @@ typedef struct AskForth_Word_t  AskForth_Word;
 
 typedef struct AskForth_Word_t {
     ascii name[ASKF_MAX_NAME_LEN];
+    u64   name_len;
     void* next;
 } AskForth_Word;
 
@@ -29,6 +30,8 @@ typedef struct {
     AskForth_Dictionary*    recent_dic;
 } AskForth_Library;
 
-AskForth_Library* askf_create_library( AskForthVm* vm );
+AskForth_Library*       askf_create_library( AskForthVm* vm );
 
-AskForth_Dictionary* askf_create_dic( AskForthVm* vm, ascii name[ASKF_MAX_NAME_LEN] );
+AskForth_Dictionary*    askf_create_dic( AskForthVm* vm, ascii name[ASKF_MAX_NAME_LEN] );
+
+AskForth_Word*          askf_library_find( AskForthVm* vm, AskForthToken* token );

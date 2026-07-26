@@ -1,6 +1,6 @@
 #include "forth_vm.h"
 #include "../input/input.h"
-#include <stdio.h>
+#include "../library/library.h"
 
 AskForthVm* global_vm = NULL;
 
@@ -45,10 +45,26 @@ static void _askf_parse_input_buffer( AskForthVm* forth_vm ) {
 }
 
 void askf_exec( AskForthVm* vm ) {
-    // parse input
     _askf_parse_input_buffer( vm );
 
-    // TODO: exec on words
+    for (u64 x = 0; x < vm->tokenizer->index; x++) {
+        AskForth_Word* word =  askf_library_find( vm, &vm->tokenizer->tokens[x] );
+
+        if ( word == NULL ) {
+
+            // TODO: try to parse as a number
+
+            AskForthError err = 
+            {   .zone = ASKF_ERROR_ZONE_OUTER, 
+                .error = ASKF_ERROR_UNKNOWN_WORD 
+            };
+            askf_throw_error( err );
+            return;
+        }
+
+        // TODO: exec word
+
+    }
     
     askf_tokenizer_reset(vm->tokenizer);
     askf_reset_input_buffer( vm );

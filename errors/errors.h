@@ -6,6 +6,7 @@ typedef enum {
     ASKF_ERROR_FAILED_CORE_DIC_ALLOC    = 0x01,
     ASKF_ERROR_FAILED_DIC_ALLOC         = 0x02,
 
+    ASKF_ERROR_UNKNOWN_WORD             = 0x03,
 } AskForthErrorType;
 
 typedef enum {
