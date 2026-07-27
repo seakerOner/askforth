@@ -9,7 +9,7 @@ FLAGS = -std=c11 -Wall -Wextra -x c
 
 FLAGS += $(TARGET)
 
-askforth: main.o stack.o mem_backend_blob.o vm.o input.o library.o errors.o tokenizer.o
+askforth: main.o stack.o mem_backend_blob.o vm.o input.o library.o errors.o tokenizer.o core_words.o
 	$(CC) $(BUILD)/*.o -o $(BUILD)/$(EXECUTABLE_NAME)
 
 main.o: ./main.c 
@@ -32,6 +32,9 @@ tokenizer.o: ./input/tokenizer.c
 
 library.o: ./library/library.c
 	$(CC) $(FLAGS)	-c ./library/library.c -o $(BUILD)/library.o
+
+core_words.o: ./words/askforth_words.c
+	$(CC) $(FLAGS)	-c ./words/askforth_words.c -o $(BUILD)/core_words.o
 
 errors.o: ./errors/error_thrower.c
 	$(CC) $(FLAGS)	-c ./errors/error_thrower.c -o $(BUILD)/errors.o

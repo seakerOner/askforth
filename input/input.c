@@ -30,5 +30,3 @@ void askf_print( ascii* buff, u32 len ) {
         fflush(stdout);
     #endif
 }
-
-

@@ -53,24 +53,27 @@ void askf_exec( AskForthVm* vm ) {
         AskForth_Word* word =  askf_library_find_word( vm, &vm->tokenizer->tokens[x] );
 
         if ( word == NULL ) {
+            boolean is_number = FALSE;
 
             // TODO: try to parse as a number
 
-            AskForthErrorMessage* failed_token = ( AskForthErrorMessage* ) &vm->tokenizer->tokens[x];
-            failed_token->message[failed_token->length] = '\0';
+            if ( !is_number ) {
+                AskForthErrorMessage* failed_token = ( AskForthErrorMessage* ) &vm->tokenizer->tokens[x];
+                failed_token->message[failed_token->length] = '\0';
 
-            AskForthError err = 
-            {   .zone = ASKF_ERROR_ZONE_OUTER, 
-                .error = ASKF_ERROR_UNKNOWN_WORD,
-                .opt_message = failed_token
-            };
+                AskForthError err = 
+                {   .zone = ASKF_ERROR_ZONE_OUTER, 
+                    .error = ASKF_ERROR_UNKNOWN_WORD,
+                    .opt_message = failed_token
+                };
 
-            // register where the failed token is on the input buffer
-            vm->tokenizer->ctx.token = &vm->tokenizer->tokens[x];
-            vm->tokenizer->ctx.idx   = x;
+                // register where the failed token is on the input buffer
+                vm->tokenizer->ctx.token = &vm->tokenizer->tokens[x];
+                vm->tokenizer->ctx.idx   = x;
 
-            askf_throw_error( err );
-            return;
+                askf_throw_error( err );
+                return;
+            }
         }
 
         // TODO: exec word

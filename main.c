@@ -8,6 +8,7 @@
 #include "./vm/forth_vm.h"
 #include "./errors/errors.h"
 #include "./errors/error_thrower.h"
+#include "./words/askforth_words.h"
 
 #define ASKFORTH_RAW_RAM_START_ADDRESS  NULL
 #define ASKFORTH_INPUT_BUFFER_MAX_CHARS 512
@@ -64,11 +65,12 @@ int main( void ) {
     askf_vm_to_global_state( &vm );
     askf_tokenizer_new( &tokenizer, ( ASKFORTH_INPUT_BUFFER_MAX_CHARS / 2 ));
 
+    askf_add_core_words();
+
     ascii* message = ( ascii* )"Welcome to the Agnostic Seaker's Forth :D \n";
     askf_print( message, sizeof( message ) );
 
     AskForthError* err = NULL;
-
     while ( vm.outer_state != ASKF_VM_OUTER_STATE_SHUTDOWN_REQUEST ) {
 
         switch ( vm.outer_state ) {
