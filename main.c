@@ -70,13 +70,13 @@ int main( void ) {
     AskForthError* err = NULL;
 
     while ( vm.outer_state != ASKF_VM_OUTER_STATE_SHUTDOWN_REQUEST ) {
-        // if ( vm.outer_state == ASKF_VM_OUTER_STATE_EXECUTE )
-        //     askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_BLOCKING_INPUT );
 
         switch ( vm.outer_state ) {
             case ASKF_VM_OUTER_STATE_BLOCKING_INPUT:
                 askf_print( (ascii*)">", 1 );
                 askf_read_input_blocking( &vm );
+
+                askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_EXECUTE );
                 break;
             case ASKF_VM_OUTER_STATE_EXECUTE:
                 askf_exec( &vm );
@@ -86,18 +86,14 @@ int main( void ) {
 
                 break;
             case ASKF_VM_OUTER_STATE_FAILED_CRITICAL:
+            case ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL:
+            case ASKF_VM_OUTER_STATE_SHUTDOWN_REQUEST:
                 // TODO: make user choose what to do
                 err = askf_vm_get_most_recent_error();
                 askf_print_error(err);
 
-                askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_BLOCKING_INPUT );
-                break;
-            case ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL:
-                // TODO:
-                askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_BLOCKING_INPUT );
-                break;
-            case ASKF_VM_OUTER_STATE_SHUTDOWN_REQUEST:
-                // TODO:
+                askf_tokenizer_reset( vm.tokenizer );
+                askf_reset_input_buffer( &vm );
                 askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_BLOCKING_INPUT );
                 break;
             default:

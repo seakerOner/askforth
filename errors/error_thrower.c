@@ -5,22 +5,22 @@
 AskForthErrorMessage error_messages[4] = {
     {
         // ASKF_ERROR_FAILED_LIB_ALLOC  
-        .message = ( ascii* )"Failed to allocate memory for the library\n",        
+        .message = ( ascii* )"Failed to allocate memory for the library.",        
         .length  = 42
     },
     {
         // ASKF_ERROR_FAILED_CORE_DIC_ALLOC
-        .message = ( ascii* )"Failed to allocate memory for dictionary 'core'\n", 
+        .message = ( ascii* )"Failed to allocate memory for dictionary 'core'.", 
         .length  = 48
     },
     {
         // ASKF_ERROR_FAILED_DIC_ALLOC 
-        .message = ( ascii* )"Failed to allocate memory for new dictionary\n",     
+        .message = ( ascii* )"Failed to allocate memory for new dictionary.",     
         .length  = 45
     },
     {
         // ASKF_ERROR_UNKNOWN_WORD 
-        .message = ( ascii* )"Unknown word found: \n",
+        .message = ( ascii* )"Unknown word found: ",
         .length  = 20
     }
 };
@@ -36,7 +36,6 @@ void askf_start_error_tracer( AskForth_Ram* ram, AskForthErrorTrace* tracer, u64
 }
 
 void askf_throw_error( AskForthError error ) {
-
     switch ( error.zone ) {
         case ASKF_ERROR_ZONE_OUTER:
             askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_FAILED_CRITICAL );
@@ -59,5 +58,10 @@ void askf_print_error( AskForthError* error ) {
 
     askf_print( (ascii*)"[ERROR] ", 8 );
     askf_print( msg->message, msg->length );
+
+    if ( error->opt_message && error->opt_message->message )
+        askf_print( error->opt_message->message, ( u32 )error->opt_message->length );
+
+    askf_print( (ascii*)"\n", 1 );
 }
 

@@ -19,11 +19,13 @@ static void _askf_parse_input_buffer( AskForthVm* forth_vm ) {
     if (ib->index == 0)
         return;
 
+    askf_tokenizer_reset( tknzr );
+
     ascii*  base_token  = ib->base;
     u64     length      = 0;
     
     for ( u64 x = 0; x < ib->index; x++ ) {
-        if ( ib->base[x] == ' ' || ib->base[x] == '\n' ) {
+        if ( ib->base[x] == ' ' || ib->base[x] == '\n' || ib->base[x] == '\0' ) {
             if ( length > 0 ) {
                 AskForthToken new_token = {0};
                 new_token.base          = base_token;
@@ -54,10 +56,15 @@ void askf_exec( AskForthVm* vm ) {
 
             // TODO: try to parse as a number
 
+            AskForthErrorMessage* failed_token = ( AskForthErrorMessage* ) &vm->tokenizer->tokens[x];
+            failed_token->message[failed_token->length] = '\0';
+
             AskForthError err = 
             {   .zone = ASKF_ERROR_ZONE_OUTER, 
-                .error = ASKF_ERROR_UNKNOWN_WORD 
+                .error = ASKF_ERROR_UNKNOWN_WORD,
+                .opt_message = failed_token
             };
+
             askf_throw_error( err );
             return;
         }
@@ -73,7 +80,7 @@ void askf_exec( AskForthVm* vm ) {
         if ( vm->interpret_state == ASKF_INTERPRET ) 
             askf_print( ( ascii* )"ok.\n", 4 );
         else if ( vm->interpret_state == ASKF_COMPILE ) 
-            askf_print( ( ascii* )"compiling.\n", 4 );
+            askf_print( ( ascii* )"compiling.\n", 11 );
     }
 
 }

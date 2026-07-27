@@ -1,6 +1,8 @@
 #ifndef ASKF_ERRORS_H
 #define ASKF_ERRORS_H
 
+#include "../inttype.h"
+
 typedef enum {
     ASKF_ERROR_FAILED_LIB_ALLOC         = 0,
     ASKF_ERROR_FAILED_CORE_DIC_ALLOC    = 1,
@@ -8,6 +10,11 @@ typedef enum {
 
     ASKF_ERROR_UNKNOWN_WORD             = 3,
 } AskForthErrorType;
+
+typedef struct {
+    ascii* message;
+    u64    length;
+} AskForthErrorMessage;
 
 typedef enum {
     ASKF_ERROR_ZONE_OUTER,
@@ -17,6 +24,7 @@ typedef enum {
 typedef struct {
     AskForthErrorType error;
     AskForthErrorZone zone;
+    AskForthErrorMessage* opt_message;
 } AskForthError;
 
 #endif

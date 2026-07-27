@@ -7,6 +7,7 @@
 
 void askf_reset_input_buffer( AskForthVm* vm ) {
     vm->input_buffer->index = 0;
+    FILL( vm->input_buffer->base, 0, vm->input_buffer->capacity );
 };
 
 void askf_read_input_blocking( AskForthVm* vm  ) {
@@ -17,11 +18,10 @@ void askf_read_input_blocking( AskForthVm* vm  ) {
         if ( res == 0 )
             return;
 
-        vm->input_buffer->index = vm->input_buffer->index + res;
-        fflush(STDIN_FILENO);
+        vm->input_buffer->index += + res;
+        vm->input_buffer->base[vm->input_buffer->index] = '\0';
     #endif
 
-    askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_EXECUTE );
 }
 
 void askf_print( ascii* buff, u32 len ) {

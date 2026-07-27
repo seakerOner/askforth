@@ -52,6 +52,7 @@ AskForth_Dictionary* askf_create_dic( AskForthVm* vm, ascii name[ASKF_MAX_NAME_L
             {   .zone = ASKF_ERROR_ZONE_OUTER, 
                 .error = ASKF_ERROR_FAILED_DIC_ALLOC 
             };
+
         askf_throw_error( err );
 
         return NULL;

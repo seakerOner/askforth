@@ -1,5 +1,7 @@
 #include "./backend_blob.h"
 
+#include "../vm/forth_vm.h"
+
 #ifdef TARGET_LINUX
     #include "sys/mman.h"
 #endif
@@ -35,4 +37,13 @@ void* askf_blob_alloc( AskForth_Ram* ram_struct, u64 bytes ) {
     ram_struct->byte_index += bytes;
 
     return ptr;
+}
+
+
+void* askf_alloc( u64 bytes ) {
+    AskForthVm* vm = askf_get_global_vm();
+
+    void* blob = askf_blob_alloc( vm->ram, bytes );
+
+    return blob;
 }
