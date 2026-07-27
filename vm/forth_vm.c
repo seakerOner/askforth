@@ -50,7 +50,7 @@ void askf_exec( AskForthVm* vm ) {
     _askf_parse_input_buffer( vm );
 
     for (u64 x = 0; x < vm->tokenizer->index; x++) {
-        AskForth_Word* word =  askf_library_find( vm, &vm->tokenizer->tokens[x] );
+        AskForth_Word* word =  askf_library_find_word( vm, &vm->tokenizer->tokens[x] );
 
         if ( word == NULL ) {
 
@@ -64,6 +64,10 @@ void askf_exec( AskForthVm* vm ) {
                 .error = ASKF_ERROR_UNKNOWN_WORD,
                 .opt_message = failed_token
             };
+
+            // register where the failed token is on the input buffer
+            vm->tokenizer->ctx.token = &vm->tokenizer->tokens[x];
+            vm->tokenizer->ctx.idx   = x;
 
             askf_throw_error( err );
             return;

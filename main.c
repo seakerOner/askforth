@@ -87,7 +87,6 @@ int main( void ) {
                 break;
             case ASKF_VM_OUTER_STATE_FAILED_CRITICAL:
             case ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL:
-            case ASKF_VM_OUTER_STATE_SHUTDOWN_REQUEST:
                 // TODO: make user choose what to do
                 err = askf_vm_get_most_recent_error();
                 askf_print_error(err);
@@ -96,6 +95,7 @@ int main( void ) {
                 askf_reset_input_buffer( &vm );
                 askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_BLOCKING_INPUT );
                 break;
+            case ASKF_VM_OUTER_STATE_SHUTDOWN_REQUEST:
             default:
                 break;
         }

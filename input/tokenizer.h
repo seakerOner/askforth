@@ -9,10 +9,18 @@ typedef struct {
 } AskForthToken;
 
 typedef struct {
+    u64 idx;
+    AskForthToken* token;
+} AskForthTokenizerCtx;
+
+typedef struct {
     AskForthToken*  tokens;
     u64             index;
     u64             capacity;
+
+    AskForthTokenizerCtx ctx;
 } AskForthTokenizer;
+
 
 void askf_tokenizer_new( AskForthTokenizer* tokenizer, u64 max_tokens );
 

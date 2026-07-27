@@ -12,7 +12,11 @@ void askf_tokenizer_new( AskForthTokenizer* tokenizer, u64 max_tokens ) {
 
     tokenizer->capacity = max_tokens;
     tokenizer->index    = 0;
-    tokenizer->tokens = ( AskForthToken* )askf_blob_alloc( global_vm->ram, ( sizeof( AskForthToken ) * max_tokens ) );
+    tokenizer->tokens = ( AskForthToken* )askf_blob_alloc
+        ( global_vm->ram, ( sizeof( AskForthToken ) * max_tokens ) );
+
+    tokenizer->ctx.token = NULL;
+    tokenizer->ctx.idx   = 0;
 
     if ( tokenizer->tokens == NULL ) {
         // TODO: throw error
@@ -24,7 +28,9 @@ void askf_tokenizer_reset( AskForthTokenizer* tokenizer ) {
     if ( tokenizer == NULL ) {
         // TODO: throw error
     }
-    tokenizer->index = 0;
+    tokenizer->index     = 0;
+    tokenizer->ctx.idx   = 0;
+    tokenizer->ctx.token = NULL;
 }
 
 void askf_tokenizer_add( AskForthTokenizer* tokenizer, AskForthToken new_token ) {

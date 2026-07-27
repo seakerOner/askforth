@@ -2,7 +2,7 @@
 #include "../vm/forth_vm.h"
 #include "../input/input.h"
 
-AskForthErrorMessage error_messages[4] = {
+AskForthErrorMessage error_messages[6] = {
     {
         // ASKF_ERROR_FAILED_LIB_ALLOC  
         .message = ( ascii* )"Failed to allocate memory for the library.",        
@@ -22,6 +22,16 @@ AskForthErrorMessage error_messages[4] = {
         // ASKF_ERROR_UNKNOWN_WORD 
         .message = ( ascii* )"Unknown word found: ",
         .length  = 20
+    },
+    {
+        // ASKF_ERROR_WORD_NAME_OVERFLOW
+        .message = ( ascii* )"Name for new word is too large (>28): ",
+        .length  = 38
+    },
+    {
+        // ASKF_ERROR_UNKNOWN_DIC
+        .message = ( ascii* )"Unknown dictionary name: ",
+        .length  = 25
     }
 };
 
