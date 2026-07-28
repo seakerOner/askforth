@@ -25,16 +25,24 @@ typedef struct {
     u64     index;
 } AskForthInputBuffer;
 
+typedef enum {
+    ASKF_BINARY     = 2,
+    ASKF_DECIMAL    = 10,
+    ASF_HEXADECIMAL = 16
+} AskForthNumBase;
+
 typedef struct {
     AskForth_Stack*                         stack;
     AskForth_Ram*                           ram;
     AskForthInputBuffer*                    input_buffer;
+
     void*                                   lib;
     volatile AskForthVmOuterState           outer_state;
     volatile AskForthVmInterpreterState     interpret_state;
     AskForthErrorTrace*                     error_tracer;
 
     AskForthTokenizer*                      tokenizer;
+    AskForthNumBase                         num_base;
 } AskForthVm;
 
 void askf_vm_to_global_state( AskForthVm* vm );

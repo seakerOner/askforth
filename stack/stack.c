@@ -69,7 +69,7 @@ void askf_stack_push( AskForth_Cell* cell, AskForth_Stack* stack ) {
 }
 
 u32 askf_stack_pop( AskForth_Cell* out_cell , AskForth_Stack* stack ) {
-    if ( stack->index >= stack->current_max_depth ) {
+    if ( stack->index < 1 ) {
         return 0;
     }
     if ( out_cell == NULL ) {
@@ -109,7 +109,6 @@ u32 askf_stack_pop( AskForth_Cell* out_cell , AskForth_Stack* stack ) {
         default:
             break;
     }
-
 
     return 1;
 }

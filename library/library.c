@@ -34,7 +34,8 @@ AskForth_Library* askf_create_library( AskForthVm* vm ) {
 
     lib->recent_dic = lib->dictionaries_base;
 
-    ascii core_dic_name[ASKF_MAX_NAME_LEN] = "Core";
+    ascii core_dic_name[ASKF_MAX_NAME_LEN] = "core";
+    lib->dictionaries_base->name_len = 4;
 
     COPY( core_dic_name, lib->dictionaries_base->name, ASKF_MAX_NAME_LEN );
 
@@ -83,7 +84,7 @@ AskForth_Dictionary* askf_library_find_dic( AskForthVm* vm, AskForthToken* token
     AskForth_Dictionary* base_dic = lib->dictionaries_base;
 
     while ( base_dic != NULL ) {
-        if ( token->length != base_dic->name_len )
+        if ( token->length > base_dic->name_len )
             goto skip_dic;
 
         for (u64 x = 0; x < base_dic->name_len; x++)
@@ -128,7 +129,7 @@ AskForth_Word* askf_library_find_word( AskForthVm* vm, AskForthToken* token ) {
     return NULL;
 }
 
-void askf_dic_add_word_native( 
+boolean askf_dic_add_word_native( 
         AskForthToken dic_name, 
         void(*native_subroutine)(void), 
         AskForthToken word_name ) {
@@ -137,18 +138,19 @@ void askf_dic_add_word_native(
     
     // TODO: throw error
     if ( !vm )
-        return;
+        return FALSE;
+
 
     // TODO: throw error
     if ( word_name.length > ASKF_MAX_NAME_LEN ) {
-        return;
+        return FALSE;
     }
 
     AskForth_Dictionary* dic =  askf_library_find_dic( vm, &dic_name );
 
     // TODO: throw error
     if ( !dic )
-        return;
+        return FALSE;
 
     AskForth_Word* new_word = askf_alloc( sizeof( AskForth_Word ) );
 
@@ -161,4 +163,6 @@ void askf_dic_add_word_native(
 
     new_word->name_len                  = word_name.length;
     COPY(word_name.base, new_word->name, word_name.length);
+
+    return TRUE;
 }

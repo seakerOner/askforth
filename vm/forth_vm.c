@@ -74,12 +74,23 @@ void askf_exec( AskForthVm* vm ) {
 
                 askf_throw_error( err );
                 return;
+            } else {
+                askf_stack_push( &new_cell, vm->stack );
+                continue;
             }
         }
 
         // TODO: exec word
         switch ( vm->interpret_state ) {
             case ASKF_INTERPRET:
+                switch ( word->source.type ) {
+                    case ASKF_WORD_NATIVE:
+                        word->source.source.native_code();
+                        break;
+                    case ASKF_WORD_THREADED:
+                        // TODO:
+                        break;
+                }
                break;
             case ASKF_COMPILE:
                break; 

@@ -57,7 +57,7 @@ AskForth_Dictionary* askf_library_find_dic( AskForthVm* vm, AskForthToken* token
 
 AskForth_Word* askf_library_find_word( AskForthVm* vm, AskForthToken* token );
 
-void askf_dic_add_word_native( 
+boolean askf_dic_add_word_native( 
         AskForthToken dic_name, 
         void(*native_subroutine)(void), 
         AskForthToken word_name );

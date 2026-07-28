@@ -18,7 +18,7 @@ void askf_read_input_blocking( AskForthVm* vm  ) {
         if ( res == 0 )
             return;
 
-        vm->input_buffer->index += + res;
+        vm->input_buffer->index += res;
         vm->input_buffer->base[vm->input_buffer->index] = '\0';
     #endif
 
@@ -28,5 +28,15 @@ void askf_print( ascii* buff, u32 len ) {
     #ifdef TARGET_LINUX
         fprintf(stdout, "%*s", len, buff);
         fflush(stdout);
+    #endif
+}
+
+void askf_print_cell( AskForth_Cell* cell ) {
+    #ifdef TARGET_LINUX
+        if (cell->is_signed) {
+            fprintf( stdout, "%ld", cell->val._64s );
+        }else {
+            fprintf( stdout, "%ld", cell->val._64u );
+        }
     #endif
 }

@@ -41,6 +41,7 @@ void askf_tokenizer_add( AskForthTokenizer* tokenizer, AskForthToken new_token )
     tokenizer->index++;
 }
 
+// TODO: add number transformation by number base ( binary, decimal, hexadecimal )
 boolean askf_parse_token_to_num( AskForthToken* token, AskForth_Cell* out_cell ) {
     u64 result              = 0;
     boolean make_negative   = FALSE;

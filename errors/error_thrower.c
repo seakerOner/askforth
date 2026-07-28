@@ -20,8 +20,8 @@ AskForthErrorMessage error_messages[6] = {
     },
     {
         // ASKF_ERROR_UNKNOWN_WORD 
-        .message = ( ascii* )"Unknown word found: ",
-        .length  = 20
+        .message = ( ascii* )"Unknown word: ",
+        .length  = 14
     },
     {
         // ASKF_ERROR_WORD_NAME_OVERFLOW

@@ -57,6 +57,7 @@ int main( void ) {
     vm.input_buffer     = &input_buffer;
     vm.outer_state      = ASKF_VM_OUTER_STATE_BLOCKING_INPUT;
     vm.interpret_state  = ASKF_INTERPRET;
+    vm.num_base         = ASKF_DECIMAL;
     vm.error_tracer     = &tracer;
     vm.tokenizer        = &tokenizer;
 
