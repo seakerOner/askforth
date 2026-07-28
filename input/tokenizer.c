@@ -41,3 +41,33 @@ void askf_tokenizer_add( AskForthTokenizer* tokenizer, AskForthToken new_token )
     tokenizer->index++;
 }
 
+boolean askf_parse_token_to_num( AskForthToken* token, AskForth_Cell* out_cell ) {
+    u64 result              = 0;
+    boolean make_negative   = FALSE;
+
+    if ( token->base[0] == '-' ) {
+        make_negative = TRUE;
+    }
+    if ( make_negative && token->length == 1 ) {
+        // TODO: throw error
+        return FALSE;
+    }
+
+    for ( u64 x = make_negative; x < token->length; x++ ) {
+        ascii character = token->base[x];
+
+        if ( character < '0' || character > '9' ) {
+            // TODO: throw error
+            return FALSE;
+        }
+
+        result = result * 10 + ( character - '0' );
+    }
+
+    if ( make_negative )
+        result = (u64)(-(i64)result);
+
+    out_cell->val._64u = result;
+
+    return TRUE;
+}

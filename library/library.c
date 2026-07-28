@@ -144,7 +144,7 @@ void askf_dic_add_word_native(
         return;
     }
 
-    AskForth_Dictionary* dic =  askf_library_find_dic( vm, &word_name );
+    AskForth_Dictionary* dic =  askf_library_find_dic( vm, &dic_name );
 
     // TODO: throw error
     if ( !dic )
