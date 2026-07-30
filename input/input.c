@@ -36,7 +36,7 @@ void askf_print_cell( AskForth_Cell* cell ) {
         if (cell->is_signed) {
             fprintf( stdout, "%ld", cell->val._64s );
         }else {
-            fprintf( stdout, "%ld", cell->val._64u );
+            fprintf( stdout, "%lu", cell->val._64u );
         }
     #endif
 }

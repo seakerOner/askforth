@@ -53,7 +53,6 @@ void askf_exec( AskForthVm* vm ) {
         AskForth_Word* word =  askf_library_find_word( vm, &vm->tokenizer->tokens[x] );
 
         if ( word == NULL ) {
-            // TODO: try to parse as a number
             AskForth_Cell new_cell =  askf_new_cell_payload( vm->stack, vm->stack->is_signed );
 
             boolean is_number = askf_parse_token_to_num( &vm->tokenizer->tokens[x] , &new_cell );
@@ -80,6 +79,9 @@ void askf_exec( AskForthVm* vm ) {
             }
         }
 
+        vm->tokenizer->ctx.idx = x;
+        vm->tokenizer->ctx.token = &vm->tokenizer->tokens[x];
+
         // TODO: exec word
         switch ( vm->interpret_state ) {
             case ASKF_INTERPRET:
@@ -95,6 +97,9 @@ void askf_exec( AskForthVm* vm ) {
             case ASKF_COMPILE:
                break; 
         }
+
+        //if ( vm->tokenizer->ctx.idx > x )
+            x = vm->tokenizer->ctx.idx;
     }
     
     askf_tokenizer_reset(vm->tokenizer);

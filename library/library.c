@@ -131,6 +131,7 @@ AskForth_Word* askf_library_find_word( AskForthVm* vm, AskForthToken* token ) {
 
 boolean askf_dic_add_word_native( 
         AskForthToken dic_name, 
+        boolean is_immediate,
         void(*native_subroutine)(void), 
         AskForthToken word_name ) {
 
@@ -154,15 +155,24 @@ boolean askf_dic_add_word_native(
 
     AskForth_Word* new_word = askf_alloc( sizeof( AskForth_Word ) );
 
+    if ( !dic->words_base ) {
+        dic->words_base = new_word;
+    }
+    if ( dic->recent_word ) 
+        dic->recent_word->next              = new_word;
+
     new_word->prev                      = dic->recent_word;
-    new_word->next                      = NULL;
     dic->recent_word                    = new_word;
+
+    new_word->next                      = NULL;
+    new_word->is_immediate              = is_immediate;
 
     new_word->source.type               = ASKF_WORD_NATIVE;
     new_word->source.source.native_code = native_subroutine;
 
     new_word->name_len                  = word_name.length;
     COPY(word_name.base, new_word->name, word_name.length);
+
 
     return TRUE;
 }

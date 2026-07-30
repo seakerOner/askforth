@@ -30,6 +30,7 @@ typedef struct AskForth_Word_t {
     u64   name_len;
 
     AskForth_WordSource source;
+    boolean is_immediate;
     AskForth_Word* prev;
     AskForth_Word* next;
 } AskForth_Word;
@@ -59,5 +60,6 @@ AskForth_Word* askf_library_find_word( AskForthVm* vm, AskForthToken* token );
 
 boolean askf_dic_add_word_native( 
         AskForthToken dic_name, 
+        boolean is_immediate,
         void(*native_subroutine)(void), 
         AskForthToken word_name );
