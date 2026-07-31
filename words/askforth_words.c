@@ -188,7 +188,7 @@ static void askf_word_lib( void ) {
 
 static void askf_word_parse_word( void ) {
     AskForthVm* vm = askf_get_global_vm();
-    if ( vm->tokenizer->ctx.idx + 1 > vm->tokenizer->capacity ) {
+    if ( vm->tokenizer->ctx.idx + 1 >= vm->tokenizer->index ) {
         _askf_word_failed( (ascii*)"PARSE-WORD -> No token found", 28 );
         return;
     }
@@ -490,6 +490,59 @@ static void askf_word_allot( void ) {
     vm->ram->byte_index += ( val.val._64u * sizeof( val.val._64u ));
 }
 
+static void askf_word_print_string( void ) {
+    AskForthVm* vm = askf_get_global_vm();
+
+    u64 ctx_idx = vm->tokenizer->ctx.idx;
+
+    ctx_idx++;
+    ascii*  string_base     = vm->tokenizer->tokens[ctx_idx].base;
+    u64     len             = 0;
+    boolean got_terminator  = FALSE;
+
+    while ( ctx_idx < vm->tokenizer->index ) {
+        AskForthToken* tkn = &vm->tokenizer->tokens[ctx_idx];
+        if ( tkn->base[tkn->length - 1] == '"' ) {
+            got_terminator = TRUE;
+            len = (u64)( tkn->base + tkn->length ) - (u64)string_base;
+            tkn->base[tkn->length - 1] = '\0';
+            len -= 1;
+            break;
+        } 
+
+        ctx_idx++;
+    }
+
+    vm->tokenizer->ctx.idx = ctx_idx;
+
+    if ( !got_terminator ) {
+        _askf_word_failed( (ascii*)".\" -> Terminator not found on input buffer", 42 );
+        return;
+    }
+
+    askf_print( string_base, len );
+    askf_print( (ascii*)" ", 1 );
+}
+
+
+static void askf_word_cr( void ) { 
+    askf_print( (ascii*)"\n", 1 );
+}
+
+static void askf_word_emit( void ) { 
+    AskForthVm* vm = askf_get_global_vm();
+
+    AskForth_Cell ascii_char = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    u32 res = askf_stack_pop( &ascii_char, vm->stack );
+
+    if ( !res ) {
+        _askf_word_failed( (ascii*)"EMIT -> Expects ( ascii_char - )", 32 );
+        return;
+    }
+
+    askf_print( &ascii_char.val._8u, 1 );
+}
+
 void _askf_print_failed_add_word( AskForthToken* tkn ) {
     askf_print( (ascii*)"Failed adding '", 15 );
     askf_print( tkn->base, tkn->length );
@@ -501,8 +554,6 @@ void askf_add_core_words( void ) {
     core_dic_name.base          = (ascii*)"core";
     core_dic_name.length        = 4;
 
-    // TODO: throw errors for words
-    
     // DOT 
     AskForthToken scratch_word_name = {0};
     scratch_word_name.base          = (ascii*)".";
@@ -756,4 +807,33 @@ void askf_add_core_words( void ) {
     if ( !added_allot )
         _askf_print_failed_add_word( &scratch_word_name );
 
+    // ."
+    scratch_word_name.base            = (ascii*)".\"";
+    scratch_word_name.length          = 2;
+
+    boolean added_print_string = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_print_string , scratch_word_name );
+
+    if ( !added_print_string )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // cr
+    scratch_word_name.base            = (ascii*)"cr";
+    scratch_word_name.length          = 2;
+
+    boolean added_cr = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_cr, scratch_word_name );
+
+    if ( !added_cr )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // EMIT
+    scratch_word_name.base            = (ascii*)"EMIT";
+    scratch_word_name.length          = 4;
+
+    boolean added_emit = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_emit, scratch_word_name );
+
+    if ( !added_emit )
+        _askf_print_failed_add_word( &scratch_word_name );
 }
