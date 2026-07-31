@@ -11,6 +11,7 @@ void askf_reset_input_buffer( AskForthVm* vm ) {
 };
 
 void askf_read_input_blocking( AskForthVm* vm  ) {
+    // TODO: use proper way to read input ( move back characters, delete and what not )
     #ifdef TARGET_LINUX
         int res = read( STDIN_FILENO, 
                         ( vm->input_buffer->base + vm->input_buffer->index     ) , 
