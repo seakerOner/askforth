@@ -35,7 +35,7 @@ AskForthErrorMessage error_messages[7] = {
     },
     {
         // ASKF_ERROR_WORD_FAILED 
-        .message = ( ascii* )"Word execution failed: ",
+        .message = ( ascii* )"Word execution failed:\n",
         .length  = 23
     }
 };
@@ -78,5 +78,15 @@ void askf_print_error( AskForthError* error ) {
         askf_print( error->opt_message->message, ( u32 )error->opt_message->length );
 
     askf_print( (ascii*)"\n", 1 );
+}
+
+AskForthErrorMessage* askf_alloc_new_opt_message( ascii* message, u64 len ) {
+    AskForthErrorMessage* msg = askf_alloc( sizeof( AskForthErrorMessage ) );
+    msg->length = len;
+    ascii* blob               = askf_alloc( sizeof( ascii ) * msg->length );
+    COPY( message, blob, msg->length );
+    msg->message = blob;
+
+    return msg;
 }
 
