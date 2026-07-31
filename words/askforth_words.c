@@ -397,6 +397,99 @@ static void askf_word_type( void ){
     askf_print( ( ascii* )" ", 1 );
 }
 
+static void askf_word_store( void ){
+    AskForthVm* vm       = askf_get_global_vm();
+
+    if ( vm->stack->index < 2 ) {
+        _askf_word_failed( (ascii*)"! -> Expects ( val addr - )", 27);
+    }
+    AskForth_Cell val   = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    AskForth_Cell addr  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+
+    askf_stack_pop( &addr, vm->stack );
+    askf_stack_pop( &val, vm->stack );
+
+    u64* ptr = ( u64* )addr.val._64u;
+    *ptr = val.val._64u;
+}
+
+static void askf_word_byte_store( void ){
+    AskForthVm* vm       = askf_get_global_vm();
+
+    if ( vm->stack->index < 2 ) {
+        _askf_word_failed( (ascii*)"! -> Expects ( val addr - )", 27);
+    }
+    AskForth_Cell val   = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    AskForth_Cell addr  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+
+    askf_stack_pop( &addr, vm->stack );
+    askf_stack_pop( &val, vm->stack );
+
+    u8* ptr = ( u8* )addr.val._64u;
+    *ptr = val.val._8u;
+}
+
+static void askf_word_load_ptr( void ){
+    AskForthVm* vm       = askf_get_global_vm();
+
+    if ( vm->stack->index < 1 ) {
+        _askf_word_failed( (ascii*)"@ -> Expects ( addr - )", 27);
+    }
+    AskForth_Cell addr  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+
+    askf_stack_pop( &addr, vm->stack );
+
+    u64* ptr = ( u64* )addr.val._64u;
+
+    addr.val._64u = *ptr;
+
+    askf_stack_push( &addr, vm->stack );
+}
+
+static void askf_word_load_byte_ptr( void ){
+    AskForthVm* vm       = askf_get_global_vm();
+
+    if ( vm->stack->index < 1 ) {
+        _askf_word_failed( (ascii*)"c@ -> Expects ( addr - )", 27);
+    }
+    AskForth_Cell addr  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+
+    askf_stack_pop( &addr, vm->stack );
+
+    u8* ptr = ( u8* )addr.val._64u;
+
+    addr.val._8u = *ptr;
+
+    askf_stack_push( &addr, vm->stack );
+}
+
+static void askf_word_here( void ) {
+    AskForthVm* vm       = askf_get_global_vm();
+
+    AskForth_Cell addr  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+
+    *addr.cell_scale = ASKF_BITS64;
+
+    addr.val._64u = ( u64 )( (( u8* )vm->ram->start_ptr ) + vm->ram->byte_index );
+
+    askf_stack_push( &addr, vm->stack );
+}
+
+static void askf_word_allot( void ) {
+    AskForthVm* vm       = askf_get_global_vm();
+
+    AskForth_Cell val  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+
+    u32 res = askf_stack_pop( &val, vm->stack );
+
+    if ( !res ) {
+        _askf_word_failed( (ascii*)"ALLOT -> Expects ( val - )", 26 );
+        return;
+    }
+
+    vm->ram->byte_index += ( val.val._64u * sizeof( val.val._64u ));
+}
+
 void _askf_print_failed_add_word( AskForthToken* tkn ) {
     askf_print( (ascii*)"Failed adding '", 15 );
     askf_print( tkn->base, tkn->length );
@@ -599,6 +692,68 @@ void askf_add_core_words( void ) {
         askf_dic_add_word_native( core_dic_name, FALSE, askf_word_type , scratch_word_name );
 
     if ( !added_type )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // !
+    scratch_word_name.base            = (ascii*)"!";
+    scratch_word_name.length          = 1;
+
+    boolean added_store = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_store , scratch_word_name );
+
+    if ( !added_store )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // c!
+    scratch_word_name.base            = (ascii*)"c!";
+    scratch_word_name.length          = 2;
+
+    boolean added_byte_store = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_byte_store , scratch_word_name );
+
+    if ( !added_byte_store )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+
+    // @
+    scratch_word_name.base            = (ascii*)"@";
+    scratch_word_name.length          = 1;
+
+    boolean added_load_ptr = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_load_ptr , scratch_word_name );
+
+    if ( !added_load_ptr )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // c@
+    scratch_word_name.base            = (ascii*)"c@";
+    scratch_word_name.length          = 2;
+
+    boolean added_load_byte_ptr = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_load_byte_ptr , scratch_word_name );
+
+    if ( !added_load_byte_ptr )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+
+    // HERE
+    scratch_word_name.base            = (ascii*)"HERE";
+    scratch_word_name.length          = 4;
+
+    boolean added_here = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_here , scratch_word_name );
+
+    if ( !added_here )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // ALLOT
+    scratch_word_name.base            = (ascii*)"ALLOT";
+    scratch_word_name.length          = 5;
+
+    boolean added_allot = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_allot , scratch_word_name );
+
+    if ( !added_allot )
         _askf_print_failed_add_word( &scratch_word_name );
 
 }
