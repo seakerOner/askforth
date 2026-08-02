@@ -75,7 +75,7 @@ int askf_blocks_update( void ) {
     AskForthVm* vm = askf_get_global_vm();
 
     #ifdef TARGET_LINUX
-        return msync( vm->blocks->start_blocks, vm->blocks->capacity * vm->blocks->block_size, MS_SYNC );
+        return msync( vm->blocks->start_blocks, vm->blocks->capacity * vm->blocks->block_size, MS_SYNC | MS_INVALIDATE);
     #endif
 }
 

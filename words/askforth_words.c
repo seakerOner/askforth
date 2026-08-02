@@ -1279,6 +1279,72 @@ static void askf_word_list( void ) {
 
 }
 
+static void askf_word_block( void ) { 
+    AskForthVm* vm       = askf_get_global_vm();
+
+    if ( vm->stack->index < 1 ) {
+        _askf_word_failed( (ascii*)"BLOCK -> Expects ( n - )", 24);
+        return;
+    }
+    AskForth_Cell cell = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    askf_stack_pop( &cell, vm->stack );
+
+    if ( cell.val._64u > vm->blocks->capacity ) {
+        _askf_word_failed( (ascii*)"BLOCK -> OOB BLOCK", 18 );
+        return;
+    }
+    ascii* block_start = vm->blocks->start_blocks + ( vm->blocks->block_size * cell.val._64u );
+
+    cell.val._64u = ( u64 )block_start;
+
+    askf_stack_push( &cell, vm->stack );
+}
+
+static void askf_word_block_size( void ) { 
+    AskForthVm* vm       = askf_get_global_vm();
+
+    AskForth_Cell cell   = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    cell.val._64u        = vm->blocks->block_size;
+
+    askf_stack_push( &cell, vm->stack );
+}
+
+static void askf_word_line( void ) { 
+    AskForthVm* vm       = askf_get_global_vm();
+
+    if ( vm->stack->index < 1 ) {
+        _askf_word_failed( (ascii*)"LINE -> Expects ( block_addr n - )", 32 );
+        return;
+    }
+
+    AskForth_Cell line       = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    AskForth_Cell blk_addr   = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+
+    askf_stack_pop( &line, vm->stack );
+    askf_stack_pop( &blk_addr, vm->stack );
+
+    if ( line.val._64u > 24 ) {
+        _askf_word_failed( (ascii*)"LINE -> line > 24", 17);
+        return;
+    }
+
+    u64 max_line_len     = vm->blocks->block_size / 24;
+
+    blk_addr.val._64u = blk_addr.val._64u + ( max_line_len * line.val._64u );
+
+    askf_stack_push( &blk_addr, vm->stack );
+}
+
+static void askf_word_max_lines( void ) { 
+    AskForthVm* vm       = askf_get_global_vm();
+
+    AskForth_Cell cell   = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    cell.val._64u        = 24;
+
+    askf_stack_push( &cell, vm->stack );
+
+}
+
 void _askf_print_failed_add_word( AskForthToken* tkn ) {
     askf_print( (ascii*)"Failed adding '", 15 );
     askf_print( tkn->base, tkn->length );
@@ -1952,6 +2018,46 @@ void askf_add_core_words( void ) {
         askf_dic_add_word_native( core_dic_name, FALSE, askf_word_list, scratch_word_name );
 
     if ( !added_list )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // BLOCK
+    scratch_word_name.base            = (ascii*)"BLOCK";
+    scratch_word_name.length          = 5;
+
+    boolean added_block = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_block, scratch_word_name );
+
+    if ( !added_block )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // BLOCK-SIZE
+    scratch_word_name.base            = (ascii*)"BLOCK-SIZE";
+    scratch_word_name.length          = 10;
+
+    boolean added_block_size = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_block_size, scratch_word_name );
+
+    if ( !added_block_size )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // LINE
+    scratch_word_name.base            = (ascii*)"LINE";
+    scratch_word_name.length          = 4;
+
+    boolean added_line = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_line, scratch_word_name );
+
+    if ( !added_line )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // MAX-LINES
+    scratch_word_name.base            = (ascii*)"MAX-LINES";
+    scratch_word_name.length          = 9;
+
+    boolean added_max_lines = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_max_lines, scratch_word_name );
+
+    if ( !added_max_lines )
         _askf_print_failed_add_word( &scratch_word_name );
 
 }
