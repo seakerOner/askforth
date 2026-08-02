@@ -71,14 +71,11 @@ void askf_blocks_start( u64 num_blocks, u64 block_bytes ) {
 
 }
 
-void askf_blocks_update( void ) {
+int askf_blocks_update( void ) {
     AskForthVm* vm = askf_get_global_vm();
 
     #ifdef TARGET_LINUX
-    if ( msync( vm->blocks->start_blocks, vm->blocks->capacity * vm->blocks->block_size, MS_SYNC ) 
-            != 0 ) {
-        // TODO: throw error
-    }
+        return msync( vm->blocks->start_blocks, vm->blocks->capacity * vm->blocks->block_size, MS_SYNC );
     #endif
 }
 

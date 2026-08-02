@@ -1237,6 +1237,10 @@ static void askf_word_move( void ) {
 
 static void askf_word_flush( void ) { 
     askf_blocks_update();
+
+    if ( askf_blocks_update() != 0 ) {
+        _askf_word_failed( (ascii*)"FLUSH -> Failed to update BLOCKS", 32 );
+    };
 }
 
 static void askf_word_list( void ) { 
@@ -1265,7 +1269,7 @@ static void askf_word_list( void ) {
         else if ( x < 100 )
             askf_print( (ascii*)"  | ", 4);
         else 
-            askf_print( (ascii*)" | ", 4);
+            askf_print( (ascii*)" | ", 3);
 
         for ( u64 c = 0; c < max_line_chars; c++ )  
             askf_print_char( start_block[(x*max_line_chars) + c] );

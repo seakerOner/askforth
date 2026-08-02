@@ -12,7 +12,7 @@ typedef struct {
 
 void askf_blocks_start( u64 num_blocks, u64 block_bytes );
 
-void askf_blocks_update( void );
+int askf_blocks_update( void );
 
 void askf_blocks_close( void );
 
