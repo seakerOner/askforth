@@ -1,6 +1,19 @@
 
+#ifdef TARGET_LINUX
+    #define _GNU_SOURCE
+
+    #define RAW_RAM_START_ADDRESS 0x0
+    #define ASKFORTH_BLOCKS_MAX             128
+    #define ASKFORTH_BLOCKS_SIZE            1024 * 8
+#else
+    #define RAW_RAM_START_ADDRESS POISON
+    #define ASKFORTH_BLOCKS_MAX             64
+    #define ASKFORTH_BLOCKS_SIZE            1024
+#endif
+
 #include "inttype.h"
 #include "./memory/backend_blob.h"
+#include "./memory/blocks.h"
 #include "./stack/stack.h"
 #include "./library/library.h"
 #include "./input/input.h"
@@ -15,11 +28,7 @@
 
 #define ASKFORTH_ERROR_TRACER_CAPACITY  64
 
-#ifdef TARGET_LINUX
-    #define RAW_RAM_START_ADDRESS 0x0
-#else
-    #define RAW_RAM_START_ADDRESS POISON
-#endif
+
 
 int main( void ) {
     AskForthVm          vm                          = {0};
@@ -29,6 +38,7 @@ int main( void ) {
     AskForth_CellSize   initial_cell_base_scale     = ASKF_BITS64;
     AskForthErrorTrace  tracer                      = {0};
     AskForthTokenizer   tokenizer                   = {0};
+    AskForthBlocks      blocks                      = {0};
 
     ascii scratch[ASKFORTH_INPUT_BUFFER_MAX_CHARS]  = {0};
     input_buffer.base                               = scratch;
@@ -52,9 +62,11 @@ int main( void ) {
 
     askf_start_error_tracer( &ram, &tracer, ASKFORTH_ERROR_TRACER_CAPACITY );
 
+
     vm.ram              = &ram;
     vm.stack            = &stack;
     vm.input_buffer     = &input_buffer;
+    vm.blocks           = &blocks;
     vm.outer_state      = ASKF_VM_OUTER_STATE_BLOCKING_INPUT;
     vm.interpret_state  = ASKF_INTERPRET;
     vm.num_base         = ASKF_DECIMAL;
@@ -64,6 +76,9 @@ int main( void ) {
     vm.lib              = ( void* )askf_create_library( &vm );
 
     askf_vm_to_global_state( &vm );
+
+    askf_blocks_start( ASKFORTH_BLOCKS_MAX , ASKFORTH_BLOCKS_SIZE );
+
     askf_tokenizer_new( &tokenizer, ( ASKFORTH_INPUT_BUFFER_MAX_CHARS / 2 ));
 
     askf_add_core_words();
@@ -105,6 +120,7 @@ int main( void ) {
     };
 
     // TODO: shutdown protocol and memory conservation
+    askf_blocks_close();
 
     return 0;
 }

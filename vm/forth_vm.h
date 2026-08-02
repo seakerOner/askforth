@@ -6,6 +6,8 @@
 #include "../errors/error_thrower.h"
 #include "../input/tokenizer.h"
 
+#include "../memory/blocks.h"
+
 typedef enum {
     ASKF_VM_OUTER_STATE_BLOCKING_INPUT,
     ASKF_VM_OUTER_STATE_EXECUTE,
@@ -35,6 +37,7 @@ typedef struct {
     AskForth_Stack*                         stack;
     AskForth_Ram*                           ram;
     AskForthInputBuffer*                    input_buffer;
+    AskForthBlocks*                         blocks;
 
     void*                                   lib;
     volatile AskForthVmOuterState           outer_state;

@@ -5,7 +5,7 @@ TARGET = -DTARGET_LINUX
 
 EXECUTABLE_NAME = askforth
 
-FLAGS = -std=c11 -Wall -Wextra -x c
+FLAGS = -Wall -Wextra -x c
 
 FLAGS += $(TARGET)
 
