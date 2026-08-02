@@ -4,14 +4,14 @@
 
 #ifdef TARGET_LINUX
     #include <unistd.h>
+    #define ASKF_MAX_CWD_CHARS 1024
+    #include <unistd.h>
+    #include <sys/mman.h>
+    #include <stdio.h>
+    FILE* global_blocks_file  = NULL;
 
 #endif
 
-#define ASKF_MAX_CWD_CHARS 1024
-#include <unistd.h>
-#include <sys/mman.h>
-#include <stdio.h>
-FILE* global_blocks_file  = NULL;
 
 void askf_blocks_start( u64 num_blocks, u64 block_bytes ) {
     AskForthVm* vm =  askf_get_global_vm();
@@ -27,7 +27,6 @@ void askf_blocks_start( u64 num_blocks, u64 block_bytes ) {
     void* tmp_scratch = ((u8*)vm->ram->start_ptr +  vm->ram->byte_index );
 
     #ifdef TARGET_LINUX
-    #endif
 
     if ( getcwd(  (char*)tmp_scratch, ASKF_MAX_CWD_CHARS ) == NULL ) {
         // TODO: throw error
@@ -66,23 +65,29 @@ void askf_blocks_start( u64 num_blocks, u64 block_bytes ) {
     }
 
     vm->blocks->start_blocks = blocks_base;
+    FILL( ((ascii*)blocks_base), 0, blocks_len );
+    askf_blocks_update();
+    #endif
+
 }
 
 void askf_blocks_update( void ) {
     AskForthVm* vm = askf_get_global_vm();
 
+    #ifdef TARGET_LINUX
     if ( msync( vm->blocks->start_blocks, vm->blocks->capacity * vm->blocks->block_size, MS_SYNC ) 
             != 0 ) {
         // TODO: throw error
     }
+    #endif
 }
 
 void askf_blocks_close( void ) {
     AskForthVm* vm = askf_get_global_vm();
     #ifdef TARGET_LINUX
-    #endif
         if ( global_blocks_file ) {
             munmap( vm->blocks->start_blocks, vm->blocks->block_size * vm->blocks->capacity );
             fclose( global_blocks_file );
         }
+    #endif
 };

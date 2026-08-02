@@ -32,6 +32,13 @@ void askf_print( ascii* buff, u32 len ) {
     #endif
 }
 
+void askf_print_char( ascii _char ) {
+    #ifdef TARGET_LINUX
+        fprintf(stdout, "%*s", 1, &_char);
+        fflush(stdout);
+    #endif
+}
+
 void askf_print_cell( AskForth_Cell* cell ) {
     #ifdef TARGET_LINUX
         if (cell->is_signed) {

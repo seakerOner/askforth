@@ -3,6 +3,7 @@
 
 #include "../input/input.h"
 #include "../stack/stack.h"
+#include "../memory/blocks.h"
 
 static void _askf_word_failed( ascii* msg, u64 len ) {
     AskForthError err = {0};
@@ -1225,13 +1226,53 @@ static void askf_word_move( void ) {
 
     AskForth_Cell bytes     = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
     AskForth_Cell new_addr  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    AskForth_Cell old_addr      = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    AskForth_Cell old_addr  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
 
     askf_stack_pop( &bytes, vm->stack );
     askf_stack_pop( &new_addr, vm->stack );
     askf_stack_pop( &old_addr, vm->stack );
 
     COPY( ((u8*)old_addr.val._64u) , ((u8*)new_addr.val._64u), bytes.val._64u );
+}
+
+static void askf_word_flush( void ) { 
+    askf_blocks_update();
+}
+
+static void askf_word_list( void ) { 
+    AskForthVm* vm       = askf_get_global_vm();
+
+    if ( vm->stack->index < 1 ) {
+        _askf_word_failed( (ascii*)"LIST -> Expects ( n - )", 23);
+        return;
+    }
+    AskForth_Cell block_id = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    askf_stack_pop( &block_id, vm->stack );
+
+    ascii* start_block = (ascii*)
+        ( vm->blocks->start_blocks + ( vm->blocks->block_size * block_id.val._64u ));
+
+    u64 max_lines      = 24;
+    u64 max_line_chars = vm->blocks->block_size / max_lines;
+    AskForth_Cell cell = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    cell.is_signed     = FALSE;
+
+    for ( u64 x = 0; x < max_lines; x++) {
+        cell.val._64u = x;
+        askf_print_cell( &cell );
+        if ( x < 10 )
+            askf_print( (ascii*)"   | ", 5);
+        else if ( x < 100 )
+            askf_print( (ascii*)"  | ", 4);
+        else 
+            askf_print( (ascii*)" | ", 4);
+
+        for ( u64 c = 0; c < max_line_chars; c++ )  
+            askf_print_char( start_block[(x*max_line_chars) + c] );
+
+        askf_print( (ascii*)"\n", 0);
+    }
+
 }
 
 void _askf_print_failed_add_word( AskForthToken* tkn ) {
@@ -1887,6 +1928,26 @@ void askf_add_core_words( void ) {
         askf_dic_add_word_native( core_dic_name, FALSE, askf_word_comment_slash, scratch_word_name );
 
     if ( !added_comment_slash )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // FLUSH
+    scratch_word_name.base            = (ascii*)"FLUSH";
+    scratch_word_name.length          = 5;
+
+    boolean added_flush = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_flush, scratch_word_name );
+
+    if ( !added_flush )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // LIST
+    scratch_word_name.base            = (ascii*)"LIST";
+    scratch_word_name.length          = 4;
+
+    boolean added_list = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_list, scratch_word_name );
+
+    if ( !added_list )
         _askf_print_failed_add_word( &scratch_word_name );
 
 }

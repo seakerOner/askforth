@@ -3,8 +3,8 @@
     #define _GNU_SOURCE
 
     #define RAW_RAM_START_ADDRESS 0x0
-    #define ASKFORTH_BLOCKS_MAX             128
-    #define ASKFORTH_BLOCKS_SIZE            1024 * 8
+    #define ASKFORTH_BLOCKS_MAX             1024
+    #define ASKFORTH_BLOCKS_SIZE            1024
 #else
     #define RAW_RAM_START_ADDRESS POISON
     #define ASKFORTH_BLOCKS_MAX             64
