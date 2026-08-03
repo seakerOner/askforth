@@ -1448,6 +1448,29 @@ static void askf_word_add_line_toblock( void ) {
     askf_stack_push( &addr, vm->stack );
 }
 
+static void askf_word_load( void ) {
+    AskForthVm* vm       = askf_get_global_vm();
+
+    if ( vm->stack->index < 1 ) {
+        _askf_word_failed( (ascii*)"LOAD -> Expects ( n_block )", 27 );
+        return;
+    }
+
+    AskForth_Cell addr = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    askf_stack_pop( &addr, vm->stack );
+
+    if ( addr.val._64u > vm->blocks->capacity ) {
+        _askf_word_failed( (ascii*)"LOAD -> OOB BLOCK", 17 );
+        return;
+    }
+
+    ascii* block = vm->blocks->start_blocks + vm->blocks->block_size * addr.val._64u;
+
+    // TODO: choose how to execute
+    
+    // COPY( block, vm->input_buffer->base, vm->blocks->block_size );
+}
+
 void _askf_print_failed_add_word( AskForthToken* tkn ) {
     askf_print( (ascii*)"Failed adding '", 15 );
     askf_print( tkn->base, tkn->length );
