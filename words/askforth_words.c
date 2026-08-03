@@ -1417,6 +1417,37 @@ static void askf_word_semicolon( void ) {
     ( (AskForth_Library*)vm->lib )->curr_compiling.word = NULL;
 }
 
+static void askf_word_immediate( void ) { 
+    AskForthVm* vm       = askf_get_global_vm();
+    if ( !( (AskForth_Library*)vm->lib )->curr_compiling.word ) {
+        _askf_word_failed( (ascii*)"IMMEDIATE -> Must be called inside a word definition", 52);
+        return;
+    }
+    ( (AskForth_Library*)vm->lib )->curr_compiling.word->is_immediate = TRUE;
+}
+
+static void askf_word_add_line_toblock( void ) {
+    AskForthVm* vm       = askf_get_global_vm();
+
+    if ( vm->stack->index < 1 ) {
+        _askf_word_failed( (ascii*)"a -> Expects ( block_addr )", 27 );
+        return;
+    }
+
+    AskForth_Cell addr = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    askf_stack_pop( &addr, vm->stack );
+
+    u32 read = askf_read_input_blocking_tobuff( vm, (ascii*)addr.val._64u, 
+            vm->blocks->block_size );
+
+    // remove the \n from the input
+    if ( read )
+        ((ascii*)addr.val._64u)[read-1] = ' ';
+
+    addr.val._64u = (u64)read;
+    askf_stack_push( &addr, vm->stack );
+}
+
 void _askf_print_failed_add_word( AskForthToken* tkn ) {
     askf_print( (ascii*)"Failed adding '", 15 );
     askf_print( tkn->base, tkn->length );
@@ -2122,6 +2153,17 @@ void askf_add_core_words( void ) {
     if ( !added_line )
         _askf_print_failed_add_word( &scratch_word_name );
 
+    // a
+    scratch_word_name.base            = (ascii*)"a";
+    scratch_word_name.length          = 1;
+
+    boolean added_atoblock = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_add_line_toblock, scratch_word_name );
+
+    if ( !added_atoblock )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+
     // MAX-LINES
     scratch_word_name.base            = (ascii*)"MAX-LINES";
     scratch_word_name.length          = 9;
@@ -2152,5 +2194,14 @@ void askf_add_core_words( void ) {
     if ( !added_semicolon )
         _askf_print_failed_add_word( &scratch_word_name );
 
+    // IMMEDIATE
+    scratch_word_name.base            = (ascii*)"IMMEDIATE";
+    scratch_word_name.length          = 9;
+
+    boolean added_immediate = 
+        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_immediate, scratch_word_name );
+
+    if ( !added_immediate )
+        _askf_print_failed_add_word( &scratch_word_name );
 
 }

@@ -24,6 +24,16 @@ void askf_read_input_blocking( AskForthVm* vm  ) {
     #endif
 }
 
+u32 askf_read_input_blocking_tobuff( AskForthVm* vm, ascii* buffer, u64 cap ) {
+    #ifdef TARGET_LINUX
+        int res = read( STDIN_FILENO, 
+                        buffer,
+                        cap );
+
+        return res;
+    #endif
+}
+
 void askf_print( ascii* buff, u32 len ) {
     #ifdef TARGET_LINUX
         fprintf(stdout, "%*s", len, buff);
@@ -33,7 +43,7 @@ void askf_print( ascii* buff, u32 len ) {
 
 void askf_print_char( ascii _char ) {
     #ifdef TARGET_LINUX
-        fprintf(stdout, "%*s", 1, &_char);
+        fprintf(stdout, "%c", _char);
         fflush(stdout);
     #endif
 }
