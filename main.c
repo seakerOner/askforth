@@ -28,8 +28,6 @@
 
 #define ASKFORTH_ERROR_TRACER_CAPACITY  64
 
-
-
 int main( void ) {
     AskForthVm          vm                          = {0};
     AskForth_Ram        ram                         = {0};

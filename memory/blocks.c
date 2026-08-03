@@ -47,7 +47,19 @@ void askf_blocks_start( u64 num_blocks, u64 block_bytes ) {
     COPY( block_name, ptr_for_name, block_name_len );
     ptr_for_name[block_name_len] = '\0';
 
-    FILE* blocks_file = fopen( tmp_scratch , "w+" );
+    FILE* blocks_file = fopen( tmp_scratch , "r+b" );
+
+    boolean first_start = FALSE;
+    
+    if ( !blocks_file ) {
+        blocks_file = fopen( tmp_scratch, "w+b" );
+        first_start = TRUE;
+        if ( !blocks_file ) {
+            // TODO: throw error
+            return;
+        }
+    }
+
     global_blocks_file = blocks_file;
 
     int block_fd      = fileno(global_blocks_file);
@@ -65,7 +77,9 @@ void askf_blocks_start( u64 num_blocks, u64 block_bytes ) {
     }
 
     vm->blocks->start_blocks = blocks_base;
-    FILL( ((ascii*)blocks_base), 0, blocks_len );
+    if ( first_start ) {
+        FILL( ((ascii*)blocks_base), 0, blocks_len );
+    }
     askf_blocks_update();
     #endif
 

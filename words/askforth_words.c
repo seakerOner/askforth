@@ -1256,16 +1256,21 @@ static void askf_word_list( void ) {
     ascii* start_block = (ascii*)
         ( vm->blocks->start_blocks + ( vm->blocks->block_size * block_id.val._64u ));
 
-    u64 max_lines      = 24;
+    u64 max_lines      = 16;
     u64 max_line_chars = vm->blocks->block_size / max_lines;
     AskForth_Cell cell = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
     cell.is_signed     = FALSE;
 
     for ( u64 x = 0; x < max_lines; x++) {
+        if ( x < 10 )
+            askf_print( (ascii*)"  ", 2);
+        else if ( x < 100 )
+            askf_print( (ascii*)" ", 1);
+
         cell.val._64u = x;
         askf_print_cell( &cell );
         if ( x < 10 )
-            askf_print( (ascii*)"   | ", 5);
+            askf_print( (ascii*)"  | ", 4);
         else if ( x < 100 )
             askf_print( (ascii*)"  | ", 4);
         else 
@@ -1324,11 +1329,11 @@ static void askf_word_line( void ) {
     askf_stack_pop( &blk_addr, vm->stack );
 
     if ( line.val._64u > 24 ) {
-        _askf_word_failed( (ascii*)"LINE -> line > 24", 17);
+        _askf_word_failed( (ascii*)"LINE -> line > 16", 17);
         return;
     }
 
-    u64 max_line_len     = vm->blocks->block_size / 24;
+    u64 max_line_len     = vm->blocks->block_size / 16;
 
     blk_addr.val._64u = blk_addr.val._64u + ( max_line_len * line.val._64u );
 
@@ -1339,7 +1344,7 @@ static void askf_word_max_lines( void ) {
     AskForthVm* vm       = askf_get_global_vm();
 
     AskForth_Cell cell   = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    cell.val._64u        = 24;
+    cell.val._64u        = 16;
 
     askf_stack_push( &cell, vm->stack );
 
