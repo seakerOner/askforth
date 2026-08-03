@@ -176,3 +176,44 @@ boolean askf_dic_add_word_native(
 
     return TRUE;
 }
+
+boolean askf_dic_add_word_threaded( AskForth_Dictionary* dic, AskForthToken word_name ) {
+    AskForthVm* vm = askf_get_global_vm();
+    
+    // TODO: throw error
+    if ( !vm )
+        return FALSE;
+
+
+    // TODO: throw error
+    if ( word_name.length > ASKF_MAX_NAME_LEN ) {
+        return FALSE;
+    }
+
+    AskForth_Word* new_word = askf_alloc( sizeof( AskForth_Word ) );
+
+    if ( !dic->words_base ) {
+        dic->words_base = new_word;
+    }
+    if ( dic->recent_word ) 
+        dic->recent_word->next              = new_word;
+
+    new_word->prev                      = dic->recent_word;
+    dic->recent_word                    = new_word;
+
+    new_word->next                      = NULL;
+    new_word->is_immediate              = FALSE;
+
+    new_word->source.type               = ASKF_WORD_THREADED;
+    new_word->source.source.threaded_code_start_addr = (u64)askf_alloc( sizeof(u64) );
+
+    new_word->name_len                  = word_name.length;
+    COPY(word_name.base, new_word->name, word_name.length);
+
+    ( (AskForth_Library*)vm->lib )->curr_compiling.word = new_word;
+    ( (AskForth_Library*)vm->lib )->curr_compiling.dic  = dic;
+    ( (AskForth_Library*)vm->lib )->curr_compiling.here = 
+        (u64*)new_word->source.source.threaded_code_start_addr;
+
+    return TRUE;
+}

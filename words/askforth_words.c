@@ -1350,6 +1350,73 @@ static void askf_word_max_lines( void ) {
 
 }
 
+static void askf_word_colon( void ) { 
+    AskForthVm* vm       = askf_get_global_vm();
+    
+
+    askf_word_parse_word();
+    askf_word_parse_word();
+
+    if ( vm->stack->index < 4 ) {
+        _askf_word_failed( (ascii*)": -> Expects ': word_name dic_name ' ", 37 );
+        return;
+    }
+
+    AskForth_Cell cell = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+
+    AskForthToken dic_name = {0};
+
+    askf_stack_pop( &cell, vm->stack );
+    dic_name.length = cell.val._64u;
+    askf_stack_pop( &cell, vm->stack );
+    dic_name.base   = (ascii*)cell.val._64u;
+
+    AskForthToken word_name = {0};
+
+    askf_stack_pop( &cell, vm->stack );
+    word_name.length = cell.val._64u;
+    askf_stack_pop( &cell, vm->stack );
+    word_name.base   = (ascii*)cell.val._64u;
+
+
+    if ( word_name.length > ASKF_MAX_NAME_LEN ) {
+        _askf_word_failed( (ascii*)": -> word name > 28: ", 21 );
+        _askf_word_failed( word_name.base , word_name.length );
+        return;
+    }
+
+    AskForth_Dictionary* dic = askf_library_find_dic( vm, &dic_name );
+
+    if ( !dic ) {
+        _askf_word_failed( (ascii*)": -> Dictionary not found: ", 27 );
+        _askf_word_failed(  dic_name.base , dic_name.length );
+        return;
+    }
+
+    askf_dic_add_word_threaded( dic, word_name );
+
+    vm->interpret_state  = ASKF_COMPILE;
+}
+
+static void askf_word_semicolon( void ) { 
+    AskForthVm* vm       = askf_get_global_vm();
+    
+    vm->interpret_state  = ASKF_INTERPRET;
+
+    u64* comp_addr = 
+        (u64*)( (AskForth_Library*)vm->lib )
+            ->curr_compiling.here;
+
+    // signal end of word
+    *comp_addr = 0x0;
+
+    ( (AskForth_Library*)vm->lib )
+            ->curr_compiling.here = (u64*)askf_alloc( sizeof(u64) );
+
+    ( (AskForth_Library*)vm->lib )->curr_compiling.dic  = NULL;
+    ( (AskForth_Library*)vm->lib )->curr_compiling.word = NULL;
+}
+
 void _askf_print_failed_add_word( AskForthToken* tkn ) {
     askf_print( (ascii*)"Failed adding '", 15 );
     askf_print( tkn->base, tkn->length );
@@ -2064,5 +2131,26 @@ void askf_add_core_words( void ) {
 
     if ( !added_max_lines )
         _askf_print_failed_add_word( &scratch_word_name );
+
+    // :
+    scratch_word_name.base            = (ascii*)":";
+    scratch_word_name.length          = 1;
+
+    boolean added_colon = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_colon, scratch_word_name );
+
+    if ( !added_colon )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // ;
+    scratch_word_name.base            = (ascii*)";";
+    scratch_word_name.length          = 1;
+
+    boolean added_semicolon = 
+        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_semicolon, scratch_word_name );
+
+    if ( !added_semicolon )
+        _askf_print_failed_add_word( &scratch_word_name );
+
 
 }

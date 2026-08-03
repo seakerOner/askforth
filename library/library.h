@@ -46,9 +46,17 @@ typedef struct AskForth_Dictionary_t {
 } AskForth_Dictionary;
 
 typedef struct {
+    AskForth_Word*          word;
+    AskForth_Dictionary*     dic;
+    u64*                    here;
+} AskForth_WordCompiling;
+
+typedef struct {
     AskForth_Dictionary*    dictionaries_base;
     AskForth_Dictionary*    recent_dic;
+    AskForth_WordCompiling  curr_compiling;
 } AskForth_Library;
+
 
 AskForth_Library*       askf_create_library( AskForthVm* vm );
 
@@ -63,3 +71,5 @@ boolean askf_dic_add_word_native(
         boolean is_immediate,
         void(*native_subroutine)(void), 
         AskForthToken word_name );
+
+boolean askf_dic_add_word_threaded( AskForth_Dictionary* dic, AskForthToken word_name );

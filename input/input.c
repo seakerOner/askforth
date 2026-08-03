@@ -22,7 +22,6 @@ void askf_read_input_blocking( AskForthVm* vm  ) {
         vm->input_buffer->index += res;
         vm->input_buffer->base[vm->input_buffer->index] = '\0';
     #endif
-
 }
 
 void askf_print( ascii* buff, u32 len ) {

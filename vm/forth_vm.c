@@ -46,6 +46,32 @@ static void _askf_parse_input_buffer( AskForthVm* forth_vm ) {
 
 }
 
+typedef void nat_code(void);
+
+static void _askf_execute_threaded_word( AskForth_Word* word ) {
+    AskForthVm* vm = askf_get_global_vm();
+    u64* start = (u64*) word->source.source.threaded_code_start_addr;
+
+    while ( *start != 0x0 ) {
+        // immediate value comming
+        if ( *start == 0x1 ) {
+            start++;
+            AskForth_Cell new_cell = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+            new_cell.val._64u      = *start;
+            askf_stack_push( &new_cell, vm->stack );
+        
+        // threaded code coming
+        } else if ( *start == 0x2 ) {
+            start++;
+            AskForth_Word* word = (AskForth_Word*)*start;
+            _askf_execute_threaded_word( word );
+        } else { //native code  
+            ((nat_code*)*start)();
+        }
+        start++;
+    }
+}
+
 void askf_exec( AskForthVm* vm ) {
     _askf_parse_input_buffer( vm );
 
@@ -74,7 +100,20 @@ void askf_exec( AskForthVm* vm ) {
                 askf_throw_error( err );
                 return;
             } else {
-                askf_stack_push( &new_cell, vm->stack );
+                switch ( vm->interpret_state ) {
+                    case ASKF_COMPILE:
+                        // flag for immediate value
+                        *( (AskForth_Library*)vm->lib )->curr_compiling.here = 0x1;
+                        ( (AskForth_Library*)vm->lib )->curr_compiling.here = askf_alloc( sizeof(u64) );
+
+                        // actual number
+                        *( (AskForth_Library*)vm->lib )->curr_compiling.here = new_cell.val._64u;
+                        ( (AskForth_Library*)vm->lib )->curr_compiling.here = askf_alloc( sizeof(u64) );
+                        break;
+                    case ASKF_INTERPRET:
+                        askf_stack_push( &new_cell, vm->stack );
+                        break;
+                }
                 continue;
             }
         }
@@ -82,7 +121,6 @@ void askf_exec( AskForthVm* vm ) {
         vm->tokenizer->ctx.idx = x;
         vm->tokenizer->ctx.token = &vm->tokenizer->tokens[x];
 
-        // TODO: exec word
         switch ( vm->interpret_state ) {
             case ASKF_INTERPRET:
                 switch ( word->source.type ) {
@@ -90,15 +128,40 @@ void askf_exec( AskForthVm* vm ) {
                         word->source.source.native_code();
                         break;
                     case ASKF_WORD_THREADED:
-                        // TODO:
+                         _askf_execute_threaded_word( word );
                         break;
                 }
                break;
+
             case ASKF_COMPILE:
+               if ( word->is_immediate ) {
+                   switch ( word->source.type ) {
+                       case ASKF_WORD_NATIVE:
+                           word->source.source.native_code();
+                           break;
+                       case ASKF_WORD_THREADED:
+                           _askf_execute_threaded_word( word );
+                           break;
+                   }
+               } else {
+                    switch ( word->source.type ) {
+                        case ASKF_WORD_NATIVE:
+                            *( (AskForth_Library*)vm->lib )->curr_compiling.here = 
+                                (u64)word->source.source.native_code;
+                            ( (AskForth_Library*)vm->lib )->curr_compiling.here = askf_alloc( sizeof(u64) );
+                            break;
+                        case ASKF_WORD_THREADED:
+                            *( (AskForth_Library*)vm->lib )->curr_compiling.here = 0x2;
+                            ( (AskForth_Library*)vm->lib )->curr_compiling.here = askf_alloc( sizeof(u64) );
+                            *( (AskForth_Library*)vm->lib )->curr_compiling.here = (u64)word;
+                            ( (AskForth_Library*)vm->lib )->curr_compiling.here = askf_alloc( sizeof(u64) );
+                            break;
+                    }
+               }
                break; 
         }
 
-        //if ( vm->tokenizer->ctx.idx > x )
+        if ( vm->tokenizer->ctx.idx > x )
             x = vm->tokenizer->ctx.idx;
     }
     
