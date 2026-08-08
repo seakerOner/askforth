@@ -1543,8 +1543,34 @@ static void askf_word_load( void ) {
     ascii* block = vm->blocks->start_blocks + vm->blocks->block_size * addr.val._64u;
 
     // TODO: choose how to execute
-    
-    // COPY( block, vm->input_buffer->base, vm->blocks->block_size );
+    COPY( block, vm->input_buffer_x->base, vm->blocks->block_size );
+    vm->input_buffer_x->index = vm->blocks->block_size;
+
+    askf_exec( vm, ASKF_X_PARSER );
+}
+
+static void askf_word_add_dic( void ) { 
+    AskForthVm* vm       = askf_get_global_vm();
+
+    askf_word_parse_word();
+
+    if ( vm->stack->index < 2 ) {
+        _askf_word_failed( (ascii*)"ADD-DIC -> Expects a name", 25 );
+        return;
+    }
+
+    AskForth_Cell len  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    AskForth_Cell addr = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+
+    askf_stack_pop( &len, vm->stack );
+    askf_stack_pop( &addr, vm->stack );
+
+    if ( len.val._64u > 28 ) {
+        _askf_word_failed( (ascii*)"ADD-DIC -> name too long", 24 );
+        return;
+    }
+
+    askf_create_dic( vm, (ascii*)addr.val._64u, len.val._64u );
 }
 
 #ifdef TARGET_LINUX
@@ -2388,5 +2414,25 @@ void askf_add_core_words( void ) {
             _askf_print_failed_add_word( &scratch_word_name );
 
     #endif
+
+    // LOAD
+    scratch_word_name.base            = (ascii*)"LOAD";
+    scratch_word_name.length          = 4;
+
+    boolean added_load = 
+        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_load, scratch_word_name );
+
+    if ( !added_load )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // ADD-DIC
+    scratch_word_name.base            = (ascii*)"ADD-DIC";
+    scratch_word_name.length          = 7;
+
+    boolean added_add_dic = 
+        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_add_dic, scratch_word_name );
+
+    if ( !added_add_dic )
+        _askf_print_failed_add_word( &scratch_word_name );
 
 }
