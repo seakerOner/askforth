@@ -33,25 +33,36 @@ typedef enum {
     ASF_HEXADECIMAL = 16
 } AskForthNumBase;
 
-typedef struct {
+typedef enum {
+    ASKF_MAIN_PARSER,
+    ASKF_X_PARSER
+} AskForthParseType;
+
+typedef struct AskForthVm_t {
     AskForth_Stack*                         stack;
     AskForth_Ram*                           ram;
     AskForthInputBuffer*                    input_buffer;
+    AskForthInputBuffer*                    input_buffer_x;
     AskForthBlocks*                         blocks;
 
     void*                                   lib;
     volatile AskForthVmOuterState           outer_state;
     volatile AskForthVmInterpreterState     interpret_state;
+    volatile AskForthParseType              parse_type;
     AskForthErrorTrace*                     error_tracer;
 
     AskForthTokenizer*                      tokenizer;
+    AskForthTokenizer*                      tokenizer_x;
     AskForthNumBase                         num_base;
+
 } AskForthVm;
 
 void askf_vm_to_global_state( AskForthVm* vm );
 AskForthVm* askf_get_global_vm( void );
 
-void askf_exec( AskForthVm* vm );
+void askf_exec( AskForthVm* vm, AskForthParseType parse_type );
+
+void askf_exec_token( AskForthVm* vm, AskForthToken* token, u64 tokenizer_idx );
 
 void askf_vm_change_cell_scale( AskForth_CellSize new_cell_size );
 

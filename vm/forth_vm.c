@@ -12,9 +12,22 @@ AskForthVm* askf_get_global_vm( void ) {
     return global_vm;
 }
 
-static void _askf_parse_input_buffer( AskForthVm* forth_vm ) {
-    AskForthInputBuffer* ib     = forth_vm->input_buffer;
-    AskForthTokenizer* tknzr    = forth_vm->tokenizer;
+static void _askf_parse_input_buffer( AskForthVm* forth_vm, AskForthParseType parse_type ) {
+    AskForthInputBuffer* ib     = NULL;
+    AskForthTokenizer* tknzr    = NULL;
+    switch ( parse_type ) {
+        case ASKF_MAIN_PARSER:
+            ib       = forth_vm->input_buffer;
+            tknzr    = forth_vm->tokenizer;
+            break;
+        case ASKF_X_PARSER:
+            ib       = forth_vm->input_buffer_x;
+            tknzr    = forth_vm->tokenizer_x;
+            break;
+        default:
+            return;
+            break;
+    }
 
     if (ib->index == 0)
         return;
@@ -72,19 +85,39 @@ static void _askf_execute_threaded_word( AskForth_Word* word ) {
     }
 }
 
-void askf_exec( AskForthVm* vm ) {
-    _askf_parse_input_buffer( vm );
+void askf_exec( AskForthVm* vm, AskForthParseType parse_type ) {
+    // only used by Forth words inside execution ( ex: PARSE-NAME )
+    vm->parse_type = parse_type;
 
-    for (u64 x = 0; x < vm->tokenizer->index; x++) {
-        AskForth_Word* word =  askf_library_find_word( vm, &vm->tokenizer->tokens[x] );
+    _askf_parse_input_buffer( vm, parse_type );
+
+    AskForthTokenizer* tokenizer = NULL;
+    AskForthInputBuffer* ib      = NULL;
+
+    switch ( parse_type ) {
+        case ASKF_MAIN_PARSER:
+            ib        = vm->input_buffer;
+            tokenizer = vm->tokenizer;
+            break;
+        case ASKF_X_PARSER:
+            ib          = vm->input_buffer_x;
+            tokenizer   = vm->tokenizer_x;
+            break;
+        default:
+            return;
+            break;
+    }
+
+    for (u64 x = 0; x < tokenizer->index; x++) {
+        AskForth_Word* word =  askf_library_find_word( vm, &tokenizer->tokens[x] );
 
         if ( word == NULL ) {
             AskForth_Cell new_cell =  askf_new_cell_payload( vm->stack, vm->stack->is_signed );
 
-            boolean is_number = askf_parse_token_to_num( &vm->tokenizer->tokens[x] , &new_cell );
+            boolean is_number = askf_parse_token_to_num( &tokenizer->tokens[x] , &new_cell );
 
             if ( !is_number ) {
-                AskForthErrorMessage* failed_token = ( AskForthErrorMessage* ) &vm->tokenizer->tokens[x];
+                AskForthErrorMessage* failed_token = ( AskForthErrorMessage* ) &tokenizer->tokens[x];
                 failed_token->message[failed_token->length] = '\0';
 
                 AskForthError err = 
@@ -94,8 +127,8 @@ void askf_exec( AskForthVm* vm ) {
                 };
 
                 // register where the failed token is on the tokenizer
-                vm->tokenizer->ctx.token = &vm->tokenizer->tokens[x];
-                vm->tokenizer->ctx.idx   = x;
+                tokenizer->ctx.token = &tokenizer->tokens[x];
+                tokenizer->ctx.idx   = x;
 
                 askf_throw_error( err );
                 return;
@@ -118,8 +151,8 @@ void askf_exec( AskForthVm* vm ) {
             }
         }
 
-        vm->tokenizer->ctx.idx = x;
-        vm->tokenizer->ctx.token = &vm->tokenizer->tokens[x];
+        tokenizer->ctx.idx = x;
+        tokenizer->ctx.token = &tokenizer->tokens[x];
 
         switch ( vm->interpret_state ) {
             case ASKF_INTERPRET:
@@ -161,14 +194,14 @@ void askf_exec( AskForthVm* vm ) {
                break; 
         }
 
-        if ( vm->tokenizer->ctx.idx > x )
-            x = vm->tokenizer->ctx.idx;
+        if ( tokenizer->ctx.idx > x )
+            x = tokenizer->ctx.idx;
     }
     
-    askf_tokenizer_reset(vm->tokenizer);
-    askf_reset_input_buffer( vm );
+    askf_tokenizer_reset( tokenizer );
+    askf_reset_input_buffer( vm, parse_type );
 
-    if ( vm->outer_state == ASKF_VM_OUTER_STATE_EXECUTE ) {
+    if ( vm->outer_state == ASKF_VM_OUTER_STATE_EXECUTE && parse_type == ASKF_MAIN_PARSER ) {
         if ( vm->interpret_state == ASKF_INTERPRET ) 
             askf_print( ( ascii* )"ok.\n", 4 );
         else if ( vm->interpret_state == ASKF_COMPILE ) 

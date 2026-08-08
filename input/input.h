@@ -7,7 +7,7 @@ void askf_read_input_blocking( AskForthVm* vm  );
 
 u32 askf_read_input_blocking_tobuff( AskForthVm* vm, ascii* buffer, u64 cap );
 
-void askf_reset_input_buffer( AskForthVm* vm );
+void askf_reset_input_buffer( AskForthVm* vm, AskForthParseType parse_type );
 
 void askf_print( ascii* buff, u32 len );
 void askf_print_char( ascii _char );

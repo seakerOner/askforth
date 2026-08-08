@@ -5,6 +5,10 @@
 #include "../stack/stack.h"
 #include "../memory/blocks.h"
 
+#ifdef TARGET_LINUX
+    #include <stdio.h>
+#endif
+
 static void _askf_word_failed( ascii* msg, u64 len ) {
     AskForthError err = {0};
     err.error = ASKF_ERROR_WORD_FAILED;
@@ -113,8 +117,8 @@ static void askf_word_2dup ( void ) {
         return;
     }
 
-    AskForth_Cell a  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    AskForth_Cell b= askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    AskForth_Cell a = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    AskForth_Cell b = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
 
     askf_stack_pop( &b, vm->stack );
     askf_stack_pop( &a, vm->stack );
@@ -306,6 +310,7 @@ static void askf_word_negate( void ) {
     u32 res = askf_stack_pop( &cell, vm->stack );
     if ( !res ) {
         _askf_word_failed( (ascii*)"negate -> Empty Stack", 21 );
+        return;
     }
 
     cell.val._64s = 0 - cell.val._64u;
@@ -327,25 +332,41 @@ static void askf_word_lib( void ) {
     }
 }
 
+// FIX: failing while in exec with ASKF_X_PARSER
 static void askf_word_parse_word( void ) {
-    AskForthVm* vm = askf_get_global_vm();
-    if ( vm->tokenizer->ctx.idx + 1 >= vm->tokenizer->index ) {
+    AskForthVm* vm               = askf_get_global_vm();
+    AskForthTokenizer* tokenizer = NULL;
+
+    switch ( vm->parse_type ) {
+        case ASKF_MAIN_PARSER:
+            tokenizer = vm->tokenizer;
+            break;
+        case ASKF_X_PARSER:
+            tokenizer = vm->tokenizer_x;
+            break;
+        default:
+            return;
+            break;
+    }
+
+    if ( tokenizer->ctx.idx + 1 >= tokenizer->index ) {
         _askf_word_failed( (ascii*)"PARSE-WORD -> No token found", 28 );
         return;
     }
-    vm->tokenizer->ctx.idx += 1;
-    u64 idx = vm->tokenizer->ctx.idx;
+
+    tokenizer->ctx.idx += 1;
+    u64 idx = tokenizer->ctx.idx;
 
     AskForth_Cell cell      = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
 
     // TODO: decide if this is what i want from parse_word
-    AskForthToken* scratch  = askf_alloc( sizeof( ascii ) * vm->tokenizer->tokens[idx].length );
+    AskForthToken* scratch  = askf_alloc( sizeof( ascii ) * tokenizer->tokens[idx].length );
 
-    COPY( vm->tokenizer->tokens[idx].base, scratch, vm->tokenizer->tokens[idx].length );
+    COPY( tokenizer->tokens[idx].base, scratch, tokenizer->tokens[idx].length );
 
     cell.val._64u = (u64)scratch;
     askf_stack_push( &cell, vm->stack );
-    cell.val._64u = vm->tokenizer->tokens[idx].length;
+    cell.val._64u = tokenizer->tokens[idx].length;
     askf_stack_push( &cell, vm->stack );
 }
 
@@ -741,6 +762,7 @@ static void askf_word_type( void ){
 
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"TYPE -> Expects ( addr len - )", 30);
+        return;
     }
 
     AskForth_Cell len   = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
@@ -758,6 +780,7 @@ static void askf_word_store( void ){
 
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"! -> Expects ( val addr - )", 27);
+        return;
     }
     AskForth_Cell val   = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
     AskForth_Cell addr  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
@@ -774,6 +797,7 @@ static void askf_word_byte_store( void ){
 
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"! -> Expects ( val addr - )", 27);
+        return;
     }
     AskForth_Cell val   = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
     AskForth_Cell addr  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
@@ -790,6 +814,7 @@ static void askf_word_load_ptr( void ){
 
     if ( vm->stack->index < 1 ) {
         _askf_word_failed( (ascii*)"@ -> Expects ( addr - )", 27);
+        return;
     }
     AskForth_Cell addr  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
 
@@ -807,6 +832,7 @@ static void askf_word_load_byte_ptr( void ){
 
     if ( vm->stack->index < 1 ) {
         _askf_word_failed( (ascii*)"c@ -> Expects ( addr - )", 27);
+        return;
     }
     AskForth_Cell addr  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
 
@@ -1217,7 +1243,7 @@ static void askf_word_fill( void ) {
     FILL( ((u8*)addr.val._64u), _char.val._64u , bytes.val._64u );
 }
 
-static void askf_word_move( void ) {
+static void askf_word_copy( void ) {
     AskForthVm* vm       = askf_get_global_vm();
 
     if ( vm->stack->index < 3 ) {
@@ -1353,7 +1379,6 @@ static void askf_word_max_lines( void ) {
 static void askf_word_colon( void ) { 
     AskForthVm* vm       = askf_get_global_vm();
     
-
     askf_word_parse_word();
     askf_word_parse_word();
 
@@ -1470,6 +1495,80 @@ static void askf_word_load( void ) {
     
     // COPY( block, vm->input_buffer->base, vm->blocks->block_size );
 }
+
+#ifdef TARGET_LINUX
+static u64 _askf_custom_fgets( ascii* buff, u64 cap, FILE* stream, int* is_eof ) {
+    if ( cap == 0 || buff == NULL || stream == NULL )  {
+        *is_eof = 0;
+        return 0;
+    }
+
+    u64 bytes_read = 0;
+    *is_eof        = 0;
+
+    while ( bytes_read < cap ) {
+        int ch = fgetc( stream );
+
+        if ( ch == EOF ) {
+            *is_eof = 1;
+            break;
+        }
+
+        if ( ch == '\r' ) {
+            // Peek ahead to handle Windows CRLF properly
+            int next_ch = fgetc( stream );
+            if ( next_ch != '\n' && next_ch != EOF ) 
+                ungetc( next_ch, stream );
+
+            break;
+        }
+
+
+        buff[bytes_read++] = (ascii)ch;
+    }
+
+    return bytes_read;
+}
+
+// TODO: fix FIX FIX
+    static void askf_word_include( void ) { 
+        AskForthVm* vm       = askf_get_global_vm();
+
+        askf_word_parse_word();
+
+        AskForth_Cell len   = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+        AskForth_Cell path  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+
+        askf_stack_pop( &len, vm->stack );
+        askf_stack_pop( &path, vm->stack );
+
+        FILE *f = fopen( (char*)path.val._64u, "r");
+
+        if ( !f ) {
+            _askf_word_failed( (ascii*)"INCLUDE -> Could not open file", 30 );
+            _askf_word_failed( (ascii*)path.val._64u, len.val._64u );
+            return;
+        }
+
+        u64 read = 0;
+        int is_eof;
+
+        while ( (read =  
+                    _askf_custom_fgets( 
+                        vm->input_buffer_x->base, vm->input_buffer_x->capacity , f, &is_eof )) 
+                && vm->outer_state == ASKF_VM_OUTER_STATE_EXECUTE )  
+            if ( read ) {
+                vm->input_buffer_x->index += read;
+                // askf_print( (ascii*)"read:\n", 6 );
+                // askf_print( vm->input_buffer_x->base, vm->input_buffer_x->index );
+                vm->input_buffer_x->base[vm->input_buffer_x->index] = '\0';
+                askf_exec( vm, ASKF_X_PARSER );
+            }
+
+
+        fclose( f );
+    }
+#endif
 
 void _askf_print_failed_add_word( AskForthToken* tkn ) {
     askf_print( (ascii*)"Failed adding '", 15 );
@@ -2096,14 +2195,14 @@ void askf_add_core_words( void ) {
     if ( !added_fill )
         _askf_print_failed_add_word( &scratch_word_name );
 
-    // MOVE
-    scratch_word_name.base            = (ascii*)"MOVE";
+    // COPY
+    scratch_word_name.base            = (ascii*)"COPY";
     scratch_word_name.length          = 4;
 
-    boolean added_move = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_move, scratch_word_name );
+    boolean added_copy = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_copy, scratch_word_name );
 
-    if ( !added_move )
+    if ( !added_copy )
         _askf_print_failed_add_word( &scratch_word_name );
 
     // (
@@ -2226,5 +2325,18 @@ void askf_add_core_words( void ) {
 
     if ( !added_immediate )
         _askf_print_failed_add_word( &scratch_word_name );
+
+    #ifdef TARGET_LINUX
+        // INCLUDE
+        scratch_word_name.base            = (ascii*)"INCLUDE";
+        scratch_word_name.length          = 7;
+
+        boolean added_include = 
+            askf_dic_add_word_native( core_dic_name, TRUE, askf_word_include, scratch_word_name );
+
+        if ( !added_include )
+            _askf_print_failed_add_word( &scratch_word_name );
+
+    #endif
 
 }

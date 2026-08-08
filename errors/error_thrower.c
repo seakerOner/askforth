@@ -65,6 +65,8 @@ void askf_throw_error( AskForthError error ) {
     askf_vm_trace_error( error );
 }
 
+void askf_throw_info( AskForthError error );
+
 void askf_print_error( AskForthError* error ) {
     if ( error == NULL )
         return;

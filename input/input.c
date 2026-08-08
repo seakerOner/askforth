@@ -5,9 +5,19 @@
     #include "stdio.h"
 #endif
 
-void askf_reset_input_buffer( AskForthVm* vm ) {
-    vm->input_buffer->index = 0;
-    FILL( vm->input_buffer->base, 0, vm->input_buffer->capacity );
+void askf_reset_input_buffer( AskForthVm* vm, AskForthParseType parse_type ) {
+    switch ( parse_type ) {
+        case ASKF_MAIN_PARSER:
+            vm->input_buffer->index = 0;
+            FILL( vm->input_buffer->base, 0, vm->input_buffer->capacity );
+            break;
+        case ASKF_X_PARSER:
+            vm->input_buffer_x->index = 0;
+            FILL( vm->input_buffer_x->base, 0, vm->input_buffer_x->capacity );
+            break;
+        default:
+            break;
+    }
 };
 
 void askf_read_input_blocking( AskForthVm* vm  ) {

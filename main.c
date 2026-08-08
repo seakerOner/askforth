@@ -33,15 +33,23 @@ int main( void ) {
     AskForth_Ram        ram                         = {0};
     AskForth_Stack      stack                       = {0};
     AskForthInputBuffer input_buffer                = {0};
+    AskForthInputBuffer input_buffer_x              = {0};
     AskForth_CellSize   initial_cell_base_scale     = ASKF_BITS64;
     AskForthErrorTrace  tracer                      = {0};
     AskForthTokenizer   tokenizer                   = {0};
+    AskForthTokenizer   tokenizer_x                 = {0};
     AskForthBlocks      blocks                      = {0};
 
     ascii scratch[ASKFORTH_INPUT_BUFFER_MAX_CHARS]  = {0};
     input_buffer.base                               = scratch;
     input_buffer.capacity                           = ASKFORTH_INPUT_BUFFER_MAX_CHARS;
     input_buffer.index                              = 0;
+
+    ascii scratch_x[ASKFORTH_INPUT_BUFFER_MAX_CHARS]  = {0};
+    input_buffer_x.base                               = scratch_x;
+    input_buffer_x.capacity                           = ASKFORTH_INPUT_BUFFER_MAX_CHARS;
+    input_buffer_x.index                              = 0;
+
 
     u64 ram_size = 0;
 
@@ -64,12 +72,16 @@ int main( void ) {
     vm.ram              = &ram;
     vm.stack            = &stack;
     vm.input_buffer     = &input_buffer;
+    vm.input_buffer_x   = &input_buffer_x;
     vm.blocks           = &blocks;
     vm.outer_state      = ASKF_VM_OUTER_STATE_BLOCKING_INPUT;
     vm.interpret_state  = ASKF_INTERPRET;
     vm.num_base         = ASKF_DECIMAL;
     vm.error_tracer     = &tracer;
     vm.tokenizer        = &tokenizer;
+    vm.tokenizer_x      = &tokenizer_x;
+
+    vm.parse_type        = ASKF_MAIN_PARSER;
 
     vm.lib              = ( void* )askf_create_library( &vm );
 
@@ -78,6 +90,7 @@ int main( void ) {
     askf_blocks_start( ASKFORTH_BLOCKS_MAX , ASKFORTH_BLOCKS_SIZE );
 
     askf_tokenizer_new( &tokenizer, ( ASKFORTH_INPUT_BUFFER_MAX_CHARS / 2 ));
+    askf_tokenizer_new( &tokenizer_x, ( ASKFORTH_INPUT_BUFFER_MAX_CHARS / 2 ));
 
     askf_add_core_words();
 
@@ -95,7 +108,7 @@ int main( void ) {
                 askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_EXECUTE );
                 break;
             case ASKF_VM_OUTER_STATE_EXECUTE:
-                askf_exec( &vm );
+                askf_exec( &vm, ASKF_MAIN_PARSER );
 
                 if ( vm.outer_state == ASKF_VM_OUTER_STATE_EXECUTE )
                     askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_BLOCKING_INPUT );
@@ -108,7 +121,8 @@ int main( void ) {
                 askf_print_error(err);
 
                 askf_tokenizer_reset( vm.tokenizer );
-                askf_reset_input_buffer( &vm );
+                askf_reset_input_buffer( &vm, ASKF_MAIN_PARSER );
+                askf_reset_input_buffer( &vm, ASKF_X_PARSER );
                 askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_BLOCKING_INPUT );
                 break;
             case ASKF_VM_OUTER_STATE_SHUTDOWN_REQUEST:
