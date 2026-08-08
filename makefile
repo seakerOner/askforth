@@ -71,8 +71,4 @@ windows:
 
 run: askforth
 	@echo " "
-	ifeq ( $(TARGET), -DTARGET_WINDOWS )
-		$(BUILD)/$(EXECUTABLE_NAME).exe
-	else
-		$(BUILD)/$(EXECUTABLE_NAME)
-	endif
+	$(BUILD)/$(EXECUTABLE_NAME)
