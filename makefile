@@ -1,16 +1,30 @@
+# For windows executable creation MSYS2 is needed with required toolchain
 CC 	  = gcc
-BUILD = ./build/
-
-TARGET = -DTARGET_LINUX
+BUILD = ./build
 
 EXECUTABLE_NAME = askforth
 
-FLAGS = -Wall -Wextra -x c
+TARGET ?= -DTARGET_LINUX
 
+FLAGS = -Wall -Wextra -x c
 FLAGS += $(TARGET)
 
-askforth: main.o stack.o mem_backend_blob.o vm.o input.o library.o errors.o tokenizer.o core_words.o blocks.o
-	$(CC) $(BUILD)/*.o -o $(BUILD)/$(EXECUTABLE_NAME)
+OBJECTS = 				\
+	main.o 				\
+	stack.o 			\
+	mem_backend_blob.o 	\
+	vm.o input.o 		\
+	library.o 			\
+	errors.o 			\
+	tokenizer.o 		\
+	core_words.o 		\
+	blocks.o 			\
+
+$(BUILD):
+	mkdir -p $(BUILD)
+
+askforth: $(BUILD) $(OBJECTS)
+	$(CC) $(addprefix $(BUILD)/,$(OBJECTS)) -o $(BUILD)/$(EXECUTABLE_NAME)
 
 main.o: ./main.c 
 	$(CC) $(FLAGS)	-c ./main.c -o $(BUILD)/main.o
@@ -43,10 +57,22 @@ blocks.o: ./memory/blocks.c
 	$(CC) $(FLAGS)	-c ./memory/blocks.c -o $(BUILD)/blocks.o
 
 clean:
-	rm -f $(BUILD)/*
+	rm -f $(BUILD)/*.o
+	rm -f $(BUILD)/$(EXECUTABLE_NAME)
+	rm -f $(BUILD)/$(EXECUTABLE_NAME).exe
 	@echo "Cleaned Build Files..."
 
-run:
-	make
+linux: 
+	$(MAKE) TARGET=-DTARGET_LINUX askforth
+
+windows:
+	$(MAKE) TARGET=-DTARGET_WINDOWS askforth
+
+
+run: askforth
 	@echo " "
-	$(BUILD)/$(EXECUTABLE_NAME)
+	ifeq ( $(TARGET), -DTARGET_WINDOWS )
+		$(BUILD)/$(EXECUTABLE_NAME).exe
+	else
+		$(BUILD)/$(EXECUTABLE_NAME)
+	endif
