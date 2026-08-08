@@ -7,6 +7,7 @@
 typedef struct {
     ascii*  base;
     u64     length;
+    boolean line_end;
 } AskForthToken;
 
 typedef struct {

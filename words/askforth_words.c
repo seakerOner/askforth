@@ -332,7 +332,6 @@ static void askf_word_lib( void ) {
     }
 }
 
-// FIX: failing while in exec with ASKF_X_PARSER
 static void askf_word_parse_word( void ) {
     AskForthVm* vm               = askf_get_global_vm();
     AskForthTokenizer* tokenizer = NULL;
@@ -943,15 +942,28 @@ static void askf_word_char_add( void ) {
 static void askf_word_print_string( void ) {
     AskForthVm* vm = askf_get_global_vm();
 
-    u64 ctx_idx = vm->tokenizer->ctx.idx;
+    AskForthTokenizer* tokenizer = NULL;
+
+    switch ( vm->parse_type ) {
+        case ASKF_MAIN_PARSER:
+            tokenizer = vm->tokenizer;
+            break;
+        case ASKF_X_PARSER:
+            tokenizer = vm->tokenizer_x;
+            break;
+        default:
+            return;
+    }
+
+    u64 ctx_idx = tokenizer->ctx.idx;
 
     ctx_idx++;
-    ascii*  string_base     = vm->tokenizer->tokens[ctx_idx].base;
+    ascii*  string_base     = tokenizer->tokens[ctx_idx].base;
     u64     len             = 0;
     boolean got_terminator  = FALSE;
 
-    while ( ctx_idx < vm->tokenizer->index ) {
-        AskForthToken* tkn = &vm->tokenizer->tokens[ctx_idx];
+    while ( ctx_idx < tokenizer->index ) {
+        AskForthToken* tkn = &tokenizer->tokens[ctx_idx];
         if ( tkn->base[tkn->length - 1] == '"' ) {
             got_terminator = TRUE;
             len = (u64)( tkn->base + tkn->length ) - (u64)string_base;
@@ -963,7 +975,7 @@ static void askf_word_print_string( void ) {
         ctx_idx++;
     }
 
-    vm->tokenizer->ctx.idx = ctx_idx;
+    tokenizer->ctx.idx = ctx_idx;
 
     if ( !got_terminator ) {
         _askf_word_failed( (ascii*)".\" -> Terminator not found on input buffer", 42 );
@@ -977,15 +989,28 @@ static void askf_word_print_string( void ) {
 static void askf_word_store_string( void ) {
     AskForthVm* vm = askf_get_global_vm();
 
-    u64 ctx_idx = vm->tokenizer->ctx.idx;
+    AskForthTokenizer* tokenizer = NULL;
+
+    switch ( vm->parse_type ) {
+        case ASKF_MAIN_PARSER:
+            tokenizer = vm->tokenizer;
+            break;
+        case ASKF_X_PARSER:
+            tokenizer = vm->tokenizer_x;
+            break;
+        default:
+            return;
+    }
+
+    u64 ctx_idx = tokenizer->ctx.idx;
 
     ctx_idx++;
-    ascii*  string_base     = vm->tokenizer->tokens[ctx_idx].base;
+    ascii*  string_base     = tokenizer->tokens[ctx_idx].base;
     u64     len             = 0;
     boolean got_terminator  = FALSE;
 
-    while ( ctx_idx < vm->tokenizer->index ) {
-        AskForthToken* tkn = &vm->tokenizer->tokens[ctx_idx];
+    while ( ctx_idx < tokenizer->index ) {
+        AskForthToken* tkn = &tokenizer->tokens[ctx_idx];
         if ( tkn->base[tkn->length - 1] == '"' ) {
             got_terminator = TRUE;
             len = (u64)( tkn->base + tkn->length ) - (u64)string_base;
@@ -997,7 +1022,7 @@ static void askf_word_store_string( void ) {
         ctx_idx++;
     }
 
-    vm->tokenizer->ctx.idx = ctx_idx;
+    tokenizer->ctx.idx = ctx_idx;
 
     if ( !got_terminator ) {
         _askf_word_failed( (ascii*)".\" -> Terminator not found on input buffer", 42 );
@@ -1021,13 +1046,26 @@ static void askf_word_store_string( void ) {
 static void askf_word_comment_parenteshis( void ) {
     AskForthVm* vm = askf_get_global_vm();
 
-    u64 ctx_idx = vm->tokenizer->ctx.idx;
+    AskForthTokenizer* tokenizer = NULL;
+
+    switch ( vm->parse_type ) {
+        case ASKF_MAIN_PARSER:
+            tokenizer = vm->tokenizer;
+            break;
+        case ASKF_X_PARSER:
+            tokenizer = vm->tokenizer_x;
+            break;
+        default:
+            return;
+    }
+
+    u64 ctx_idx = tokenizer->ctx.idx;
 
     ctx_idx++;
     boolean got_terminator  = FALSE;
 
-    while ( ctx_idx < vm->tokenizer->index ) {
-        AskForthToken* tkn = &vm->tokenizer->tokens[ctx_idx];
+    while ( ctx_idx < tokenizer->index ) {
+        AskForthToken* tkn = &tokenizer->tokens[ctx_idx];
         if ( tkn->base[tkn->length - 1] == ')' ) {
             got_terminator = TRUE;
             break;
@@ -1036,7 +1074,7 @@ static void askf_word_comment_parenteshis( void ) {
         ctx_idx++;
     }
 
-    vm->tokenizer->ctx.idx = ctx_idx;
+    tokenizer->ctx.idx = ctx_idx;
 
     if ( !got_terminator ) {
         _askf_word_failed( (ascii*)"( -> Terminator not found on input buffer ')'", 45 );
@@ -1047,14 +1085,27 @@ static void askf_word_comment_parenteshis( void ) {
 static void askf_word_comment_slash( void ) {
     AskForthVm* vm = askf_get_global_vm();
 
-    u64 ctx_idx = vm->tokenizer->ctx.idx;
+    AskForthTokenizer* tokenizer = NULL;
+
+    switch ( vm->parse_type ) {
+        case ASKF_MAIN_PARSER:
+            tokenizer = vm->tokenizer;
+            break;
+        case ASKF_X_PARSER:
+            tokenizer = vm->tokenizer_x;
+            break;
+        default:
+            return;
+    }
+
+    u64 ctx_idx = tokenizer->ctx.idx;
 
     ctx_idx++;
     boolean got_terminator  = FALSE;
 
-    while ( ctx_idx < vm->tokenizer->index ) {
-        AskForthToken* tkn = &vm->tokenizer->tokens[ctx_idx];
-        if ( tkn->base[tkn->length - 1] == '\n' ) {
+    while ( ctx_idx < tokenizer->index ) {
+        AskForthToken* tkn = &tokenizer->tokens[ctx_idx];
+        if ( tkn->line_end == TRUE ) {
             got_terminator = TRUE;
             break;
         } 
@@ -1062,7 +1113,7 @@ static void askf_word_comment_slash( void ) {
         ctx_idx++;
     }
 
-    vm->tokenizer->ctx.idx = ctx_idx;
+    tokenizer->ctx.idx = ctx_idx;
 
     if ( !got_terminator ) {
         _askf_word_failed( (ascii*)"\\ -> Terminator not found on input buffer '\\n'", 46 );
@@ -1530,7 +1581,6 @@ static u64 _askf_custom_fgets( ascii* buff, u64 cap, FILE* stream, int* is_eof )
     return bytes_read;
 }
 
-// TODO: fix FIX FIX
     static void askf_word_include( void ) { 
         AskForthVm* vm       = askf_get_global_vm();
 
@@ -1559,8 +1609,8 @@ static u64 _askf_custom_fgets( ascii* buff, u64 cap, FILE* stream, int* is_eof )
                 && vm->outer_state == ASKF_VM_OUTER_STATE_EXECUTE )  
             if ( read ) {
                 vm->input_buffer_x->index += read;
-                // askf_print( (ascii*)"read:\n", 6 );
-                // askf_print( vm->input_buffer_x->base, vm->input_buffer_x->index );
+                 // askf_print( (ascii*)"read:\n", 6 );
+                 // askf_print( vm->input_buffer_x->base, vm->input_buffer_x->index );
                 vm->input_buffer_x->base[vm->input_buffer_x->index] = '\0';
                 askf_exec( vm, ASKF_X_PARSER );
             }

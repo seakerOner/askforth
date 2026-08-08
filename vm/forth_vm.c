@@ -44,6 +44,9 @@ static void _askf_parse_input_buffer( AskForthVm* forth_vm, AskForthParseType pa
                 new_token.base          = base_token;
                 new_token.length        = length;
 
+                if ( ib->base[x] == '\n' || ib->base[x] == '\0' )
+                    new_token.line_end      = TRUE;
+
                 askf_tokenizer_add( tknzr, new_token );
 
                 length = 0;
