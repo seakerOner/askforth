@@ -663,17 +663,3 @@ Therefore, the project should not be considered fully portable yet.
 
 The architecture is designed to make this work easier.
 
-## Building
-
-The build commands depend on the build system used by the project.
-
-The source shown here does not yet define a complete build configuration.
-
-A build system can define the target with:
-
-```text
-TARGET_LINUX
-```
-
-The Linux backend then enables the required Linux-specific implementation.
-
