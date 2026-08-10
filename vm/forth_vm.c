@@ -68,24 +68,37 @@ static void _askf_execute_threaded_word( AskForth_Word* word ) {
     AskForthVm* vm = askf_get_global_vm();
     u64* start = (u64*) word->source.source.threaded_code_start_addr;
 
-    while ( *start != 0x0 ) {
+    while ( *start != THREADED_FLAG_END ) {
         // immediate value comming
-        if ( *start == 0x1 ) {
+        if ( *start == THREADED_FLAG_IMMEDIATE ) {
             start++;
             AskForth_Cell new_cell = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
             new_cell.val._64u      = *start;
             askf_stack_push( &new_cell, vm->stack );
         
         // threaded code coming
-        } else if ( *start == 0x2 ) {
+        } else if ( *start == THREADED_FLAG_THREADEDWORD ) {
             start++;
             AskForth_Word* word = (AskForth_Word*)*start;
             _askf_execute_threaded_word( word );
+
+        // memory to skip over
+        } else if ( *start == THREADED_FLAG_SKIPPABLE ) {
+            start++;
+            u64 bytes_toskip = *start;
+            start = (u64*)( ( (u8*)start ) + bytes_toskip);
         } else { //native code  
             ((nat_code*)*start)();
         }
         start++;
     }
+}
+static boolean _strequal( ascii* str, ascii* to_compare, u64 len ) {
+    for ( u64 x = 0; x < len; x++ )
+        if ( str[x] != to_compare[x] )
+            return FALSE;
+
+    return TRUE;
 }
 
 void askf_exec( AskForthVm* vm, AskForthParseType parse_type ) {
@@ -187,6 +200,11 @@ void askf_exec( AskForthVm* vm, AskForthParseType parse_type ) {
                             ( (AskForth_Library*)vm->lib )->curr_compiling.here = askf_alloc( sizeof(u64) );
                             break;
                         case ASKF_WORD_THREADED:
+                            if ( _strequal( (ascii*)"EXIT", word->name, 4 ) ) {
+                                *( (AskForth_Library*)vm->lib )->curr_compiling.here = 0x0;
+                                ( (AskForth_Library*)vm->lib )->curr_compiling.here = askf_alloc( sizeof(u64) );
+                            }
+
                             *( (AskForth_Library*)vm->lib )->curr_compiling.here = 0x2;
                             ( (AskForth_Library*)vm->lib )->curr_compiling.here = askf_alloc( sizeof(u64) );
                             *( (AskForth_Library*)vm->lib )->curr_compiling.here = (u64)word;
