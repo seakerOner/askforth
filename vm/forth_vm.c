@@ -2,6 +2,8 @@
 #include "../input/input.h"
 #include "../library/library.h"
 
+//#include <stdio.h>
+
 AskForthVm* global_vm = NULL;
 
 void askf_vm_to_global_state( AskForthVm* vm ) {
@@ -68,10 +70,20 @@ static void _askf_execute_threaded_word( AskForth_Word* word ) {
     AskForthVm* vm = askf_get_global_vm();
     u64* ip = (u64*) word->source.source.threaded_code_start_addr;
 
+    // u64* copy_ip = ip;
+    //
+    // printf("Threaded memory of %.*s: \n ", (int)word->name_len, word->name);
+    // while ( *copy_ip != THREADED_FLAG_END ) {
+    //     printf("IP = %p, *IP = %ld\n", copy_ip, *copy_ip);
+    //     copy_ip++;
+    // }
+    //     printf("IP = %p, *IP = %ld\n", copy_ip, 0);
+
     while ( *ip != THREADED_FLAG_END ) {
         // immediate value comming
-        if ( *ip == THREADED_FLAG_IMMEDIATE ) {
+        if ( *ip == THREADED_FLAG_LITERAL ) {
             ip++;
+
             AskForth_Cell new_cell = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
             new_cell.val._64u      = *ip;
             askf_stack_push( &new_cell, vm->stack );
@@ -121,6 +133,16 @@ static void _askf_execute_threaded_word( AskForth_Word* word ) {
         ip++;
     }
 }
+
+void askf_execute_threaded_word( void ) {
+    AskForthVm* vm = askf_get_global_vm();
+
+    AskForth_Cell word = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    askf_stack_pop( &word, vm->stack );
+
+    _askf_execute_threaded_word( (AskForth_Word*)word.val._64u );
+}
+
 static boolean _strequal( ascii* str, ascii* to_compare, u64 len ) {
     for ( u64 x = 0; x < len; x++ )
         if ( str[x] != to_compare[x] )
@@ -180,12 +202,16 @@ void askf_exec( AskForthVm* vm, AskForthParseType parse_type ) {
                 switch ( vm->interpret_state ) {
                     case ASKF_COMPILE:
                         // flag for immediate value
-                        *( (AskForth_Library*)vm->lib )->curr_compiling.here = 0x1;
-                        ( (AskForth_Library*)vm->lib )->curr_compiling.here = askf_alloc( sizeof(u64) );
+                        *( (AskForth_Library*)vm->lib )->curr_compiling.here = 
+                            THREADED_FLAG_LITERAL;
+                        ( (AskForth_Library*)vm->lib )->curr_compiling.here = 
+                            askf_alloc( sizeof(u64) );
 
                         // actual number
-                        *( (AskForth_Library*)vm->lib )->curr_compiling.here = new_cell.val._64u;
-                        ( (AskForth_Library*)vm->lib )->curr_compiling.here = askf_alloc( sizeof(u64) );
+                        *( (AskForth_Library*)vm->lib )->curr_compiling.here = 
+                            new_cell.val._64u;
+                        ( (AskForth_Library*)vm->lib )->curr_compiling.here = 
+                            askf_alloc( sizeof(u64) );
                         break;
                     case ASKF_INTERPRET:
                         askf_stack_push( &new_cell, vm->stack );
@@ -229,11 +255,14 @@ void askf_exec( AskForthVm* vm, AskForthParseType parse_type ) {
                             break;
                         case ASKF_WORD_THREADED:
                             if ( _strequal( (ascii*)"EXIT", word->name, 4 ) ) {
-                                *( (AskForth_Library*)vm->lib )->curr_compiling.here = 0x0;
+                                *( (AskForth_Library*)vm->lib )->curr_compiling.here = 
+                                    THREADED_FLAG_END;
                                 ( (AskForth_Library*)vm->lib )->curr_compiling.here = askf_alloc( sizeof(u64) );
+                                break;
                             }
 
-                            *( (AskForth_Library*)vm->lib )->curr_compiling.here = 0x2;
+                            *( (AskForth_Library*)vm->lib )->curr_compiling.here = 
+                                THREADED_FLAG_THREADEDWORD;
                             ( (AskForth_Library*)vm->lib )->curr_compiling.here = askf_alloc( sizeof(u64) );
                             *( (AskForth_Library*)vm->lib )->curr_compiling.here = (u64)word;
                             ( (AskForth_Library*)vm->lib )->curr_compiling.here = askf_alloc( sizeof(u64) );

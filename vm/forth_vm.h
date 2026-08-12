@@ -9,7 +9,7 @@
 #include "../memory/blocks.h"
 
 #define THREADED_FLAG_END           0x0
-#define THREADED_FLAG_IMMEDIATE     0x1
+#define THREADED_FLAG_LITERAL       0x1
 #define THREADED_FLAG_THREADEDWORD  0x2
 #define THREADED_FLAG_SKIPPABLE     0x3
 
@@ -76,6 +76,8 @@ void askf_exec_token( AskForthVm* vm, AskForthToken* token, u64 tokenizer_idx );
 void askf_vm_change_cell_scale( AskForth_CellSize new_cell_size );
 
 void askf_vm_change_outer_state( AskForthVmOuterState new_state );
+
+void askf_execute_threaded_word( void );
 
 void askf_vm_trace_error( AskForthError error );
 AskForthError* askf_vm_get_most_recent_error( void );
