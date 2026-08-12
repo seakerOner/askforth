@@ -1298,7 +1298,7 @@ static void askf_word_true( void ) {
 
     AskForth_Cell top_stack = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
 
-    top_stack.val._64u = 1;
+    top_stack.val._64u = -1;
 
     askf_stack_push( &top_stack, vm->stack );
 }
@@ -1642,6 +1642,121 @@ static void askf_word_mode( void ) {
     mode.val._64u       = vm->interpret_state;
 
     askf_stack_push( &mode, vm->stack );
+}
+
+static boolean _askf_0branch( void ) {
+    AskForthVm* vm              = askf_get_global_vm();
+    AskForth_Library* lib       = (AskForth_Library*)vm->lib;
+
+    if ( vm->interpret_state != ASKF_COMPILE ) {
+        askf_print( (ascii*)"0BRANCH can only be used by compiled code ", 42 );
+        return FALSE;
+    }
+
+    AskForth_Cell cell          = askf_new_cell_payload( vm->cf_stack, vm->cf_stack->is_signed );
+    *lib->curr_compiling.here   = THREADED_FLAG_0BRANCH;
+    lib->curr_compiling.here    = askf_alloc( sizeof( u64 ) );
+
+    // push into cf_stack the addr of memory on threaded code to later store ( on BRANCH )
+    // the offset if flag is 0 on runtime
+    cell.val._64u               = ( u64 )lib->curr_compiling.here;
+    askf_stack_push( &cell, vm->cf_stack );
+
+    lib->curr_compiling.here    = askf_alloc( sizeof( u64 ) );
+
+    return TRUE;
+}
+
+static boolean _askf_branch( void ) {
+    AskForthVm* vm              = askf_get_global_vm();
+    AskForth_Library* lib       = (AskForth_Library*)vm->lib;
+
+    if ( vm->interpret_state != ASKF_COMPILE ) {
+        askf_print( (ascii*)"BRANCH can only be used by compiled code ", 41 );
+        return FALSE;
+    }
+
+    if ( vm->cf_stack->index < 1 ) {
+        return FALSE;
+    }
+
+    AskForth_Cell previous_offset_ptr = 
+        askf_new_cell_payload( vm->cf_stack, vm->cf_stack->is_signed);
+
+    askf_stack_pop( &previous_offset_ptr, vm->cf_stack );
+
+    *lib->curr_compiling.here   = THREADED_FLAG_BRANCH;
+    lib->curr_compiling.here    = askf_alloc( sizeof(u64) );
+
+    AskForth_Cell cell          = 
+        askf_new_cell_payload( vm->cf_stack, vm->cf_stack->is_signed );
+    cell.val._64u               = ( u64 )lib->curr_compiling.here;
+    askf_stack_push( &cell, vm->cf_stack );
+
+    lib->curr_compiling.here    = askf_alloc( sizeof(u64) );
+
+    u64 offset = (u64)lib->curr_compiling.here - previous_offset_ptr.val._64u;
+
+    *((u64*)previous_offset_ptr.val._64u) = offset;
+
+    return TRUE;
+}
+
+static void askf_word_0branch( void ) {
+    if ( !_askf_0branch() ) 
+        _askf_word_failed( (ascii*)"0BRANCH can only be used by compiled code ", 42 );
+}
+
+static void askf_word_branch( void ) {
+    if ( !_askf_branch() ) 
+        _askf_word_failed( (ascii*)"BRANCH can only be used by compiled code ", 41 );
+}
+
+static void askf_word_if( void ) {
+    AskForthVm* vm      = askf_get_global_vm();
+
+    if ( vm->interpret_state != ASKF_COMPILE ) {
+        _askf_word_failed( (ascii*)"IF -> Can only be used in compiled code", 39 );
+        return;
+    }
+
+    boolean res = _askf_0branch();
+
+    if ( !res ) 
+        _askf_word_failed( (ascii*)"IF", 2 ); 
+}
+
+static void askf_word_else( void ) {
+    AskForthVm* vm      = askf_get_global_vm();
+
+    if ( vm->interpret_state != ASKF_COMPILE ) {
+        _askf_word_failed( (ascii*)"ELSE -> Can only be used in compiled code", 41 );
+        return;
+    }
+
+    boolean res = _askf_branch();
+
+    if ( !res ) 
+        _askf_word_failed( (ascii*)"ELSE", 4 ); 
+}
+
+static void askf_word_then( void ) {
+    AskForthVm* vm              = askf_get_global_vm();
+    AskForth_Library* lib       = (AskForth_Library*)vm->lib;
+
+    if ( vm->interpret_state != ASKF_COMPILE ) {
+        _askf_word_failed( (ascii*)"THEN -> Must be used in compiled code only", 42 );
+        return;
+    }
+
+    AskForth_Cell previous_offset_ptr = askf_new_cell_payload( vm->cf_stack, vm->cf_stack->is_signed);
+    askf_stack_pop( &previous_offset_ptr, vm->cf_stack );
+
+    u64 offset = (u64)lib->curr_compiling.here - previous_offset_ptr.val._64u;
+
+    *((u64*)previous_offset_ptr.val._64u) = offset;
+
+    lib->curr_compiling.here = askf_alloc( sizeof(u64) );
 }
 
 #ifdef TARGET_LINUX
@@ -2545,6 +2660,60 @@ void askf_add_core_words( void ) {
         askf_dic_add_word_native( core_dic_name, FALSE, askf_word_mode, scratch_word_name );
 
     if ( !added_mode )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // INFO: totally valid words to include on the core dic BUT im not sure if i want so
+    UNUSED( askf_word_0branch );
+    UNUSED( askf_word_branch  );
+    
+    // // 0BRANCH
+    // scratch_word_name.base            = (ascii*)"0BRANCH";
+    // scratch_word_name.length          = 7;
+    //
+    // boolean added_0branch = 
+    //     askf_dic_add_word_native( core_dic_name, FALSE, askf_word_0branch, scratch_word_name );
+    //
+    // if ( !added_0branch )
+    //     _askf_print_failed_add_word( &scratch_word_name );
+    //
+    // // BRANCH
+    // scratch_word_name.base            = (ascii*)"BRANCH";
+    // scratch_word_name.length          = 6;
+    //
+    // boolean added_branch = 
+    //     askf_dic_add_word_native( core_dic_name, FALSE, askf_word_branch, scratch_word_name );
+    //
+    // if ( !added_branch )
+    //     _askf_print_failed_add_word( &scratch_word_name );
+
+    // IF
+    scratch_word_name.base            = (ascii*)"IF";
+    scratch_word_name.length          = 2;
+
+    boolean added_if = 
+        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_if, scratch_word_name );
+
+    if ( !added_if )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // ELSE
+    scratch_word_name.base            = (ascii*)"ELSE";
+    scratch_word_name.length          = 4;
+
+    boolean added_else = 
+        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_else, scratch_word_name );
+
+    if ( !added_else )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // THEN
+    scratch_word_name.base            = (ascii*)"THEN";
+    scratch_word_name.length          = 4;
+
+    boolean added_then = 
+        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_then, scratch_word_name );
+
+    if ( !added_then )
         _askf_print_failed_add_word( &scratch_word_name );
 
 }

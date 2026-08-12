@@ -66,31 +66,59 @@ typedef void nat_code(void);
 
 static void _askf_execute_threaded_word( AskForth_Word* word ) {
     AskForthVm* vm = askf_get_global_vm();
-    u64* start = (u64*) word->source.source.threaded_code_start_addr;
+    u64* ip = (u64*) word->source.source.threaded_code_start_addr;
 
-    while ( *start != THREADED_FLAG_END ) {
+    while ( *ip != THREADED_FLAG_END ) {
         // immediate value comming
-        if ( *start == THREADED_FLAG_IMMEDIATE ) {
-            start++;
+        if ( *ip == THREADED_FLAG_IMMEDIATE ) {
+            ip++;
             AskForth_Cell new_cell = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-            new_cell.val._64u      = *start;
+            new_cell.val._64u      = *ip;
             askf_stack_push( &new_cell, vm->stack );
         
         // threaded code coming
-        } else if ( *start == THREADED_FLAG_THREADEDWORD ) {
-            start++;
-            AskForth_Word* word = (AskForth_Word*)*start;
+        } else if ( *ip == THREADED_FLAG_THREADEDWORD ) {
+            ip++;
+            AskForth_Word* word = (AskForth_Word*)*ip;
             _askf_execute_threaded_word( word );
 
         // memory to skip over
-        } else if ( *start == THREADED_FLAG_SKIPPABLE ) {
-            start++;
-            u64 bytes_toskip = *start;
-            start = (u64*)( ( (u8*)start ) + bytes_toskip);
+        } else if ( *ip == THREADED_FLAG_SKIPPABLE ) {
+            ip++;
+            u64 bytes_toskip = *ip;
+            ip = (u64*)( ( (u8*)ip ) + bytes_toskip );
+
+        // 0BRANCH
+        } else if ( *ip == THREADED_FLAG_0BRANCH ) {
+            ip++;
+
+            if ( vm->stack->index < 1 ) {
+                // TODO: do a branch failure
+                askf_print( (ascii*)"0branch failure on word: ", 25 );
+                askf_print( word->name , word->name_len );
+                return;
+            }
+
+            AskForth_Cell flag = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+            askf_stack_pop( &flag, vm->stack );
+
+            if ( flag.val._64u == 0 ) {
+                u64 bytes_toskip = *ip;
+                ip = (u64*)( ( (u8*)ip ) + bytes_toskip );
+                continue;
+            }
+
+        // BRANCH
+        } else if ( *ip == THREADED_FLAG_BRANCH ) {
+            ip++;
+            u64 bytes_toskip = *ip;
+            ip = (u64*)( ( (u8*)ip ) + bytes_toskip );
+            continue;
+
         } else { //native code  
-            ((nat_code*)*start)();
+            ((nat_code*)*ip)();
         }
-        start++;
+        ip++;
     }
 }
 static boolean _strequal( ascii* str, ascii* to_compare, u64 len ) {

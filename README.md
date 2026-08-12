@@ -494,7 +494,7 @@ TRUE
 FALSE
 ```
 
-`TRUE` pushes `1`.
+`TRUE` pushes `-1`.
 
 `FALSE` pushes `0`.
 

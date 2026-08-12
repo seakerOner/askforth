@@ -32,6 +32,7 @@ int main( void ) {
     AskForthVm          vm                          = {0};
     AskForth_Ram        ram                         = {0};
     AskForth_Stack      stack                       = {0};
+    AskForth_Stack      cf_stack                    = {0};
     AskForthInputBuffer input_buffer                = {0};
     AskForthInputBuffer input_buffer_x              = {0};
     AskForth_CellSize   initial_cell_base_scale     = ASKF_BITS64;
@@ -65,12 +66,14 @@ int main( void ) {
 
     askf_create_backend_blob( ram_size, ( void* )RAW_RAM_START_ADDRESS, &ram );
     askf_start_stack( initial_cell_base_scale, &stack );
+    askf_start_stack( initial_cell_base_scale, &cf_stack );
 
     askf_start_error_tracer( &ram, &tracer, ASKFORTH_ERROR_TRACER_CAPACITY );
 
 
     vm.ram              = &ram;
     vm.stack            = &stack;
+    vm.cf_stack         = &cf_stack;
     vm.input_buffer     = &input_buffer;
     vm.input_buffer_x   = &input_buffer_x;
     vm.blocks           = &blocks;

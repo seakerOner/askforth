@@ -13,6 +13,9 @@
 #define THREADED_FLAG_THREADEDWORD  0x2
 #define THREADED_FLAG_SKIPPABLE     0x3
 
+#define THREADED_FLAG_0BRANCH       0x5
+#define THREADED_FLAG_BRANCH        0x6
+
 typedef enum {
     ASKF_VM_OUTER_STATE_BLOCKING_INPUT,
     ASKF_VM_OUTER_STATE_EXECUTE,
@@ -45,6 +48,7 @@ typedef enum {
 
 typedef struct AskForthVm_t {
     AskForth_Stack*                         stack;
+    AskForth_Stack*                         cf_stack;
     AskForth_Ram*                           ram;
     AskForthInputBuffer*                    input_buffer;
     AskForthInputBuffer*                    input_buffer_x;
