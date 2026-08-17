@@ -72,12 +72,12 @@ static void _askf_execute_threaded_word( AskForth_Word* word ) {
 
     u64* copy_ip = ip;
 
-    printf("Threaded memory of %.*s: \n ", (int)word->name_len, word->name);
-    while ( *copy_ip != THREADED_FLAG_END ) {
-        printf("IP = %p, *IP = %lld\n", copy_ip, *copy_ip);
-        copy_ip++;
-    }
-        printf("IP = %p, *IP = %d\n", copy_ip, 0);
+    // printf("Threaded memory of %.*s: \n ", (int)word->name_len, word->name);
+    // while ( *copy_ip != THREADED_FLAG_END ) {
+    //     printf("IP = %p, *IP = %lld\n", copy_ip, *copy_ip);
+    //     copy_ip++;
+    // }
+    //     printf("IP = %p, *IP = %d\n", copy_ip, 0);
 
     while ( *ip != THREADED_FLAG_END ) {
         // immediate value comming

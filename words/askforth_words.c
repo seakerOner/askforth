@@ -1522,15 +1522,7 @@ static void askf_word_semicolon( void ) {
     
     vm->interpret_state  = ASKF_INTERPRET;
 
-    u64* comp_addr = 
-        (u64*)( (AskForth_Library*)vm->lib )
-            ->curr_compiling.here;
-
-    // signal end of word
-    *comp_addr = THREADED_FLAG_END;
-
-    ( (AskForth_Library*)vm->lib )
-            ->curr_compiling.here = (u64*)askf_alloc( sizeof(u64) );
+    askf_compile_threaded_memory( THREADED_FLAG_END );
 
     ( (AskForth_Library*)vm->lib )->curr_compiling.dic  = NULL;
     ( (AskForth_Library*)vm->lib )->curr_compiling.word = NULL;
@@ -1855,7 +1847,34 @@ static void askf_word_execute( void ) {
     }
 }
 
-void askf_word_literal( void ) {
+static void askf_word_compile_comma( void )  {
+    AskForthVm* vm              = askf_get_global_vm();
+
+    if ( vm->stack->index < 1 ) {
+        _askf_word_failed( (ascii*)"COMPILE, -> Expects addr", 24 );
+        return;
+    }
+
+    AskForth_Cell addr = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+
+    askf_stack_pop( &addr, vm->stack );
+
+    AskForth_Word* word = ( AskForth_Word* )addr.val._64u;
+
+    switch ( word->source.type ) {
+        case ASKF_WORD_NATIVE:
+            askf_compile_threaded_memory( (u64)word->source.source.native_code );
+            break;
+        case ASKF_WORD_THREADED:
+            askf_compile_threaded_memory( THREADED_FLAG_THREADEDWORD );
+            askf_compile_threaded_memory( (u64)word );
+            break;
+        default:
+            break;
+    }
+}
+
+static void askf_word_literal( void ) {
     AskForthVm* vm              = askf_get_global_vm();
 
     if ( vm->interpret_state != ASKF_COMPILE ) {
@@ -1876,9 +1895,7 @@ void askf_word_literal( void ) {
     askf_compile_threaded_memory( val.val._64u );
 }
 
-// TODO: i dont think this is up to the forth standard in terms of semantics...
-// FIX: not compiling correctly
-void askf_word_postpone( void ) {
+static void askf_word_postpone( void ) {
     AskForthVm* vm              = askf_get_global_vm();
 
     if ( vm->interpret_state != ASKF_COMPILE ) {
@@ -2644,7 +2661,7 @@ void askf_add_core_words( void ) {
     scratch_word_name.length          = 1;
 
     boolean added_comment_paren = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_comment_parenteshis, scratch_word_name );
+        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_comment_parenteshis, scratch_word_name );
 
     if ( !added_comment_paren )
         _askf_print_failed_add_word( &scratch_word_name );
@@ -2654,7 +2671,7 @@ void askf_add_core_words( void ) {
     scratch_word_name.length          = 1;
 
     boolean added_comment_slash = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_comment_slash, scratch_word_name );
+        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_comment_slash, scratch_word_name );
 
     if ( !added_comment_slash )
         _askf_print_failed_add_word( &scratch_word_name );
@@ -2949,6 +2966,17 @@ void askf_add_core_words( void ) {
                 core_dic_name, FALSE, askf_word_execute, scratch_word_name );
 
     if ( !added_execute )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // COMPILE,
+    scratch_word_name.base            = (ascii*)"COMPILE,";
+    scratch_word_name.length          = 8;
+
+    boolean added_compile_comma = 
+        askf_dic_add_word_native( 
+                core_dic_name, FALSE, askf_word_compile_comma, scratch_word_name );
+
+    if ( !added_compile_comma )
         _askf_print_failed_add_word( &scratch_word_name );
 
 }
