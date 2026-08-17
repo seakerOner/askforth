@@ -217,3 +217,21 @@ boolean askf_dic_add_word_threaded( AskForth_Dictionary* dic, AskForthToken word
 
     return TRUE;
 }
+
+boolean askf_compile_threaded_memory( u64 val ) {
+    AskForthVm* vm = askf_get_global_vm();
+
+    if ( !((AskForth_Library*)vm->lib)->curr_compiling.here ) {
+        return FALSE;
+    }
+
+    *((AskForth_Library*)vm->lib)->curr_compiling.here = val;
+    (( AskForth_Library* )vm->lib)->curr_compiling.here = 
+                askf_alloc( sizeof( u64 ) );
+
+    if ( !((AskForth_Library*)vm->lib)->curr_compiling.here ) {
+        return FALSE;
+    }
+
+    return TRUE;;
+}

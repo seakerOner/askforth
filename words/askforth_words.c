@@ -359,7 +359,21 @@ static void askf_word_parse_word( void ) {
     AskForth_Cell cell      = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
 
     // TODO: decide if this is what i want from parse_word
-    AskForthToken* scratch  = askf_alloc( sizeof( ascii ) * tokenizer->tokens[idx].length );
+    u64 len =  sizeof( ascii ) * tokenizer->tokens[idx].length ;
+
+    AskForthToken* scratch  = NULL;
+    if ( vm->interpret_state == ASKF_COMPILE && 
+            ((AskForth_Library*)vm->lib)->curr_compiling.here ) {
+        askf_compile_threaded_memory( THREADED_FLAG_SKIPPABLE );
+        scratch  = askf_alloc( len );
+        askf_compile_threaded_memory( len );
+    }  else if ( vm->interpret_state == ASKF_COMPILE 
+            && !((AskForth_Library*)vm->lib)->curr_compiling.here ) {
+        // this should not happen at any point if we are in compilation
+    } else {
+        scratch  = askf_alloc( len );
+    }
+
 
     COPY( tokenizer->tokens[idx].base, scratch, tokenizer->tokens[idx].length );
 
@@ -994,28 +1008,20 @@ static void askf_word_print_string( void ) {
             } break;
         case ASKF_COMPILE: {
 
-            *((AskForth_Library*)vm->lib)->curr_compiling.here  = THREADED_FLAG_SKIPPABLE;
-            ((AskForth_Library*)vm->lib)->curr_compiling.here   = askf_alloc( sizeof( u64 ) );
-
-            *((AskForth_Library*)vm->lib)->curr_compiling.here  = len;
+            askf_compile_threaded_memory( THREADED_FLAG_SKIPPABLE );
 
             ascii* ptr = (ascii*)askf_alloc( len );
             COPY( string_base, ptr, len );
+            askf_compile_threaded_memory( len );
 
-            ((AskForth_Library*)vm->lib)->curr_compiling.here   = askf_alloc( sizeof( u64 ) );
 
-            *((AskForth_Library*)vm->lib)->curr_compiling.here  = THREADED_FLAG_LITERAL;
-            ((AskForth_Library*)vm->lib)->curr_compiling.here   = askf_alloc( sizeof( u64 ) );
-            *((AskForth_Library*)vm->lib)->curr_compiling.here  = (u64)ptr;
-            ((AskForth_Library*)vm->lib)->curr_compiling.here   = askf_alloc( sizeof( u64 ) );
+            askf_compile_threaded_memory( THREADED_FLAG_LITERAL );
+            askf_compile_threaded_memory( (u64)ptr );
 
-            *((AskForth_Library*)vm->lib)->curr_compiling.here  = THREADED_FLAG_LITERAL;
-            ((AskForth_Library*)vm->lib)->curr_compiling.here   = askf_alloc( sizeof( u64 ) );
-            *((AskForth_Library*)vm->lib)->curr_compiling.here  = (u64)len;
-            ((AskForth_Library*)vm->lib)->curr_compiling.here   = askf_alloc( sizeof( u64 ) );
+            askf_compile_threaded_memory( THREADED_FLAG_LITERAL );
+            askf_compile_threaded_memory( (u64)len );
 
-            *((AskForth_Library*)vm->lib)->curr_compiling.here = (u64)askf_word_type ;
-            ((AskForth_Library*)vm->lib)->curr_compiling.here   = askf_alloc( sizeof( u64 ) );
+            askf_compile_threaded_memory( (u64)askf_word_type );
         }
             break;
         default:
@@ -1866,40 +1872,62 @@ void askf_word_literal( void ) {
 
     askf_stack_pop( &val, vm->stack );
 
-    *(( AskForth_Library* )vm->lib)->curr_compiling.here = THREADED_FLAG_LITERAL;
-    (( AskForth_Library* )vm->lib)->curr_compiling.here = askf_alloc( sizeof( u64 ) );
-
-    *(( AskForth_Library* )vm->lib)->curr_compiling.here = val.val._64u;
-    (( AskForth_Library* )vm->lib)->curr_compiling.here = askf_alloc( sizeof( u64 ) );
+    askf_compile_threaded_memory( THREADED_FLAG_LITERAL );
+    askf_compile_threaded_memory( val.val._64u );
 }
 
-// TODO:
+// TODO: i dont think this is up to the forth standard in terms of semantics...
 // FIX: not compiling correctly
 void askf_word_postpone( void ) {
     AskForthVm* vm              = askf_get_global_vm();
 
     if ( vm->interpret_state != ASKF_COMPILE ) {
-        _askf_word_failed( (ascii*)"LITERAL -> Must be used in compile code", 39 );
+        _askf_word_failed( (ascii*)"POSTPONE -> Must be used in compile code", 40 );
         return;
     }
 
-    askf_word_single_quote();
+    askf_word_parse_word();
 
-    AskForth_Cell cell = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    askf_stack_pop( &cell, vm->stack );
+    if ( vm->stack->index < 2 ) {
+        _askf_word_failed( (ascii*)"POSTPONE -> Expects token", 25 );
+        return;
+    }
 
-    AskForth_Word* word = ( AskForth_Word* )cell.val._64u;
+    AskForth_Cell len  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    AskForth_Cell addr = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
 
-    if ( word->source.type == ASKF_WORD_THREADED ) { 
-        *(( AskForth_Library* )vm->lib)->curr_compiling.here = THREADED_FLAG_THREADEDWORD;
-        (( AskForth_Library* )vm->lib)->curr_compiling.here = askf_alloc( sizeof( u64 ) );
+    askf_stack_pop( &len, vm->stack );
+    askf_stack_pop( &addr, vm->stack );
 
-        *(( AskForth_Library* )vm->lib)->curr_compiling.here = cell.val._64u;
-        (( AskForth_Library* )vm->lib)->curr_compiling.here = askf_alloc( sizeof( u64 ) );
-    } else if ( word->source.type == ASKF_WORD_NATIVE ) {
-        *((AskForth_Library*)vm->lib)->curr_compiling.here = 
-            (u64)word->source.source.native_code;
-        ((AskForth_Library*)vm->lib)->curr_compiling.here  = askf_alloc( sizeof( u64 ) );
+    AskForthToken token = {0};
+    token.base      = ( ascii* )addr.val._64u;
+    token.length    = len.val._64u;
+    token.line_end  = FALSE;
+
+    AskForth_Word* word =  askf_library_find_word( vm, &token );
+
+    if ( !word ) {
+        _askf_word_failed( (ascii*)"POSTPONE -> Unknown Word", 24 );
+
+        AskForthError err = {0};
+        err.zone = ASKF_ERROR_ZONE_OUTER;
+        err.error = ASKF_ERROR_UNKNOWN_WORD;
+        AskForthErrorMessage* msg = askf_alloc_new_opt_message( token.base, token.length + 1 );
+        msg->message[msg->length] = '\0';
+        err.opt_message = msg;
+        askf_throw_error( err );
+        return;
+    }
+
+    // idk not working like other compilations
+    switch ( word->source.type ) {
+        case ASKF_WORD_NATIVE:
+            askf_compile_threaded_memory( (u64)word->source.source.native_code );
+            break;
+        case ASKF_WORD_THREADED:
+            askf_compile_threaded_memory( THREADED_FLAG_THREADEDWORD );
+            askf_compile_threaded_memory( (u64)word );
+            break;
     }
 }
 

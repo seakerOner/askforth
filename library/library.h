@@ -73,3 +73,5 @@ boolean askf_dic_add_word_native(
         AskForthToken word_name );
 
 boolean askf_dic_add_word_threaded( AskForth_Dictionary* dic, AskForthToken word_name );
+
+boolean askf_compile_threaded_memory( u64 val );
