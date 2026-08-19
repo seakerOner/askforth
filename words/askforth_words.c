@@ -882,7 +882,15 @@ static void askf_word_allot( void ) {
         return;
     }
 
-    vm->ram->byte_index += val.val._64u;
+
+    if ( vm->interpret_state == ASKF_COMPILE && 
+            ((AskForth_Library*)vm->lib)->curr_compiling.here ) {
+        askf_compile_threaded_memory( THREADED_FLAG_SKIPPABLE );
+        vm->ram->byte_index += val.val._64u;
+        askf_compile_threaded_memory( val.val._64u );
+    } else {
+        vm->ram->byte_index += val.val._64u;
+    }
 }
 
 static void askf_word_cells( void ) {
@@ -1104,25 +1112,22 @@ static void askf_word_comment_parenteshis( void ) {
 
     u64 ctx_idx = tokenizer->ctx.idx;
 
-    ctx_idx++;
-    boolean got_terminator  = FALSE;
+    // if ( tokenizer->comment_state == ASKF_COMMENT_STATE_NONE )
+    //      ctx_idx++;
 
     while ( ctx_idx < tokenizer->index ) {
         AskForthToken* tkn = &tokenizer->tokens[ctx_idx];
         if ( tkn->base[tkn->length - 1] == ')' ) {
-            got_terminator = TRUE;
-            break;
+            tokenizer->ctx.idx       = ctx_idx + 1;
+            tokenizer->comment_state = ASKF_COMMENT_STATE_NONE;
+            return;
         } 
 
         ctx_idx++;
     }
 
-    tokenizer->ctx.idx = ctx_idx;
-
-    if ( !got_terminator ) {
-        _askf_word_failed( (ascii*)"( -> Terminator not found on input buffer ')'", 45 );
-        return;
-    }
+    tokenizer->ctx.idx          = ctx_idx;
+    tokenizer->comment_state    = ASKF_COMMENT_STATE_PAREN;
 }
 
 static void askf_word_comment_slash( void ) {
@@ -1143,25 +1148,30 @@ static void askf_word_comment_slash( void ) {
 
     u64 ctx_idx = tokenizer->ctx.idx;
 
-    ctx_idx++;
-    boolean got_terminator  = FALSE;
+    // if ( tokenizer->comment_state == ASKF_COMMENT_STATE_NONE )
+    //      ctx_idx++;
 
     while ( ctx_idx < tokenizer->index ) {
         AskForthToken* tkn = &tokenizer->tokens[ctx_idx];
-        if ( tkn->line_end == TRUE ) {
-            got_terminator = TRUE;
-            break;
-        } 
+        if ( tkn->line_end == TRUE )  {
+            //tokenizer->ctx.idx          = ctx_idx + 1;
+            tokenizer->ctx.idx          = ctx_idx;
+            tokenizer->comment_state    = ASKF_COMMENT_STATE_NONE;
+            return;
+        }
 
         ctx_idx++;
     }
 
-    tokenizer->ctx.idx = ctx_idx;
+    tokenizer->ctx.idx          = ctx_idx;
+    tokenizer->comment_state    = ASKF_COMMENT_STATE_SLASH;
+}
 
-    if ( !got_terminator ) {
-        _askf_word_failed( (ascii*)"\\ -> Terminator not found on input buffer '\\n'", 46 );
-        return;
-    }
+void askf_continue_comment_paren( void ) {
+    askf_word_comment_parenteshis();
+}
+void askf_continue_comment_slash( void ) {
+    askf_word_comment_slash();
 }
 
 static void askf_word_cr( void ) { 
@@ -2010,8 +2020,6 @@ static u64 _askf_custom_fgets( ascii* buff, u64 cap, FILE* stream, int* is_eof )
                 && vm->outer_state == ASKF_VM_OUTER_STATE_EXECUTE )  
             if ( read ) {
                 vm->input_buffer_x->index += read;
-                 // askf_print( (ascii*)"read:\n", 6 );
-                 // askf_print( vm->input_buffer_x->base, vm->input_buffer_x->index );
                 vm->input_buffer_x->base[vm->input_buffer_x->index] = '\0';
                 askf_exec( vm, ASKF_X_PARSER );
             }

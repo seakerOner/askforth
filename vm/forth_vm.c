@@ -2,7 +2,7 @@
 #include "../input/input.h"
 #include "../library/library.h"
 
-#include <stdio.h>
+#include "../words/askforth_words.h"
 
 AskForthVm* global_vm = NULL;
 
@@ -28,7 +28,6 @@ static void _askf_parse_input_buffer( AskForthVm* forth_vm, AskForthParseType pa
             break;
         default:
             return;
-            break;
     }
 
     if (ib->index == 0)
@@ -80,7 +79,7 @@ static void _askf_execute_threaded_word( AskForth_Word* word ) {
     //     printf("IP = %p, *IP = %d\n", copy_ip, 0);
 
     while ( *ip != THREADED_FLAG_END ) {
-        // immediate value comming
+        // literal value comming
         if ( *ip == THREADED_FLAG_LITERAL ) {
             ip++;
 
@@ -174,7 +173,29 @@ void askf_exec( AskForthVm* vm, AskForthParseType parse_type ) {
             break;
     }
 
-    for (u64 x = 0; x < tokenizer->index; x++) {
+    u64 start_idx = 0;
+
+    switch ( tokenizer->comment_state ) {
+        case ASKF_COMMENT_STATE_SLASH:
+            askf_continue_comment_slash();
+            if ( tokenizer->comment_state == ASKF_COMMENT_STATE_SLASH )
+                goto parse_done;
+
+            start_idx = tokenizer->ctx.idx;
+            break;
+        case ASKF_COMMENT_STATE_PAREN:
+            askf_continue_comment_paren();
+            if ( tokenizer->comment_state == ASKF_COMMENT_STATE_PAREN )
+                goto parse_done;
+
+           start_idx = tokenizer->ctx.idx;
+            break;
+        case ASKF_COMMENT_STATE_NONE:
+        default:
+            break;
+    }
+
+    for (u64 x = start_idx; x < tokenizer->index; x++) {
         AskForth_Word* word =  askf_library_find_word( vm, &tokenizer->tokens[x] );
 
         if ( word == NULL ) {
@@ -259,7 +280,8 @@ void askf_exec( AskForthVm* vm, AskForthParseType parse_type ) {
         if ( tokenizer->ctx.idx > x )
             x = tokenizer->ctx.idx;
     }
-    
+
+    parse_done:
     askf_tokenizer_reset( tokenizer );
     askf_reset_input_buffer( vm, parse_type );
 

@@ -15,12 +15,19 @@ typedef struct {
     AskForthToken* token;
 } AskForthTokenizerCtx;
 
+typedef enum {
+    ASKF_COMMENT_STATE_NONE,
+    ASKF_COMMENT_STATE_PAREN,
+    ASKF_COMMENT_STATE_SLASH,
+} AskForthCommentState;
+
 typedef struct {
     AskForthToken*  tokens;
     u64             index;
     u64             capacity;
 
     AskForthTokenizerCtx ctx;
+    AskForthCommentState comment_state;
 } AskForthTokenizer;
 
 
