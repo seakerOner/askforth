@@ -35,6 +35,7 @@ void askf_read_input_blocking( AskForthVm* vm  ) {
 }
 
 u32 askf_read_input_blocking_tobuff( AskForthVm* vm, ascii* buffer, u64 cap ) {
+    UNUSED( vm );
     #ifdef TARGET_LINUX
         int res = read( STDIN_FILENO, 
                         buffer,

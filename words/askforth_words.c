@@ -1126,7 +1126,7 @@ static void askf_word_comment_parenteshis( void ) {
         ctx_idx++;
     }
 
-    tokenizer->ctx.idx          = ctx_idx;
+    tokenizer->ctx.idx          = tokenizer->index;
     tokenizer->comment_state    = ASKF_COMMENT_STATE_PAREN;
 }
 
@@ -1154,8 +1154,7 @@ static void askf_word_comment_slash( void ) {
     while ( ctx_idx < tokenizer->index ) {
         AskForthToken* tkn = &tokenizer->tokens[ctx_idx];
         if ( tkn->line_end == TRUE )  {
-            //tokenizer->ctx.idx          = ctx_idx + 1;
-            tokenizer->ctx.idx          = ctx_idx;
+            tokenizer->ctx.idx          = ctx_idx + 1;
             tokenizer->comment_state    = ASKF_COMMENT_STATE_NONE;
             return;
         }
@@ -1163,7 +1162,7 @@ static void askf_word_comment_slash( void ) {
         ctx_idx++;
     }
 
-    tokenizer->ctx.idx          = ctx_idx;
+    tokenizer->ctx.idx          = tokenizer->index;
     tokenizer->comment_state    = ASKF_COMMENT_STATE_SLASH;
 }
 
@@ -1958,7 +1957,7 @@ static void askf_word_postpone( void ) {
     }
 }
 
-#ifdef TARGET_LINUX
+#if defined( TARGET_LINUX ) || defined( TARGET_WINDOWS )
 static u64 _askf_custom_fgets( ascii* buff, u64 cap, FILE* stream, int* is_eof ) {
     if ( cap == 0 || buff == NULL || stream == NULL )  {
         *is_eof = 0;
@@ -1973,13 +1972,24 @@ static u64 _askf_custom_fgets( ascii* buff, u64 cap, FILE* stream, int* is_eof )
 
         if ( ch == EOF ) {
             *is_eof = 1;
+            return bytes_read;
+            break;
+        }
+
+        if ( ch == '\n' ) {
+            buff[bytes_read++] = (ascii)ch;
             break;
         }
 
         if ( ch == '\r' ) {
             // Peek ahead to handle Windows CRLF properly
             int next_ch = fgetc( stream );
-            if ( next_ch != '\n' && next_ch != EOF ) 
+
+            if ( next_ch == '\n' ) {
+                if ( bytes_read < cap )
+                    buff[bytes_read++] = (ascii)ch;
+            } 
+            else if ( next_ch != EOF ) 
                 ungetc( next_ch, stream );
 
             break;
@@ -2011,19 +2021,21 @@ static u64 _askf_custom_fgets( ascii* buff, u64 cap, FILE* stream, int* is_eof )
             return;
         }
 
-        u64 read = 0;
         int is_eof;
 
-        while ( (read =  
-                    _askf_custom_fgets( 
-                        vm->input_buffer_x->base, vm->input_buffer_x->capacity , f, &is_eof )) 
-                && vm->outer_state == ASKF_VM_OUTER_STATE_EXECUTE )  
-            if ( read ) {
-                vm->input_buffer_x->index += read;
+        while ( vm->outer_state == ASKF_VM_OUTER_STATE_EXECUTE )   { 
+            u64 read = _askf_custom_fgets( vm->input_buffer_x->base, 
+                    vm->input_buffer_x->capacity - 1, f, &is_eof );
+
+            if ( read > 0 ) {
+                vm->input_buffer_x->index = read;
                 vm->input_buffer_x->base[vm->input_buffer_x->index] = '\0';
                 askf_exec( vm, ASKF_X_PARSER );
             }
 
+            if ( is_eof )
+                break;
+        }
 
         fclose( f );
     }

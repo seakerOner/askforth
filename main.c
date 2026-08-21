@@ -1,12 +1,15 @@
-
-#ifdef TARGET_LINUX
+#if defined( TARGET_LINUX )
     #define _GNU_SOURCE
 
-    #define RAW_RAM_START_ADDRESS 0x0
+    #define RAW_RAM_START_ADDRESS           0x0
+    #define ASKFORTH_BLOCKS_MAX             1024
+    #define ASKFORTH_BLOCKS_SIZE            1024
+#elif defined( TARGET_WINDOWS )
+    #define RAW_RAM_START_ADDRESS           0x0
     #define ASKFORTH_BLOCKS_MAX             1024
     #define ASKFORTH_BLOCKS_SIZE            1024
 #else
-    #define RAW_RAM_START_ADDRESS POISON
+    #define RAW_RAM_START_ADDRESS           POISON
     #define ASKFORTH_BLOCKS_MAX             64
     #define ASKFORTH_BLOCKS_SIZE            1024
 #endif

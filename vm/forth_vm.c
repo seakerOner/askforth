@@ -69,7 +69,7 @@ static void _askf_execute_threaded_word( AskForth_Word* word ) {
     AskForthVm* vm = askf_get_global_vm();
     u64* ip = (u64*) word->source.source.threaded_code_start_addr;
 
-    u64* copy_ip = ip;
+    // u64* copy_ip = ip;
 
     // printf("Threaded memory of %.*s: \n ", (int)word->name_len, word->name);
     // while ( *copy_ip != THREADED_FLAG_END ) {
@@ -170,8 +170,9 @@ void askf_exec( AskForthVm* vm, AskForthParseType parse_type ) {
             break;
         default:
             return;
-            break;
     }
+
+    UNUSED( ib );
 
     u64 start_idx = 0;
 
@@ -191,8 +192,9 @@ void askf_exec( AskForthVm* vm, AskForthParseType parse_type ) {
            start_idx = tokenizer->ctx.idx;
             break;
         case ASKF_COMMENT_STATE_NONE:
-        default:
             break;
+        default:
+            return;
     }
 
     for (u64 x = start_idx; x < tokenizer->index; x++) {

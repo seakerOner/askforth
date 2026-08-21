@@ -1,7 +1,8 @@
 # List of TODOS
 
-## Comment word '\' is inconsistent
-    - This probably comes from how the end of lines are interpreted, also platform dependent
+## Comment word '\' 
+    - comments copied over from a browser fail when the VM tokenizes the input buffer,
+    making comments fail
     - Comments that need to perserve state across buffers need to be tested
 
 ## Implement custom input reader
@@ -18,5 +19,4 @@
             restore execution,
             show all errors from error tracer,
             display stack,
-            etc..
-            )
+            etc.. )
