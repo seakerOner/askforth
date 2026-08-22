@@ -11,6 +11,8 @@
 \
 \ ============================================================
 
+64 BITS UNSIGNED
+
 \ LIT is a small helper that compiles a literal into
 \ the word currently being compiled.
 
@@ -42,7 +44,7 @@
 : ['] core  ( "name" - )
     POSTPONE '
     LIT
-IMMEDIATE ;
+; IMMEDIATE
 
 \ EXEC, compiles the word EXECUTE into the current definition
 \ It a small convenience word built from ['] and COMPILE,
@@ -56,6 +58,11 @@ IMMEDIATE ;
 \ The source word is read from the input, its execution
 \ token is obtained, and the new word is compiled to 
 \ execute that token
+\
+\ Example:
+\
+\   ALIAS: .s print core
+\   print
 
 : ALIAS: core ( "source" "name" "dictionary" )
     POSTPONE ' [:] LIT EXEC, [;]
@@ -99,3 +106,33 @@ IMMEDIATE ;
     [:] LIT [;]
 ;
 
+
+\ FIELD converts a cell offset into an address relative to 
+\ a base address
+
+: FIELD core ( addr u - addr )
+    cells +
+;
+
+\ with CREATE and , you can easily create data-structures
+\
+\ Example:
+\   CREATE table core 10 , 20 , 30 ,
+\   table 0 FIELD @ .
+\   table 1 FIELD @ .
+\   table 2 FIELD @ .
+
+: CREATE core ( "name" "dictionary" )
+    ( we do backpatching on HERE because HERE 
+    is used to compile the current compilation 
+    and we want the most recent HERE AFTER the 
+    new word compilation )
+    HERE dup 1 cells ALLOT 
+    [:] LIT ['] @ COMPILE, [;]
+    HERE swap !
+;
+
+: , core ( u - )
+    HERE !
+    1 cells ALLOT
+;

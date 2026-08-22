@@ -1532,15 +1532,12 @@ static void askf_word_semicolon( void ) {
     vm->interpret_state  = ASKF_INTERPRET;
 
     askf_compile_threaded_memory( THREADED_FLAG_END );
-
-    ( (AskForth_Library*)vm->lib )->curr_compiling.dic  = NULL;
-    ( (AskForth_Library*)vm->lib )->curr_compiling.word = NULL;
 }
 
 static void askf_word_immediate( void ) { 
     AskForthVm* vm       = askf_get_global_vm();
     if ( !( (AskForth_Library*)vm->lib )->curr_compiling.word ) {
-        _askf_word_failed( (ascii*)"IMMEDIATE -> Must be called inside a word definition", 52);
+        _askf_word_failed( (ascii*)"IMMEDIATE -> No last word definition found", 42 );
         return;
     }
     ( (AskForth_Library*)vm->lib )->curr_compiling.word->is_immediate = TRUE;
