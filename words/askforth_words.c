@@ -1658,8 +1658,7 @@ static boolean _askf_0branch( void ) {
     }
 
     AskForth_Cell cell          = askf_new_cell_payload( vm->cf_stack, vm->cf_stack->is_signed );
-    *lib->curr_compiling.here   = THREADED_FLAG_0BRANCH;
-    lib->curr_compiling.here    = askf_alloc( sizeof( u64 ) );
+    askf_compile_threaded_memory( THREADED_FLAG_0BRANCH );
 
     // push into cf_stack the addr of memory on threaded code to later store ( on BRANCH )
     // the offset if flag is 0 on runtime
@@ -1761,6 +1760,66 @@ static void askf_word_then( void ) {
     *((u64*)previous_offset_ptr.val._64u) = offset;
 
     lib->curr_compiling.here = askf_alloc( sizeof(u64) );
+}
+
+static void askf_word_begin( void ) {
+    AskForthVm* vm              = askf_get_global_vm();
+    AskForth_Library* lib       = (AskForth_Library*)vm->lib;
+
+    if ( vm->interpret_state != ASKF_COMPILE ) {
+        _askf_word_failed( (ascii*)"BEGIN -> Must be used in compiled code only", 43 );
+        return;
+    }
+
+    u64 address                 = (u64)lib->curr_compiling.here;
+
+    AskForth_Cell cell  = askf_new_cell_payload( vm->cf_stack, vm->cf_stack->is_signed);
+    cell.val._64u       = address;
+    askf_stack_push( &cell, vm->cf_stack );
+}
+
+static void askf_word_while( void ) {
+    AskForthVm* vm      = askf_get_global_vm();
+
+    if ( vm->interpret_state != ASKF_COMPILE ) {
+        _askf_word_failed( (ascii*)"WHILE -> Can only be used in compiled code", 42 );
+        return;
+    }
+
+    boolean res = _askf_0branch();
+
+    if ( !res ) 
+        _askf_word_failed( (ascii*)"WHILE", 5 ); 
+}
+
+static void askf_word_repeat( void ) {
+    AskForthVm* vm      = askf_get_global_vm();
+    AskForth_Library* lib = ( AskForth_Library* )vm->lib;
+
+    if ( vm->interpret_state != ASKF_COMPILE ) {
+        _askf_word_failed( (ascii*)"REPEAT -> Can only be used in compiled code", 43 );
+        return;
+    }
+
+    if ( vm->cf_stack->index < 2 ) {
+        _askf_word_failed( (ascii*)"REPEAT -> Missing BEGIN/WHILE", 29 );
+        return;
+    }
+
+    AskForth_Cell while_placeholder = 
+        askf_new_cell_payload( vm->cf_stack, vm->cf_stack->is_signed);
+    AskForth_Cell begin_address = 
+        askf_new_cell_payload( vm->cf_stack, vm->cf_stack->is_signed);
+
+    askf_stack_pop( &while_placeholder, vm->cf_stack );
+    askf_stack_pop( &begin_address, vm->cf_stack );
+
+    askf_compile_threaded_memory( THREADED_FLAG_BRANCH );
+    u64 offset = begin_address.val._64u - ( u64 )lib->curr_compiling.here;
+    askf_compile_threaded_memory( offset );
+
+    offset = ( u64 )lib->curr_compiling.here - while_placeholder.val._64u;
+    *( ( u64* )while_placeholder.val._64u )  = offset;
 }
 
 static void askf_word_bracket_open( void ) {
@@ -2921,6 +2980,37 @@ void askf_add_core_words( void ) {
 
     if ( !added_then )
         _askf_print_failed_add_word( &scratch_word_name );
+
+    // BEGIN
+    scratch_word_name.base            = (ascii*)"BEGIN";
+    scratch_word_name.length          = 5;
+
+    boolean added_begin = 
+        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_begin, scratch_word_name );
+
+    if ( !added_begin )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // WHILE
+    scratch_word_name.base            = (ascii*)"WHILE";
+    scratch_word_name.length          = 5;
+
+    boolean added_while = 
+        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_while, scratch_word_name );
+
+    if ( !added_while )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // REPEAT
+    scratch_word_name.base            = (ascii*)"REPEAT";
+    scratch_word_name.length          = 6;
+
+    boolean added_repeat = 
+        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_repeat, scratch_word_name );
+
+    if ( !added_repeat )
+        _askf_print_failed_add_word( &scratch_word_name );
+
 
     // [
     scratch_word_name.base            = (ascii*)"[";

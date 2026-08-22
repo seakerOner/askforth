@@ -4,6 +4,8 @@
 
 #include "../words/askforth_words.h"
 
+#include <stdio.h>
+
 AskForthVm* global_vm = NULL;
 
 void askf_vm_to_global_state( AskForthVm* vm ) {
@@ -70,10 +72,11 @@ static void _askf_execute_threaded_word( AskForth_Word* word ) {
     u64* ip = (u64*) word->source.source.threaded_code_start_addr;
 
     // u64* copy_ip = ip;
-
+    // u64* prev_ip = ip;
     // printf("Threaded memory of %.*s: \n ", (int)word->name_len, word->name);
-    // while ( *copy_ip != THREADED_FLAG_END ) {
+    // while ( *copy_ip != THREADED_FLAG_END && *prev_ip != THREADED_FLAG_LITERAL ) {
     //     printf("IP = %p, *IP = %lld\n", copy_ip, *copy_ip);
+    //     prev_ip = copy_ip;
     //     copy_ip++;
     // }
     //     printf("IP = %p, *IP = %d\n", copy_ip, 0);
