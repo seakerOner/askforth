@@ -136,3 +136,77 @@
     HERE !
     1 cells ALLOT
 ;
+
+\ BEGIN/WHILE/REPEAT provide general-purpose looping
+\ without requiring a dedicated loop primitive.
+\ With them you can do both common-C style loops:
+\    do {} while ()
+\    while () {}
+\
+\ BEGIN marks the start of the loop 
+\ WHILE tests the loop condition and exits when it is false.
+\ REPEAT branches back to BEGIN when the loop continues.
+\
+\ Example:
+\   : COUNT-UP core ( limit index )
+\       BEGIN 2dup > WHILE 
+\       dup . 1 + 
+\       REPEAT
+\       2drop
+\   ;
+\   
+\   10 0 COUNT-UP
+\
+\ The same control structure can be used to implement 
+\ different kinds of loops, depending only on the code 
+\ placed between BEGIN/WHILE/REPEAT
+
+\ but this could look nicer with the following words:
+\
+\ Example:
+\
+\ : COUNT-UP core  ( limit index - )
+\   DO I . LOOP
+\ ;
+\
+\ 10 0 COUNT-UP
+
+: DO core ( limit index - )
+    POSTPONE BEGIN 
+        ['] 2dup COMPILE, 
+        ['] swap COMPILE, 
+        ['] >R   COMPILE, 
+        ['] >R   COMPILE, 
+        ['] >    COMPILE, 
+    POSTPONE WHILE
+; IMMEDIATE
+
+: I core 
+    R@
+;
+
+: LOOP core 
+    ['] R>    COMPILE, 
+    ['] R>    COMPILE, 
+    ['] swap  COMPILE, 
+        1     LIT
+    ['] +     COMPILE,
+    POSTPONE REPEAT 
+    ['] R>    COMPILE, 
+    ['] R>    COMPILE, 
+    ['] 2drop COMPILE, 
+; IMMEDIATE
+
+\ DO/LOOP is a higher-level loop built from the existing control-flow and return-stack primitives.
+\
+\ DO moves the loop limit and index to the return stack, 
+\ then uses BEGIN/WHILE to test whether the loop should continue.
+\
+\ Because DO is IMMEDIATE, it must compile the operations that form 
+\ the loop instead of executing them while the definition is being compiled.
+\
+\ I returns the current loop index from the return stack.
+\
+\ LOOP retrieves the limit and index, increments the index, 
+\ and uses REPEAT to branch back to the beggining of the loop.
+\ When the loop terminates the remaining loop state is removed from the return stack 

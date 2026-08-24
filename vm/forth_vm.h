@@ -49,6 +49,7 @@ typedef enum {
 typedef struct AskForthVm_t {
     AskForth_Stack*                         stack;
     AskForth_Stack*                         cf_stack;
+    AskForth_Stack*                         rstack;
     AskForth_Ram*                           ram;
     AskForthInputBuffer*                    input_buffer;
     AskForthInputBuffer*                    input_buffer_x;

@@ -1638,12 +1638,22 @@ static void askf_word_bye( void ) {
     askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_SHUTDOWN_REQUEST );
 }
 
-static void askf_word_mode( void ) { 
+static void askf_word_iscomptime( void ) { 
     AskForthVm* vm      = askf_get_global_vm();
 
     AskForth_Cell mode  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
 
-    mode.val._64u       = vm->interpret_state;
+    mode.val._64u       = vm->interpret_state == ASKF_COMPILE ? -1 : 0 ;
+
+    askf_stack_push( &mode, vm->stack );
+}
+
+static void askf_word_isinterptime( void ) { 
+    AskForthVm* vm      = askf_get_global_vm();
+
+    AskForth_Cell mode  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+
+    mode.val._64u       = vm->interpret_state == ASKF_INTERPRET ? -1 : 0 ;
 
     askf_stack_push( &mode, vm->stack );
 }
@@ -2011,6 +2021,47 @@ static void askf_word_postpone( void ) {
             askf_compile_threaded_memory( (u64)word );
             break;
     }
+}
+
+void askf_word_push_rstack( void ) {
+    AskForthVm* vm = askf_get_global_vm();
+
+    AskForth_Cell val = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    
+    if ( !askf_stack_pop( &val, vm->stack ) ) {
+        _askf_word_failed( (ascii*)">R -> Data stack is empty", 25 );
+        return;
+    }
+
+    askf_stack_push( &val, vm->rstack );
+}
+
+void askf_word_pop_rstack( void ) {
+    AskForthVm* vm = askf_get_global_vm();
+
+    AskForth_Cell val = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    
+    if ( !askf_stack_pop( &val, vm->rstack ) ) {
+        _askf_word_failed( (ascii*)"R> -> Data stack is empty", 25 );
+        return;
+    }
+
+    askf_stack_push( &val, vm->stack );
+}
+
+void askf_word_peek_rstack( void ) {
+    AskForthVm* vm = askf_get_global_vm();
+    
+    AskForth_Cell val = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+
+    if ( vm->rstack->index < 1 ) {
+        _askf_word_failed( (ascii*)"R@ -> rstack is empty", 21 );
+        return;
+    }
+
+    val.val._64u = vm->rstack->cells.space_64[vm->rstack->index-1];
+
+    askf_stack_push( &val, vm->stack );
 }
 
 #if defined( TARGET_LINUX ) || defined( TARGET_WINDOWS )
@@ -2917,15 +2968,26 @@ void askf_add_core_words( void ) {
     if ( !added_bye )
         _askf_print_failed_add_word( &scratch_word_name );
 
-    // MODE
-    scratch_word_name.base            = (ascii*)"MODE";
-    scratch_word_name.length          = 4;
+    // COMPTIME?
+    scratch_word_name.base            = (ascii*)"COMPTIME?";
+    scratch_word_name.length          = 9;
 
-    boolean added_mode = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_mode, scratch_word_name );
+    boolean added_iscomptime = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_iscomptime, scratch_word_name );
 
-    if ( !added_mode )
+    if ( !added_iscomptime )
         _askf_print_failed_add_word( &scratch_word_name );
+
+    // INTERPTIME?
+    scratch_word_name.base            = (ascii*)"INTERPTIME?";
+    scratch_word_name.length          = 11;
+
+    boolean added_isinterp = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_isinterptime, scratch_word_name );
+
+    if ( !added_isinterp )
+        _askf_print_failed_add_word( &scratch_word_name );
+
 
     // INFO: totally valid words to include on the core dic BUT im not sure if i want so
     UNUSED( askf_word_0branch );
@@ -3084,6 +3146,39 @@ void askf_add_core_words( void ) {
                 core_dic_name, FALSE, askf_word_compile_comma, scratch_word_name );
 
     if ( !added_compile_comma )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // >R
+    scratch_word_name.base            = (ascii*)">R";
+    scratch_word_name.length          = 2;
+
+    boolean added_push_rstack = 
+        askf_dic_add_word_native( 
+                core_dic_name, FALSE, askf_word_push_rstack, scratch_word_name );
+
+    if ( !added_push_rstack )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // R>
+    scratch_word_name.base            = (ascii*)"R>";
+    scratch_word_name.length          = 2;
+
+    boolean added_pop_rstack = 
+        askf_dic_add_word_native( 
+                core_dic_name, FALSE, askf_word_pop_rstack, scratch_word_name );
+
+    if ( !added_pop_rstack )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // R@
+    scratch_word_name.base            = (ascii*)"R@";
+    scratch_word_name.length          = 2;
+
+    boolean added_peek_rstack = 
+        askf_dic_add_word_native( 
+                core_dic_name, FALSE, askf_word_peek_rstack, scratch_word_name );
+
+    if ( !added_peek_rstack )
         _askf_print_failed_add_word( &scratch_word_name );
 
 }
