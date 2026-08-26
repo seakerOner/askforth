@@ -4,6 +4,7 @@
 #include "../input/input.h"
 #include "../stack/stack.h"
 #include "../memory/blocks.h"
+#include "../fallback_loop/fallback.h"
 
 #ifdef TARGET_LINUX
     #include <stdio.h>
@@ -1663,7 +1664,7 @@ static boolean _askf_0branch( void ) {
     AskForth_Library* lib       = (AskForth_Library*)vm->lib;
 
     if ( vm->interpret_state != ASKF_COMPILE ) {
-        askf_print( (ascii*)"0BRANCH can only be used by compiled code ", 42 );
+        _askf_word_failed( (ascii*)"0BRANCH can only be used by compiled code ", 42 );
         return FALSE;
     }
 
@@ -1685,7 +1686,7 @@ static boolean _askf_branch( void ) {
     AskForth_Library* lib       = (AskForth_Library*)vm->lib;
 
     if ( vm->interpret_state != ASKF_COMPILE ) {
-        askf_print( (ascii*)"BRANCH can only be used by compiled code ", 41 );
+        _askf_word_failed( (ascii*)"BRANCH can only be used by compiled code ", 41 );
         return FALSE;
     }
 
@@ -2114,8 +2115,14 @@ static u64 _askf_custom_fgets( ascii* buff, u64 cap, FILE* stream, int* is_eof )
 
         askf_word_parse_word();
 
+        if ( vm->stack->index < 2 ) {
+            _askf_word_failed( (ascii*)"INCLUDE -> Path must be included", 32 );
+            return;
+        }
+
         AskForth_Cell len   = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
         AskForth_Cell path  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+
 
         askf_stack_pop( &len, vm->stack );
         askf_stack_pop( &path, vm->stack );
@@ -2137,7 +2144,13 @@ static u64 _askf_custom_fgets( ascii* buff, u64 cap, FILE* stream, int* is_eof )
             if ( read > 0 ) {
                 vm->input_buffer_x->index = read;
                 vm->input_buffer_x->base[vm->input_buffer_x->index] = '\0';
+
                 askf_exec( vm, ASKF_X_PARSER );
+
+               if ( vm->outer_state == ASKF_VM_OUTER_STATE_FAILED_CRITICAL ||
+                    vm->outer_state == ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL ) {
+                   return;
+               }
             }
 
             if ( is_eof )

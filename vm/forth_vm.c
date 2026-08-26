@@ -4,7 +4,7 @@
 
 #include "../words/askforth_words.h"
 
-#include <stdio.h>
+// #include <stdio.h>
 
 AskForthVm* global_vm = NULL;
 
@@ -65,21 +65,22 @@ static void _askf_parse_input_buffer( AskForthVm* forth_vm, AskForthParseType pa
 
 }
 
+static void _askf_word_failed( ascii* msg, u64 len ) {
+    AskForthError err = {0};
+    err.error = ASKF_ERROR_WORD_FAILED;
+    err.zone  = ASKF_ERROR_ZONE_INNER;
+
+    AskForthErrorMessage* opt_msg = 
+    askf_alloc_new_opt_message( msg, len );
+    err.opt_message = opt_msg;
+    askf_throw_error( err );
+}
+
 typedef void nat_code(void);
 
 static void _askf_execute_threaded_word( AskForth_Word* word ) {
     AskForthVm* vm = askf_get_global_vm();
     u64* ip = (u64*) word->source.source.threaded_code_start_addr;
-
-    // u64* copy_ip = ip;
-    // u64* prev_ip = ip;
-    // printf("Threaded memory of %.*s: \n ", (int)word->name_len, word->name);
-    // while ( *copy_ip != THREADED_FLAG_END && *prev_ip != THREADED_FLAG_LITERAL ) {
-    //     printf("IP = %p, *IP = %lld\n", copy_ip, *copy_ip);
-    //     prev_ip = copy_ip;
-    //     copy_ip++;
-    // }
-    //     printf("IP = %p, *IP = %d\n", copy_ip, 0);
 
     while ( *ip != THREADED_FLAG_END ) {
         // literal value comming
@@ -96,6 +97,11 @@ static void _askf_execute_threaded_word( AskForth_Word* word ) {
             AskForth_Word* word = (AskForth_Word*)*ip;
             _askf_execute_threaded_word( word );
 
+            if ( vm->outer_state == ASKF_VM_OUTER_STATE_FAILED_CRITICAL ||
+                    vm->outer_state == ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL) {
+                return;
+            }
+
         // memory to skip over
         } else if ( *ip == THREADED_FLAG_SKIPPABLE ) {
             ip++;
@@ -107,9 +113,8 @@ static void _askf_execute_threaded_word( AskForth_Word* word ) {
             ip++;
 
             if ( vm->stack->index < 1 ) {
-                // TODO: do a branch failure
-                askf_print( (ascii*)"0branch failure on word: ", 25 );
-                askf_print( word->name , word->name_len );
+                _askf_word_failed( (ascii*)"0branch expects value on the stack", 34 );
+                _askf_word_failed( word->name , word->name_len );
                 return;
             }
 
@@ -131,6 +136,11 @@ static void _askf_execute_threaded_word( AskForth_Word* word ) {
 
         } else { //native code  
             ((nat_code*)*ip)();
+
+            if ( vm->outer_state == ASKF_VM_OUTER_STATE_FAILED_CRITICAL ||
+                    vm->outer_state == ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL) {
+                return;
+            }
         }
         ip++;
     }
@@ -157,8 +167,6 @@ void askf_exec( AskForthVm* vm, AskForthParseType parse_type ) {
     // only used by Forth words inside execution ( ex: PARSE-NAME )
     vm->parse_type = parse_type;
 
-    _askf_parse_input_buffer( vm, parse_type );
-
     AskForthTokenizer* tokenizer = NULL;
     AskForthInputBuffer* ib      = NULL;
 
@@ -176,6 +184,9 @@ void askf_exec( AskForthVm* vm, AskForthParseType parse_type ) {
     }
 
     UNUSED( ib );
+
+    if ( vm->outer_state == ASKF_VM_OUTER_STATE_EXECUTE ) 
+        _askf_parse_input_buffer( vm, parse_type );
 
     u64 start_idx = 0;
 
@@ -198,6 +209,11 @@ void askf_exec( AskForthVm* vm, AskForthParseType parse_type ) {
             break;
         default:
             return;
+    }
+
+    if ( vm->outer_state == ASKF_VM_OUTER_STATE_EXECUTE_CONTINUE ) { 
+        start_idx       = tokenizer->ctx.idx;
+        vm->outer_state = ASKF_VM_OUTER_STATE_EXECUTE;
     }
 
     for (u64 x = start_idx; x < tokenizer->index; x++) {
@@ -282,8 +298,12 @@ void askf_exec( AskForthVm* vm, AskForthParseType parse_type ) {
                break; 
         }
 
-        if ( tokenizer->ctx.idx > x )
+
+        if ( tokenizer->ctx.idx > x ) 
             x = tokenizer->ctx.idx;
+
+        if ( vm->outer_state != ASKF_VM_OUTER_STATE_EXECUTE )
+            return;
     }
 
     parse_done:
@@ -339,6 +359,7 @@ void askf_vm_change_outer_state( AskForthVmOuterState new_state ) {
         case ASKF_VM_OUTER_STATE_FAILED_CRITICAL:
         case ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL:
         case ASKF_VM_OUTER_STATE_SHUTDOWN_REQUEST:
+        case ASKF_VM_OUTER_STATE_EXECUTE_CONTINUE:
             global_vm->outer_state = new_state;
             break;
         default:
@@ -364,3 +385,4 @@ AskForthError* askf_vm_get_most_recent_error( void ) {
 
     return &tracer->errors[absolute_idx];
 }
+

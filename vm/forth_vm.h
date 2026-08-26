@@ -19,6 +19,7 @@
 typedef enum {
     ASKF_VM_OUTER_STATE_BLOCKING_INPUT,
     ASKF_VM_OUTER_STATE_EXECUTE,
+    ASKF_VM_OUTER_STATE_EXECUTE_CONTINUE,
     ASKF_VM_OUTER_STATE_FAILED_CRITICAL,
     ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL,
     ASKF_VM_OUTER_STATE_SHUTDOWN_REQUEST,
@@ -53,6 +54,8 @@ typedef struct AskForthVm_t {
     AskForth_Ram*                           ram;
     AskForthInputBuffer*                    input_buffer;
     AskForthInputBuffer*                    input_buffer_x;
+
+    AskForthInputBuffer*                    fallback_input;
     AskForthBlocks*                         blocks;
 
     void*                                   lib;
@@ -63,6 +66,7 @@ typedef struct AskForthVm_t {
 
     AskForthTokenizer*                      tokenizer;
     AskForthTokenizer*                      tokenizer_x;
+    AskForthTokenizer*                      fallback_tokenizer;
     AskForthNumBase                         num_base;
 
 } AskForthVm;

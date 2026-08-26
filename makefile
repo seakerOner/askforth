@@ -19,6 +19,7 @@ OBJECTS = 				\
 	tokenizer.o 		\
 	core_words.o 		\
 	blocks.o 			\
+	fallback_loop.o		\
 
 $(BUILD):
 	mkdir -p $(BUILD)
@@ -55,6 +56,9 @@ errors.o: ./errors/error_thrower.c
 
 blocks.o: ./memory/blocks.c
 	$(CC) $(FLAGS)	-c ./memory/blocks.c -o $(BUILD)/blocks.o
+
+fallback_loop.o: ./fallback_loop/fallback.h
+	$(CC) $(FLAGS)	-c ./fallback_loop/fallback.c -o $(BUILD)/fallback_loop.o
 
 clean:
 	rm -f $(BUILD)/*.o

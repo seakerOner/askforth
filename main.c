@@ -25,6 +25,7 @@
 #include "./errors/errors.h"
 #include "./errors/error_thrower.h"
 #include "./words/askforth_words.h"
+#include "./fallback_loop/fallback.h"
 
 #define ASKFORTH_RAW_RAM_START_ADDRESS  NULL
 #define ASKFORTH_INPUT_BUFFER_MAX_CHARS 1024
@@ -39,10 +40,12 @@ int main( void ) {
     AskForth_Stack      r_stack                     = {0};
     AskForthInputBuffer input_buffer                = {0};
     AskForthInputBuffer input_buffer_x              = {0};
+    AskForthInputBuffer fallback_input_buffer       = {0};
     AskForth_CellSize   initial_cell_base_scale     = ASKF_BITS64;
     AskForthErrorTrace  tracer                      = {0};
     AskForthTokenizer   tokenizer                   = {0};
     AskForthTokenizer   tokenizer_x                 = {0};
+    AskForthTokenizer   fallback_tokenizer          = {0};
     AskForthBlocks      blocks                      = {0};
 
     ascii scratch[ASKFORTH_INPUT_BUFFER_MAX_CHARS]  = {0};
@@ -54,6 +57,11 @@ int main( void ) {
     input_buffer_x.base                               = scratch_x;
     input_buffer_x.capacity                           = ASKFORTH_INPUT_BUFFER_MAX_CHARS;
     input_buffer_x.index                              = 0;
+
+    ascii scratch_fallback[ASKFORTH_INPUT_BUFFER_MAX_CHARS / 2]  = {0};
+    fallback_input_buffer.base                        = scratch_fallback;
+    fallback_input_buffer.capacity                    = ASKFORTH_INPUT_BUFFER_MAX_CHARS / 2;
+    fallback_input_buffer.index                       = 0;
 
 
     u64 ram_size = 0;
@@ -75,20 +83,21 @@ int main( void ) {
 
     askf_start_error_tracer( &ram, &tracer, ASKFORTH_ERROR_TRACER_CAPACITY );
 
-
-    vm.ram              = &ram;
-    vm.stack            = &stack;
-    vm.cf_stack         = &cf_stack;
-    vm.rstack           = &r_stack;
-    vm.input_buffer     = &input_buffer;
-    vm.input_buffer_x   = &input_buffer_x;
-    vm.blocks           = &blocks;
-    vm.outer_state      = ASKF_VM_OUTER_STATE_BLOCKING_INPUT;
-    vm.interpret_state  = ASKF_INTERPRET;
-    vm.num_base         = ASKF_DECIMAL;
-    vm.error_tracer     = &tracer;
-    vm.tokenizer        = &tokenizer;
-    vm.tokenizer_x      = &tokenizer_x;
+    vm.ram                  = &ram;
+    vm.stack                = &stack;
+    vm.cf_stack             = &cf_stack;
+    vm.rstack               = &r_stack;
+    vm.input_buffer         = &input_buffer;
+    vm.input_buffer_x       = &input_buffer_x;
+    vm.fallback_input       = &fallback_input_buffer;
+    vm.blocks               = &blocks;
+    vm.outer_state          = ASKF_VM_OUTER_STATE_BLOCKING_INPUT;
+    vm.interpret_state      = ASKF_INTERPRET;
+    vm.num_base             = ASKF_DECIMAL;
+    vm.error_tracer         = &tracer;
+    vm.tokenizer            = &tokenizer;
+    vm.tokenizer_x          = &tokenizer_x;
+    vm.fallback_tokenizer   = &fallback_tokenizer;
 
     vm.parse_type        = ASKF_MAIN_PARSER;
 
@@ -100,13 +109,13 @@ int main( void ) {
 
     askf_tokenizer_new( &tokenizer, ( ASKFORTH_INPUT_BUFFER_MAX_CHARS / 2 ));
     askf_tokenizer_new( &tokenizer_x, ( ASKFORTH_INPUT_BUFFER_MAX_CHARS / 2 ));
+    askf_tokenizer_new( &fallback_tokenizer, ( ASKFORTH_INPUT_BUFFER_MAX_CHARS / 4 ));
 
     askf_add_core_words();
 
     ascii* message = ( ascii* )"Welcome to the Agnostic Seaker's Forth :D \n";
     askf_print( message, sizeof( message ) );
 
-    AskForthError* err = NULL;
     while ( vm.outer_state != ASKF_VM_OUTER_STATE_SHUTDOWN_REQUEST ) {
 
         switch ( vm.outer_state ) {
@@ -116,23 +125,20 @@ int main( void ) {
 
                 askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_EXECUTE );
                 break;
-            case ASKF_VM_OUTER_STATE_EXECUTE:
-                askf_exec( &vm, ASKF_MAIN_PARSER );
-
+            case ASKF_VM_OUTER_STATE_EXECUTE_CONTINUE:
+                askf_exec( &vm, vm.parse_type );
                 if ( vm.outer_state == ASKF_VM_OUTER_STATE_EXECUTE )
                     askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_BLOCKING_INPUT );
 
                 break;
+            case ASKF_VM_OUTER_STATE_EXECUTE:
+                askf_exec( &vm, ASKF_MAIN_PARSER );
+                if ( vm.outer_state == ASKF_VM_OUTER_STATE_EXECUTE )
+                    askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_BLOCKING_INPUT );
+                break;
             case ASKF_VM_OUTER_STATE_FAILED_CRITICAL:
             case ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL:
-                // TODO: make user choose what to do
-                err = askf_vm_get_most_recent_error();
-                askf_print_error(err);
-
-                askf_tokenizer_reset( vm.tokenizer );
-                askf_reset_input_buffer( &vm, ASKF_MAIN_PARSER );
-                askf_reset_input_buffer( &vm, ASKF_X_PARSER );
-                askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_BLOCKING_INPUT );
+                askforth_fallbackloop_run( &vm );
                 break;
             case ASKF_VM_OUTER_STATE_SHUTDOWN_REQUEST:
             default:
