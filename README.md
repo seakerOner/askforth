@@ -3,7 +3,7 @@
 
 > AskForth's guide: **TODO**
 
-> How to build AskForth: **TODO**
+> How to build AskForth: [GUIDE](./BUILD.md)
 
 AskForth is a Forth implementation written in C and built around a small, explicit virtual machine.
 

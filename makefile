@@ -4,6 +4,7 @@ BUILD = ./build
 ARQ   = x86-64
 
 EXECUTABLE_NAME = askforth
+EXECUTABLE_EXT  = 
 
 TARGET ?= -DTARGET_LINUX
 
@@ -27,7 +28,7 @@ $(BUILD):
 	mkdir -p $(BUILD)
 
 askforth: $(BUILD) $(OBJECTS)
-	$(CC) $(addprefix $(BUILD)/,$(OBJECTS)) -o $(BUILD)/$(EXECUTABLE_NAME)
+	$(CC) $(addprefix $(BUILD)/,$(OBJECTS)) -o $(BUILD)/$(EXECUTABLE_NAME)$(EXECUTABLE_EXT)	
 
 main.o: ./main.c 
 	$(CC) $(FLAGS)	-c ./main.c -o $(BUILD)/main.o
@@ -72,9 +73,9 @@ linux:
 	$(MAKE) TARGET=-DTARGET_LINUX askforth
 
 windows:
-	$(MAKE) TARGET=-DTARGET_WINDOWS askforth
+	$(MAKE) TARGET=-DTARGET_WINDOWS EXECUTABLE_EXT=.exe askforth
 
 
 run: askforth
 	@echo " "
-	$(BUILD)/$(EXECUTABLE_NAME)
+	$(BUILD)/$(EXECUTABLE_NAME)$(EXECUTABLE_EXT)

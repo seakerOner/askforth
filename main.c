@@ -122,8 +122,8 @@ int main( void ) {
 
     askf_add_core_words();
 
-    ascii* message = ( ascii* )"Welcome to the Agnostic Seaker's Forth :D \n";
-    askf_print( message, sizeof( message ) );
+    askf_print( ( ascii* )"Welcome to the Agnostic Seaker's Forth :D", 41 );
+    askf_print_char( (ascii)'\n' );
 
     while ( vm.outer_state != ASKF_VM_OUTER_STATE_SHUTDOWN_REQUEST ) {
 
