@@ -1,359 +1,208 @@
 # AskForth
+> An experimental Forth implementation in C, focused on a small VM, runtime introspection, flexible stacks, extensible dictionaries, and recoverable execution.
 
 > AskForth's guide: **TODO**
 
-AskForth is a Forth implementation written in C.
+> How to build AskForth: **TODO**
 
-It is the third Forth implementation developed by the author.
+AskForth is a Forth implementation written in C and built around a small, explicit virtual machine.
 
-The main goals of AskForth are:
+It is the third Forth implementation developed by the author ( me :D ).
 
-* Keep the Forth virtual machine simple.
-* Make the system easy to port to different platforms.
-* Provide a library system for Forth dictionaries.
-* Support native and threaded Forth words.
-* Provide an error tracing system.
+The goal is not to reproduce a particular traditional Forth implementation, but to explore how far a small Forth system can go when its VM exposes a few powerful primitives and higher-level language features are built on top of them.
 
-AskForth is under active development.
+AskForth is currently under active development.
 
-Some parts of the system are not complete.
+---
 
-## Main Features
+## Why AskForth?
 
-### Forth virtual machine
+AskForth explores a few ideas that are unusual, or at least not typical, in a Forth implementation.
 
-AskForth uses a virtual machine structure.
+### Dynamic Cell Sizes
 
-The VM stores the main execution state and the system components.
+The AskForth data stack supports 8, 16, 32 and 64-bit cells.
 
-The VM contains:
-
-* RAM.
-* Data stack.
-* Input buffers.
-* Tokenizers.
-* Block storage.
-* Dictionary library.
-* Error tracer.
-* Parser state.
-* Interpreter state.
-
-The VM can run in two main modes:
-
-* Interpret mode.
-* Compile mode.
-
-The main execution loop waits for input, parses the input, and executes the resulting words.
-
-## Configurable Stack
-
-AskForth uses a configurable data stack.
-
-The stack can use these cell sizes:
-
-* 8 bits.
-* 16 bits.
-* 32 bits.
-* 64 bits.
-
-The stack also supports two value modes:
-
-* Signed.
-* Unsigned.
-
-The stack can change its cell size during execution.
-
-For example:
+More importantly, the cell size can be changed **during execution**.
 
 ```forth
 64 BITS
 ```
+The existing stack contents are preserved when the cell size changes, and the stack depth is adjusted to match the new cell width.
 
-sets the stack cell size to 64 bits.
-
-The stack size is also adjusted for the selected cell size.
-
-This design is different from a fixed-cell Forth stack.
-
-The same stack implementation can store values with different cell sizes.
-
-## Dictionary Library
-
-AskForth has a library system for dictionaries.
-
-A library can contain multiple dictionaries.
-
-Each dictionary contains Forth words.
-
-The system starts with a `core` dictionary.
-
-New dictionaries can be created from Forth code.
-
-Example:
+The stack also supports signed and unsigned modes:
 
 ```forth
-ADD-DIC tools
+SIGNED
+UNSIGNED
 ```
 
-The dictionary can then contain new words.
+This makes the stack representation a runtime property of the VM rather than a fixed property of the build.
 
-Words can be added as:
+---
 
-* Native words.
-* Threaded words.
+### Library → Dictionaries
 
-The library keeps the dictionary and word structures inside the AskForth memory area.
+Traditional Forth systems commonly revolve around a global dictionary.
 
-This allows the VM to manage Forth structures without depending on the host heap for each object.
+AskForth instead organizes dictionaries inside a **library**.
 
-## Native Words
-
-A native word calls a C function.
-
-For example, a word can point to a C function such as:
-
-```c
-static void askf_word_dup(void);
+```text
+Library
+├── core
+├── tools
+├── user
+└── ...
 ```
 
-The VM calls the function when it executes the word.
+A library can contain multiple dictionaries, allowing words to be grouped into separate namespaces.
 
-Native words are useful for:
+Dictionaries are part of the Forth environment and can be created and populated from Forth code.
 
-* VM operations.
-* Input and output.
-* Memory operations.
-* Platform functions.
-* Low-level operations.
+Words can be implemented as either:
 
-## Threaded Words
+* Native C words
+* Threaded Forth words
 
-AskForth also supports threaded words.
+---
 
-A threaded word contains execution entries in the AskForth memory area.
+### Debugger / Recovery
 
-The threaded code can contain:
+When an execution error occurs, AskForth can enter an interactive **Debugger / Recovery** environment.
 
-* Immediate values.
-* Other threaded words.
-* Native C functions.
-* An end marker.
+Instead of immediately terminating the VM, execution state can be inspected.
 
-A threaded word can therefore combine Forth-level code with native operations.
+```text
+[ DEBUGGER / RECOVERY ]
 
-A word definition uses:
+@> help
+@> status
+@> trace
+@> stack
+@> rstack
+@> cfstack
+@> input
+@> continue
+@> abort
+@> quit
+```
+
+The debugger can inspect:
+
+* VM state
+* Interpreter state
+* Data stack
+* Return stack
+* Control-flow stack
+* Input and parser state
+* Error history
+* Threaded execution trace
+
+The most interesting part is that execution context can be preserved after a Forth-level failure.
+
+For example, `continue` can skip the failed word and resume execution from the preserved execution context.
+
+```text
+error
+  ↓
+Debugger / Recovery
+  ↓
+inspect state
+  ↓
+continue
+  ↓
+resume execution
+```
+
+This is intended for interactive development and experimentation rather than replacing proper error handling.
+
+---
+
+## A Small Core, Powerful Composition
+
+One of the design goals of AskForth is to avoid making every language feature a VM primitive.
+
+Instead, the VM provides relatively general compilation and execution mechanisms, and higher-level features can be built using Forth itself.
+
+For example, `CONSTANT`, `VARIABLE`, `BUFFER`, `CREATE`, `,`, `DO`, `I` and `LOOP` can be implemented using existing compilation, memory and control-flow words.
+
+A simplified example:
 
 ```forth
-: word-name dictionary-name
-    ...
+: CONSTANT core
+    [:] LIT [;]
 ;
 ```
 
-The VM changes to compile mode during the definition.
+A constant is therefore just a word containing a compiled literal.
 
-Normal words are compiled into the threaded word.
+Likewise, higher-level control structures can be constructed from existing control-flow primitives.
 
-Immediate words execute during compilation.
+This is an important part of the AskForth design:
 
-## Immediate Words
+> **Keep the VM primitives general, and build language facilities on top of them.**
 
-A word can be marked as immediate.
+The `examples.fs` file contains examples of this approach.
 
-Example:
+---
 
-```forth
-IMMEDIATE
-```
+## Feature Overview
 
-An immediate word executes while the VM is in compile mode.
+### Execution
 
-This allows Forth words to change the compiler behavior.
+AskForth supports:
 
-This mechanism is also used by parser and control words.
+* Interactive interpretation
+* Compilation of threaded words
+* Native C words
+* Threaded Forth words
+* Immediate words
+* Runtime execution frames
+* Explicit interpreter and compiler states
 
-## Memory System
-
-AskForth uses a simple linear memory allocator.
-
-The VM has a RAM area called a memory blob.
-
-Allocations use an increasing byte index.
-
-The main allocation operation is:
-
-```c
-askf_alloc()
-```
-
-The allocator returns memory from the AskForth RAM area.
-
-The system does not use a general-purpose free operation for these allocations. ( TODO )
-
-## Platform Separation
-
-Platform-specific code is separated with compile-time conditions.
-
-For example:
-
-```c
-#ifdef TARGET_LINUX
-```
-
-Linux-specific code currently uses operating system services such as:
-
-* `mmap()`
-* `msync()`
-* `ftruncate()`
-* `getcwd()`
-
-The design keeps these operations outside the main Forth execution model.
-
-This is important for portability.
-
-A future platform can provide its own implementation for the required platform services.
-
-The goal is to keep the Forth VM independent from the operating system.
-
-## Forth Blocks
-
-AskForth provides persistent blocks.
-
-The current Linux implementation stores blocks in a file named:
-
-```text
-blocks.fb
-```
-
-The block file is mapped into memory.
-
-The default configuration uses:
-
-* 1024 blocks on Linux.
-* 64 blocks on other targets.
-* 1024 bytes per block.
-
-The Forth system provides words for block access.
-
-Examples include:
+A normal definition looks like:
 
 ```forth
-BLOCK
-LIST
-LINE
-LOAD
-FLUSH
+: square core
+    dup *
+;
 ```
 
-### `BLOCK`
+The resulting word is represented as threaded execution data managed by the VM.
 
-`BLOCK` returns the address of a block.
+---
 
-Example:
+### Native and Threaded Words
 
-```forth
-3 BLOCK
-```
+AskForth combines two kinds of executable words.
 
-The result is the address of block 3.
+**Native words** directly call C functions.
 
-### `LIST`
+They are useful for:
 
-`LIST` displays a block.
+* VM operations
+* I/O
+* memory primitives
+* platform functionality
+* low-level operations
 
-Example:
+**Threaded words** contain execution entries managed by the Forth VM.
 
-```forth
-3 LIST
-```
+Threaded code can combine:
 
-### `FLUSH`
+* literals
+* other threaded words
+* native C functions
+* control-flow instructions
+* termination markers
 
-`FLUSH` updates the block storage.
+This provides a bridge between the low-level VM and the Forth language.
 
-Example:
+---
 
-```forth
-FLUSH
-```
+## Memory
 
-## Input System
-
-AskForth uses input buffers and tokenizers.
-
-The VM has two input paths:
-
-* Main input.
-* Secondary input.
-
-The secondary input is useful for operations such as loading source blocks and including files.
-
-The tokenizer converts the input buffer into tokens.
-
-Each token contains information such as:
-
-* Address.
-* Length.
-* Line end state.
-
-The VM then searches the dictionary library for each token.
-
-If the token is not a word, the VM tries to parse it as a number.
-
-If the token is not a valid word or number, AskForth reports an unknown-word error.
-
-## Parser Support
-
-AskForth has two parser types:
-
-```text
-ASKF_MAIN_PARSER
-ASKF_X_PARSER
-```
-
-The main parser is used for normal interactive input.
-
-The secondary parser is used by operations that need to execute another input source.
-
-This design allows Forth words to execute additional source without replacing the main input context.
-
-## Strings and Parsing
-
-AskForth provides words for parsing and string handling.
-
-Examples include:
-
-```forth
-PARSE-WORD
-."
-TYPE
-EMIT
-CR
-```
-
-A string can be printed with:
-
-```forth
-." Hello AskForth"
-```
-
-AskForth also supports comments.
-
-The system provides:
-
-```forth
-(
-\
-```
-
-The parenthesis comment ends at `)`.
-
-The line comment ends at the end of the input line.
-
-## Memory Words
-
-AskForth provides low-level memory operations.
-
-Examples include:
+AskForth provides a Forth-managed memory area with words such as:
 
 ```forth
 @
@@ -370,296 +219,184 @@ FILL
 MOVE
 ```
 
-These words allow Forth code to work directly with memory.
-
 For example:
 
 ```forth
 HERE
 ```
 
-returns the current address in the AskForth RAM area.
-
-`ALLOT` moves the current memory position.
-
-Example:
+returns the current allocation address.
 
 ```forth
 64 ALLOT
 ```
 
-This reserves 64 bytes.
+advances the allocation position by 64 bytes.
 
-## Stack Words
+---
 
-AskForth provides common stack manipulation words.
+## Persistent Blocks
 
-Examples include:
+AskForth provides Forth blocks for persistent source and data storage.
+
+Typical words include:
 
 ```forth
-DUP
-2DUP
-DROP
-2DROP
-SWAP
-2SWAP
-ROT
-NIP
-TUCK
-OVER
-2OVER
-DEPTH
+BLOCK
+LIST
+LINE
+LOAD
+FLUSH
 ```
-
-The implementation performs explicit stack checks for many operations.
 
 For example:
-
-```forth
-DUP
-```
-
-requires one value on the stack.
-
-```forth
-2DUP
-```
-
-requires two values.
-
-If the required values are not available, AskForth reports a word failure.
-
-## Arithmetic and Comparison
-
-AskForth provides basic arithmetic operations:
-
-```forth
-+
--
-*
-/MOD
-NEGATE
-```
-
-It also provides comparison words:
-
-```forth
-=
-<>
-<
-<=
->
->=
-0=
-0<>
-0<
-0>
-```
-
-The stack signedness affects comparison operations.
-
-The stack can be changed to signed mode with:
-
-```forth
-SIGNED
-```
-
-and to unsigned mode with:
-
-```forth
-UNSIGNED
-```
-
-## Logic and Bit Operations
-
-AskForth provides bit operations:
-
-```forth
-AND
-OR
-XOR
-INVERT
-LSHIFT
-RSHIFT
-```
-
-These operations work on the current stack cell representation.
-
-## Boolean Values
-
-AskForth provides:
-
-```forth
-TRUE
-FALSE
-```
-
-`TRUE` pushes `-1`.
-
-`FALSE` pushes `0`.
-
-## Stack Information
-
-The stack can be inspected with:
-
-```forth
-DEPTH
-.S
-```
-
-`.STACK` displays information about the current stack.
-
-The output includes:
-
-* Cell size.
-* Signedness.
-* Stack depth.
-* Stack values.
-
-## Defining Words
-
-A new threaded word can be created with:
-
-```forth
-: hello core
-    ." Hello"
-;
-```
-
-The first name is the new word.
-
-The second name selects the dictionary.
-
-The VM enters compile mode after `:`.
-
-The word returns to interpret mode after `;`.
-
-The `IMMEDIATE` word marks the current word as immediate.
-
-## Loading Source
-
-AskForth supports loading source from blocks.
-
-Example:
 
 ```forth
 3 LOAD
 ```
 
-The system reads block 3 into the secondary input buffer and executes it.
+loads block 3 as Forth source.
 
-On Linux, AskForth also provides file inclusion.
+On the current Linux implementation, blocks are backed by persistent file storage.
 
-Example:
+---
+
+## Input and Parsing
+
+AskForth separates input, tokenization and execution.
+
+The VM supports multiple input contexts, allowing Forth code to process additional sources without simply replacing the main interpreter input.
+
+This is used by functionality such as:
 
 ```forth
-INCLUDE myfile.fs
+LOAD
+INCLUDE
 ```
 
-The file is read and executed by the secondary parser.
+The tokenizer keeps source context such as the current token and its position, which also allows the debugger to report where execution failed.
 
-## Development Status
+---
 
-AskForth is an experimental Forth implementation.
+## Error Tracing
 
-The core execution model is present, but some parts still require development.
+AskForth maintains a fixed-size error trace.
 
-Known areas include:
+Errors can contain information such as:
 
-* More complete shutdown handling.
-* More complete error handling.
-* More platform backends.
-* More portable input and file handling.
-* More complete bounds checking.
-* More complete memory error handling.
-* More tests.
-* More Forth words.
-* A complete build system.
-* Better documentation for the Forth language layer.
+* Error type
+* Error zone
+* Optional message
+* Token context
 
-Some functions currently contain `TODO` sections.
+The VM also maintains execution frames for threaded words.
 
-These sections identify work that is still required.
+Together, these provide enough information to produce an execution trace such as:
 
-## Portability
+```text
+foo -> bar -> baz
+              ^
+           failed
+```
 
-Portability is a main design goal of AskForth.
+This information is available from the Debugger / Recovery environment.
 
-The VM should not require a specific operating system.
+---
 
-The system separates platform-specific operations from the Forth core where possible.
+## Example
 
-The current implementation contains Linux-specific code for:
-
-* Virtual memory.
-* Block file mapping.
-* File input.
-* File synchronization.
-* Current working directory handling.
-
-Other targets can provide their own backend.
-
-## Error Handling
-
-AskForth has an error structure and an error tracer.
-
-The VM keeps a history of recent errors.
-
-The error tracer uses a fixed capacity.
-
-This allows the VM to keep error information without requiring a dynamic error list.
-
-Errors can contain:
-
-* Error zone.
-* Error type.
-* Optional message.
-* Token context.
-
-The tokenizer also stores the current token and token index.
-
-This information can help identify where an error occurred.
-
-## Example Session
-
-A simple session can look like:
+A simple interactive session:
 
 ```text
 > 10 20 + .
 30 ok.
 ```
 
-Stack operations can be used directly:
-
-```text
-> 10 20 2DUP . . . .
-10 20 10 20 ok.
-```
-
-A new word can be compiled:
+Define a word:
 
 ```forth
 : square core
-    DUP *
+    dup *
 ;
 ```
 
-Then:
+Then execute it:
 
-```forth
+```text
 > 5 square .
 25 ok.
 ```
 
-## Current Platform Notes
+Change the stack representation:
 
-The Linux target is the main platform in the current implementation.
+```forth
+> 64 BITS UNSIGNED
+```
 
-The non-Linux configuration already defines different memory and block limits.
+and inspect it:
 
-However, a complete non-Linux backend is still required for full portability.
+```text
+> .s
+```
 
-Therefore, the project should not be considered fully portable yet.
+The current cell width and signedness are properties of the running VM.
 
-The architecture is designed to make this work easier.
+---
 
+## Examples
+
+The repository contains an `examples.fs` file demonstrating how higher-level Forth functionality can be built from the existing core.
+
+Examples include:
+
+```forth
+LIT
+[:]
+[;]
+[']
+EXEC,
+ALIAS:
+CONSTANT
+VARIABLE
+BUFFER
+FIELD
+CREATE
+,
+DO
+I
+LOOP
+```
+
+The purpose of these examples is not to define an official standard library.
+
+They demonstrate how the core can be extended from within Forth itself.
+
+---
+
+## Current Status
+
+AskForth is **experimental but functional**.
+
+The main execution model is implemented and the system is already usable as an interactive Forth environment.
+
+Current areas of development include:
+
+* Windows support
+* More platform backends
+* More robust fault handling
+* More Forth words
+* Improved documentation
+* Completing the VM reset functionality
+* Further refinement of the Debugger / Recovery system
+
+---
+
+## Portability
+
+Portability is one of the design goals of AskForth.
+
+The VM itself is intended to remain independent from the host operating system, while platform-specific functionality is provided by platform backends.
+
+Linux is currently the primary supported platform.
+
+Windows support is planned as the next major portability target.

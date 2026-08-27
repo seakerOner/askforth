@@ -1737,7 +1737,7 @@ static void askf_word_if( void ) {
     boolean res = _askf_0branch();
 
     if ( !res ) 
-        _askf_word_failed( (ascii*)"IF", 2 ); 
+        _askf_word_failed( (ascii*)"IF -> branch failed", 19 ); 
 }
 
 static void askf_word_else( void ) {
@@ -1751,7 +1751,7 @@ static void askf_word_else( void ) {
     boolean res = _askf_branch();
 
     if ( !res ) 
-        _askf_word_failed( (ascii*)"ELSE", 4 ); 
+        _askf_word_failed( (ascii*)"ELSE -> branch failed", 21 ); 
 }
 
 static void askf_word_then( void ) {

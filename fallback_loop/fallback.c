@@ -5,7 +5,7 @@
 #include "../library/library.h"
 
 static void _askf_fallback_cmd_help( AskForthVm* vm ) {
-    askf_print( (ascii*)"Bebugger Commands: ", 19 );
+    askf_print( (ascii*)"Debugger Commands: ", 19 );
     askf_print_char( (ascii)'\n' );
 
     AskForthFallBackCmd* cmds = __get_fallback_cmds();
@@ -441,6 +441,8 @@ static void _askf_fallback_cmd_continue( AskForthVm* vm ) {
         default: 
             break;
     }
+    // reset tracer
+    vm->error_tracer->head = 0;
     askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_EXECUTE_CONTINUE );
 }
 
@@ -458,6 +460,9 @@ static void _askf_fallback_cmd_abort( AskForthVm* vm ) {
 
     // we dont need the execution context when aborting so we clear the stack 
     vm->tframes_stack->index = 0;
+
+    // reset tracer
+    vm->error_tracer->head = 0;
 }
 
 static void _askf_fallback_cmd_reset( AskForthVm* vm ) {
@@ -469,7 +474,7 @@ static void _askf_fallback_cmd_reset( AskForthVm* vm ) {
 AskForthFallBackCmd askf_fallback_cmds[ASKF_FALLBACK_NUM_CMDS] = {
     {   
         { (ascii*)"help",     4 }, 
-        { (ascii*)"Shows all the debugger operations and respective descriptions.", 62 }, 
+        { (ascii*)"Shows all debugger operations and respective descriptions.", 58 }, 
         _askf_fallback_cmd_help      
     },  // FALLBACK_CMD_HELP 
     {   
@@ -514,7 +519,7 @@ AskForthFallBackCmd askf_fallback_cmds[ASKF_FALLBACK_NUM_CMDS] = {
     },  // FALLBACK_CMD_QUIT      
     {   
         { (ascii*)"abort",    5 }, 
-        { (ascii*)"Abort current execution and go back to interpretation", 53 },
+        { (ascii*)"Abort current execution, clear input buffers and go back to interpretation", 74 },
         _askf_fallback_cmd_abort     
     },  // FALLBACK_CMD_ABORT     
     {   
@@ -574,7 +579,7 @@ static void _askf_parse_fallback_input_buffer( AskForthVm* forth_vm ) {
 
 void askforth_fallbackloop_run( AskForthVm* vm ) {
     askf_print_char( (ascii)'\n' );
-    askf_print( (ascii*)"[DEBUGGER / RECOVERY]", 19 );
+    askf_print( (ascii*)"[ DEBUGGER / RECOVERY ]", 21 );
     askf_print_char( (ascii)'\n' );
     askf_print( (ascii*)"Type 'help' for more", 20 );
     askf_print_char( (ascii)'\n' );

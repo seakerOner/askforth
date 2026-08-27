@@ -7,7 +7,7 @@ EXECUTABLE_NAME = askforth
 
 TARGET ?= -DTARGET_LINUX
 
-FLAGS = -Wall -Wextra -x c
+FLAGS = -Wall -Wextra -x c -O2
 FLAGS += -march=$(ARQ)
 FLAGS += $(TARGET)
 
