@@ -5,7 +5,7 @@
 #include "../library/library.h"
 
 static void _askf_fallback_cmd_help( AskForthVm* vm ) {
-    askf_print( (ascii*)"Fallback Commands: ", 19 );
+    askf_print( (ascii*)"Bebugger Commands: ", 19 );
     askf_print_char( (ascii)'\n' );
 
     AskForthFallBackCmd* cmds = __get_fallback_cmds();
@@ -30,6 +30,63 @@ static void _askf_fallback_cmd_help( AskForthVm* vm ) {
 }
 
 static void _askf_fallback_cmd_status( AskForthVm* vm ) {
+    askf_print( (ascii*)"VM Status: ", 11 );
+    askf_print_char( (ascii)'\n' );
+
+    askf_print( (ascii*)"Interpreter state: ", 19 );
+    switch ( vm->interpret_state ) {
+        case ASKF_INTERPRET:
+            askf_print( (ascii*)"ASKF_INTERPRET", 14 );
+            break;
+        case ASKF_COMPILE:
+            askf_print( (ascii*)"ASKF_COMPILE", 12 );
+            break;
+        default:
+            askf_print( (ascii*)"?", 1 );
+            break;
+    }
+    askf_print_char( (ascii)'\n' );
+
+    askf_print( (ascii*)"Outer state: ", 13 );
+    switch ( vm->outer_state ) {
+        case ASKF_VM_OUTER_STATE_BLOCKING_INPUT:
+            askf_print( (ascii*)"ASKF_VM_OUTER_STATE_BLOCKING_INPUT", 34 );
+            break;
+        case ASKF_VM_OUTER_STATE_EXECUTE:
+            askf_print( (ascii*)"ASKF_VM_OUTER_STATE_EXECUTE", 27 );
+            break;
+        case ASKF_VM_OUTER_STATE_EXECUTE_CONTINUE:
+            askf_print( (ascii*)"ASKF_VM_OUTER_STATE_EXECUTE_CONTINUE", 36 );
+            break;
+        case ASKF_VM_OUTER_STATE_FAILED_CRITICAL:
+            askf_print( (ascii*)"ASKF_VM_OUTER_STATE_FAILED_CRITICAL", 35 );
+            break;
+        case ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL:
+            askf_print( (ascii*)"ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL", 41 );
+            break;
+        case ASKF_VM_OUTER_STATE_SHUTDOWN_REQUEST:
+            askf_print( (ascii*)"ASKF_VM_OUTER_STATE_SHUTDOWN_REQUEST", 36 );
+            break;
+        default:
+            askf_print( (ascii*)"?", 1 );
+            break;
+    }
+    askf_print_char( (ascii)'\n' );
+
+
+    askf_print( (ascii*)"Parse type: ", 12 );
+    switch ( vm->parse_type ) {
+        case ASKF_MAIN_PARSER:
+            askf_print( (ascii*)"ASKF_MAIN_PARSER", 16 );
+            break;
+        case ASKF_X_PARSER:
+            askf_print( (ascii*)"ASKF_X_PARSER", 13 );
+            break;
+        default: 
+            askf_print( (ascii*)"?", 1 );
+            break;
+    }
+    askf_print_char( (ascii)'\n' );
 }
 
 static void _askf_fallback_cmd_trace( AskForthVm* vm ) {
@@ -398,16 +455,21 @@ static void _askf_fallback_cmd_abort( AskForthVm* vm ) {
     askf_reset_input_buffer( vm, ASKF_X_PARSER );
     askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_BLOCKING_INPUT );
     vm->interpret_state = ASKF_INTERPRET;
+
+    // we dont need the execution context when aborting so we clear the stack 
+    vm->tframes_stack->index = 0;
 }
 
 static void _askf_fallback_cmd_reset( AskForthVm* vm ) {
     // TODO:
+    askf_print( (ascii*)"'reset' is not implemented!", 27 );
+    askf_print_char('\n');
 }
 
 AskForthFallBackCmd askf_fallback_cmds[ASKF_FALLBACK_NUM_CMDS] = {
     {   
         { (ascii*)"help",     4 }, 
-        { (ascii*)"Shows all the fallback operations and respective descriptions.", 62 }, 
+        { (ascii*)"Shows all the debugger operations and respective descriptions.", 62 }, 
         _askf_fallback_cmd_help      
     },  // FALLBACK_CMD_HELP 
     {   
@@ -417,12 +479,12 @@ AskForthFallBackCmd askf_fallback_cmds[ASKF_FALLBACK_NUM_CMDS] = {
     },  // FALLBACK_CMD_STATUS    
     {   
         { (ascii*)"trace",    5 }, 
-        { (ascii*)"Displays errors in VM's tracer", 30 },
+        { (ascii*)"Displays errors in VM's tracer and the current execution trace", 62 },
         _askf_fallback_cmd_trace     
     },  // FALLBACK_CMD_TRACE    
     {   
         { (ascii*)"stack",    5 },
-        { (ascii*)"Displays all stack contents", 27 },
+        { (ascii*)"Displays all data stack contents", 32 },
         _askf_fallback_cmd_stack     
     },  // FALLBACK_CMD_STACK      
     {   
@@ -512,7 +574,7 @@ static void _askf_parse_fallback_input_buffer( AskForthVm* forth_vm ) {
 
 void askforth_fallbackloop_run( AskForthVm* vm ) {
     askf_print_char( (ascii)'\n' );
-    askf_print( (ascii*)"[RECOVERY FALLBACK]", 19 );
+    askf_print( (ascii*)"[DEBUGGER / RECOVERY]", 19 );
     askf_print_char( (ascii)'\n' );
     askf_print( (ascii*)"Type 'help' for more", 20 );
     askf_print_char( (ascii)'\n' );

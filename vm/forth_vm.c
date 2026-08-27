@@ -78,8 +78,6 @@ static void _askf_word_failed( ascii* msg, u64 len ) {
 
 typedef void nat_code(void);
 
-// TODO: 
-// save IP frames so when it fails we can recover from where we were
 static boolean _askf_push_ip_frame( AskForthVm* vm, AskForth_Word* word, 
         u64 ip, boolean to_resume ) {
     if ( vm->tframes_stack->index >= vm->tframes_stack->capacity ) 
@@ -131,14 +129,13 @@ static void _askf_execute_threaded_frames( void ) {
             AskForth_Cell new_cell = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
             new_cell.val._64u      = *ip;
             askf_stack_push( &new_cell, vm->stack );
+            ip++;
         
         // threaded code coming
         } else if ( *ip == THREADED_FLAG_THREADEDWORD ) {
-            ip++;
+            AskForth_Word* new_word = (AskForth_Word*)*( ip + 1 );
 
-            AskForth_Word* new_word = (AskForth_Word*)(*ip);
-
-            _askf_push_ip_frame( vm, word, (u64)ip, TRUE);
+            _askf_push_ip_frame( vm, word, (u64)(ip + 2), TRUE); // next threaded execution
             _askf_push_ip_frame( vm, new_word, 
                     new_word->source.source.threaded_code_start_addr, FALSE);
 
@@ -156,13 +153,12 @@ static void _askf_execute_threaded_frames( void ) {
             else 
                 ip = (u64*)frame->base_ip;
 
-
-
         // memory to skip over
         } else if ( *ip == THREADED_FLAG_SKIPPABLE ) {
             ip++;
             u64 bytes_toskip = *ip;
             ip = (u64*)( ( (u8*)ip ) + bytes_toskip );
+            ip++;
 
         // 0BRANCH
         } else if ( *ip == THREADED_FLAG_0BRANCH ) {
@@ -180,27 +176,25 @@ static void _askf_execute_threaded_frames( void ) {
             if ( flag.val._64u == 0 ) {
                 u64 bytes_toskip = *ip;
                 ip = (u64*)( ( (u8*)ip ) + bytes_toskip );
-                continue;
-            }
+            } else 
+                ip++;
 
         // BRANCH
         } else if ( *ip == THREADED_FLAG_BRANCH ) {
             ip++;
             u64 bytes_toskip = *ip;
             ip = (u64*)( ( (u8*)ip ) + bytes_toskip );
-            continue;
 
         } else { //native code  
             ((nat_code*)*ip)();
 
+            ip++;
             if ( vm->outer_state == ASKF_VM_OUTER_STATE_FAILED_CRITICAL ||
                     vm->outer_state == ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL) {
-                ip++;
                 _askf_push_ip_frame( vm, word, (u64)ip, TRUE);
                 return;
             }
         }
-        ip++;
     }
 }
 
@@ -281,8 +275,6 @@ void askf_exec( AskForthVm* vm, AskForthParseType parse_type ) {
         // it means we stopped execution inside a threaded word and we must resume it until
         // no nested words are left to execute
         
-        // FIX: this is not working for nested threaded words, gives illegal instruction
-        AskForth_Cell cell = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
         while ( vm->tframes_stack->index > 0 )  {
             _askf_execute_threaded_frames();
 
