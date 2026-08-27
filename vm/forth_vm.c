@@ -78,9 +78,50 @@ static void _askf_word_failed( ascii* msg, u64 len ) {
 
 typedef void nat_code(void);
 
-static void _askf_execute_threaded_word( AskForth_Word* word ) {
-    AskForthVm* vm = askf_get_global_vm();
-    u64* ip = (u64*) word->source.source.threaded_code_start_addr;
+// TODO: 
+// save IP frames so when it fails we can recover from where we were
+static boolean _askf_push_ip_frame( AskForthVm* vm, AskForth_Word* word, 
+        u64 ip, boolean to_resume ) {
+    if ( vm->tframes_stack->index >= vm->tframes_stack->capacity ) 
+        return FALSE;
+
+    u64 idx = vm->tframes_stack->index++;
+
+    if ( word )
+        vm->tframes_stack->frames[idx].word = (u64)word;
+
+    if ( to_resume )
+        vm->tframes_stack->frames[idx].resume_ip = ip;
+    else 
+        vm->tframes_stack->frames[idx].base_ip   = ip;
+
+    vm->tframes_stack->frames[idx].to_resume = to_resume;
+    return TRUE;
+}
+
+static AskForthThreadedFrame* _askf_pop_ip_frame( AskForthVm* vm ) {
+    if ( vm->tframes_stack->index == 0 ) 
+        return NULL;
+
+    vm->tframes_stack->index--;
+    return &vm->tframes_stack->frames[vm->tframes_stack->index];
+}
+
+static void _askf_execute_threaded_frames( void ) {
+    AskForthVm* vm               = askf_get_global_vm();
+
+    AskForthThreadedFrame* frame = _askf_pop_ip_frame( vm );
+
+    if ( !frame )
+        return;
+
+    AskForth_Word* word          = (AskForth_Word*)frame->word;
+    u64* ip = NULL;
+
+    if ( frame->to_resume )
+        ip = (u64*)frame->resume_ip;
+    else 
+        ip = (u64*)frame->base_ip;
 
     while ( *ip != THREADED_FLAG_END ) {
         // literal value comming
@@ -94,13 +135,28 @@ static void _askf_execute_threaded_word( AskForth_Word* word ) {
         // threaded code coming
         } else if ( *ip == THREADED_FLAG_THREADEDWORD ) {
             ip++;
-            AskForth_Word* word = (AskForth_Word*)*ip;
-            _askf_execute_threaded_word( word );
+
+            AskForth_Word* new_word = (AskForth_Word*)(*ip);
+
+            _askf_push_ip_frame( vm, word, (u64)ip, TRUE);
+            _askf_push_ip_frame( vm, new_word, 
+                    new_word->source.source.threaded_code_start_addr, FALSE);
+
+            _askf_execute_threaded_frames();
 
             if ( vm->outer_state == ASKF_VM_OUTER_STATE_FAILED_CRITICAL ||
                     vm->outer_state == ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL) {
                 return;
             }
+
+            frame = _askf_pop_ip_frame( vm );
+
+            if ( frame->to_resume )
+                ip = (u64*)frame->resume_ip;
+            else 
+                ip = (u64*)frame->base_ip;
+
+
 
         // memory to skip over
         } else if ( *ip == THREADED_FLAG_SKIPPABLE ) {
@@ -139,6 +195,8 @@ static void _askf_execute_threaded_word( AskForth_Word* word ) {
 
             if ( vm->outer_state == ASKF_VM_OUTER_STATE_FAILED_CRITICAL ||
                     vm->outer_state == ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL) {
+                ip++;
+                _askf_push_ip_frame( vm, word, (u64)ip, TRUE);
                 return;
             }
         }
@@ -152,7 +210,10 @@ void askf_execute_threaded_word( void ) {
     AskForth_Cell word = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
     askf_stack_pop( &word, vm->stack );
 
-    _askf_execute_threaded_word( (AskForth_Word*)word.val._64u );
+    _askf_push_ip_frame( vm, 
+            (AskForth_Word*)word.val._64u, 
+            ((AskForth_Word*)word.val._64u)->source.source.threaded_code_start_addr, FALSE );
+    _askf_execute_threaded_frames();
 }
 
 static boolean _strequal( ascii* str, ascii* to_compare, u64 len ) {
@@ -214,6 +275,22 @@ void askf_exec( AskForthVm* vm, AskForthParseType parse_type ) {
     if ( vm->outer_state == ASKF_VM_OUTER_STATE_EXECUTE_CONTINUE ) { 
         start_idx       = tokenizer->ctx.idx;
         vm->outer_state = ASKF_VM_OUTER_STATE_EXECUTE;
+
+        // having a ASKF_VM_OUTER_STATE_EXECUTE_CONTINUE flag means we continuing 
+        // execution after an error ocurred, if the threadedframes stack has content inside
+        // it means we stopped execution inside a threaded word and we must resume it until
+        // no nested words are left to execute
+        
+        // FIX: this is not working for nested threaded words, gives illegal instruction
+        AskForth_Cell cell = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+        while ( vm->tframes_stack->index > 0 )  {
+            _askf_execute_threaded_frames();
+
+            if ( vm->outer_state == ASKF_VM_OUTER_STATE_FAILED_CRITICAL ||
+                    vm->outer_state == ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL) {
+                return;
+            }
+        }
     }
 
     for (u64 x = start_idx; x < tokenizer->index; x++) {
@@ -264,7 +341,10 @@ void askf_exec( AskForthVm* vm, AskForthParseType parse_type ) {
                         word->source.source.native_code();
                         break;
                     case ASKF_WORD_THREADED:
-                         _askf_execute_threaded_word( word );
+                        _askf_push_ip_frame( vm, 
+                            word, 
+                            word->source.source.threaded_code_start_addr, FALSE );
+                         _askf_execute_threaded_frames();
                         break;
                 }
                break;
@@ -276,7 +356,10 @@ void askf_exec( AskForthVm* vm, AskForthParseType parse_type ) {
                            word->source.source.native_code();
                            break;
                        case ASKF_WORD_THREADED:
-                           _askf_execute_threaded_word( word );
+                            _askf_push_ip_frame( vm, 
+                                word, 
+                                word->source.source.threaded_code_start_addr, FALSE );
+                            _askf_execute_threaded_frames();
                            break;
                    }
                } else {

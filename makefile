@@ -1,12 +1,14 @@
 # For windows executable creation MSYS2 is needed with required toolchain
 CC 	  = gcc
 BUILD = ./build
+ARQ   = x86-64
 
 EXECUTABLE_NAME = askforth
 
 TARGET ?= -DTARGET_LINUX
 
 FLAGS = -Wall -Wextra -x c
+FLAGS += -march=$(ARQ)
 FLAGS += $(TARGET)
 
 OBJECTS = 				\

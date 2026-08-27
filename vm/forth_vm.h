@@ -16,6 +16,8 @@
 #define THREADED_FLAG_0BRANCH       0x5
 #define THREADED_FLAG_BRANCH        0x6
 
+#define ASKF_THREADEDFRAMES_STACK_CAPACITY  256
+
 typedef enum {
     ASKF_VM_OUTER_STATE_BLOCKING_INPUT,
     ASKF_VM_OUTER_STATE_EXECUTE,
@@ -47,10 +49,24 @@ typedef enum {
     ASKF_X_PARSER
 } AskForthParseType;
 
+typedef struct {
+    u64 word;
+    u64 base_ip;
+    u64 resume_ip;
+    boolean to_resume;
+} AskForthThreadedFrame;
+
+typedef struct {
+    AskForthThreadedFrame frames[ASKF_THREADEDFRAMES_STACK_CAPACITY];
+    u64 index;
+    u64 capacity;
+} AskForthThreadedFramesStack;
+
 typedef struct AskForthVm_t {
     AskForth_Stack*                         stack;
     AskForth_Stack*                         cf_stack;
     AskForth_Stack*                         rstack;
+    AskForthThreadedFramesStack*            tframes_stack;
     AskForth_Ram*                           ram;
     AskForthInputBuffer*                    input_buffer;
     AskForthInputBuffer*                    input_buffer_x;

@@ -2,6 +2,8 @@
 #include "../input/tokenizer.h"
 #include "../input/input.h"
 
+#include "../library/library.h"
+
 static void _askf_fallback_cmd_help( AskForthVm* vm ) {
     askf_print( (ascii*)"Fallback Commands: ", 19 );
     askf_print_char( (ascii)'\n' );
@@ -36,7 +38,7 @@ static void _askf_fallback_cmd_trace( AskForthVm* vm ) {
     u64 head = tracer->head;
     head--;
 
-    askf_print( (ascii*)"Tracer's error ( oldest -> newest ): ", 36);
+    askf_print( (ascii*)"Tracer's errors ( oldest -> newest ): ", 38 );
     askf_print_char( (ascii)'\n' );
 
     while ( TRUE ) {
@@ -48,6 +50,19 @@ static void _askf_fallback_cmd_trace( AskForthVm* vm ) {
     
         if ( idx == 0 )
             break;
+    }
+
+    if ( vm->tframes_stack->index > 0 ) {
+        askf_print_char( (ascii)'\n' );
+        askf_print( (ascii*)"Execution trace ( oldest -> newest ):", 37 );
+        askf_print_char( (ascii)'\n' );
+        for ( u64 x = 0; x < vm->tframes_stack->index; x++ ) {
+            AskForthThreadedFrame frame = vm->tframes_stack->frames[x];
+            askf_print( ((AskForth_Word*)frame.word)->name ,
+                    ((AskForth_Word*)frame.word)->name_len );
+            askf_print( (ascii*)" -> ", 4 );
+        }
+        askf_print_char( (ascii)'\n' );
     }
 }
 
@@ -496,6 +511,7 @@ static void _askf_parse_fallback_input_buffer( AskForthVm* forth_vm ) {
 }
 
 void askforth_fallbackloop_run( AskForthVm* vm ) {
+    askf_print_char( (ascii)'\n' );
     askf_print( (ascii*)"[RECOVERY FALLBACK]", 19 );
     askf_print_char( (ascii)'\n' );
     askf_print( (ascii*)"Type 'help' for more", 20 );

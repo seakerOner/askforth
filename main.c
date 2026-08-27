@@ -47,6 +47,7 @@ int main( void ) {
     AskForthTokenizer   tokenizer_x                 = {0};
     AskForthTokenizer   fallback_tokenizer          = {0};
     AskForthBlocks      blocks                      = {0};
+    AskForthThreadedFramesStack tframe_stack        = {0};
 
     ascii scratch[ASKFORTH_INPUT_BUFFER_MAX_CHARS]  = {0};
     input_buffer.base                               = scratch;
@@ -81,12 +82,16 @@ int main( void ) {
     askf_start_stack( initial_cell_base_scale, &cf_stack );
     askf_start_stack( initial_cell_base_scale, &r_stack );
 
+    tframe_stack.index      = 0;
+    tframe_stack.capacity   = ASKF_THREADEDFRAMES_STACK_CAPACITY;
+
     askf_start_error_tracer( &ram, &tracer, ASKFORTH_ERROR_TRACER_CAPACITY );
 
     vm.ram                  = &ram;
     vm.stack                = &stack;
     vm.cf_stack             = &cf_stack;
     vm.rstack               = &r_stack;
+    vm.tframes_stack        = &tframe_stack;
     vm.input_buffer         = &input_buffer;
     vm.input_buffer_x       = &input_buffer_x;
     vm.fallback_input       = &fallback_input_buffer;
@@ -129,7 +134,6 @@ int main( void ) {
                 askf_exec( &vm, vm.parse_type );
                 if ( vm.outer_state == ASKF_VM_OUTER_STATE_EXECUTE )
                     askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_BLOCKING_INPUT );
-
                 break;
             case ASKF_VM_OUTER_STATE_EXECUTE:
                 askf_exec( &vm, ASKF_MAIN_PARSER );
