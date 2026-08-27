@@ -67,7 +67,7 @@ int main( void ) {
 
     u64 ram_size = 0;
 
-    #ifdef TARGET_LINUX 
+    #if defined( TARGET_LINUX ) || defined( TARGET_WINDOWS )
         ram_size = MB( 16 );
     #else
         ram_size = MB( 4 );
@@ -77,7 +77,11 @@ int main( void ) {
         // Something is not quite right..
     }
 
-    askf_create_backend_blob( ram_size, ( void* )RAW_RAM_START_ADDRESS, &ram );
+    if ( !askf_create_backend_blob( ram_size, ( void* )RAW_RAM_START_ADDRESS, &ram ) )  {
+        askf_print( (ascii*)"Failed to allocate VM's RAM", 27 );
+        return 1;
+    }
+
     askf_start_stack( initial_cell_base_scale, &stack );
     askf_start_stack( initial_cell_base_scale, &cf_stack );
     askf_start_stack( initial_cell_base_scale, &r_stack );

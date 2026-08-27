@@ -13,7 +13,7 @@ typedef struct {
     u64   length;
 } AskForth_Ram;
 
-void askf_create_backend_blob( u64 length_bytes, void* opt_addr, AskForth_Ram* ram_struct );
+boolean askf_create_backend_blob( u64 length_bytes, void* opt_addr, AskForth_Ram* ram_struct );
 
 void* askf_blob_alloc( AskForth_Ram* ram_struct, u64 bytes );
 

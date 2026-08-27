@@ -2,7 +2,7 @@
 #include "../vm/forth_vm.h"
 #include "../memory/backend_blob.h"
 
-#ifdef TARGET_LINUX
+#if defined( TARGET_LINUX ) || defined( TARGET_WINDOWS )
     #define ASKF_MAX_DICS     32
     #define ASKF_MAX_NAME_LEN 64
 #else
