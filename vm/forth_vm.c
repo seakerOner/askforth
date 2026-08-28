@@ -41,6 +41,8 @@ static void _askf_parse_input_buffer( AskForthVm* forth_vm, AskForthParseType pa
     u64     length      = 0;
     
     for ( u64 x = 0; x < ib->index; x++ ) {
+        if ( ib->base[x] == '\r' )
+            ib->base[x] = ' ';
         if ( ib->base[x] == ' ' || ib->base[x] == '\n' || ib->base[x] == '\0' ) {
             if ( length > 0 ) {
                 AskForthToken new_token = {0};

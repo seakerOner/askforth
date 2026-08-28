@@ -2917,7 +2917,7 @@ void askf_add_core_words( void ) {
     if ( !added_immediate )
         _askf_print_failed_add_word( &scratch_word_name );
 
-    #ifdef TARGET_LINUX
+    #if defined( TARGET_LINUX ) || defined( TARGET_WINDOWS )
         // INCLUDE
         scratch_word_name.base            = (ascii*)"INCLUDE";
         scratch_word_name.length          = 7;
