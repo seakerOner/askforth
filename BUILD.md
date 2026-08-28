@@ -49,7 +49,7 @@ pacman -Syu
 Install GCC and GNU Make for the UCRT64 environment:
 
 ```bash
-pacman -S --needed mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-make
+pacman -S --needed mingw-w64-ucrt-x86_64-gcc make
 ```
 
 Verify the installation:
@@ -101,7 +101,7 @@ The required packages are:
 
 ```text
 mingw-w64-ucrt-x86_64-gcc
-mingw-w64-ucrt-x86_64-make
+make
 ```
 
 The MSYS2 environment is only used as the build environment. AskForth itself is compiled as a native Windows executable.

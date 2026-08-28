@@ -5,6 +5,7 @@
 #include "../library/library.h"
 
 static void _askf_fallback_cmd_help( AskForthVm* vm ) {
+    UNUSED( vm );
     askf_print( (ascii*)"Debugger Commands: ", 19 );
     askf_print_char( (ascii)'\n' );
 
@@ -447,6 +448,7 @@ static void _askf_fallback_cmd_continue( AskForthVm* vm ) {
 }
 
 static void _askf_fallback_cmd_quit( AskForthVm* vm ) {
+    UNUSED( vm );
     askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_SHUTDOWN_REQUEST );
 }
 
@@ -466,6 +468,7 @@ static void _askf_fallback_cmd_abort( AskForthVm* vm ) {
 }
 
 static void _askf_fallback_cmd_reset( AskForthVm* vm ) {
+    UNUSED( vm );
     // TODO:
     askf_print( (ascii*)"'reset' is not implemented!", 27 );
     askf_print_char('\n');

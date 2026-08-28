@@ -6,7 +6,7 @@
 #include "../memory/blocks.h"
 #include "../fallback_loop/fallback.h"
 
-#ifdef TARGET_LINUX
+#if defined( TARGET_LINUX ) || defined( TARGET_WINDOWS )
     #include <stdio.h>
 #endif
 
