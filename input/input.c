@@ -80,7 +80,7 @@ u32 askf_read_input_blocking_tobuff( AskForthVm* vm, ascii* buffer, u64 cap ) {
 
 void askf_print( ascii* buff, u32 len ) {
     #if defined( TARGET_LINUX ) || defined( TARGET_WINDOWS )
-        fprintf(stdout, "%.*s", len, buff);
+        fprintf(stdout, "%*s", len, buff);
         fflush(stdout);
     #endif
 }

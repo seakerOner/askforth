@@ -22,7 +22,7 @@ static void _askf_fallback_cmd_help( AskForthVm* vm ) {
         askf_print( (ascii*)"[ ", 2 );
         if ( cmd->cmd_tkn.base )
             askf_print( cmd->cmd_tkn.base, cmd->cmd_tkn.length );
-        askf_print( (ascii*)" ] ", 2 );
+        askf_print( (ascii*)" ] ", 3 );
 
         if ( cmd->description.base )
             askf_print( cmd->description.base, cmd->description.length );
@@ -584,7 +584,7 @@ static void _askf_parse_fallback_input_buffer( AskForthVm* forth_vm ) {
 
 void askforth_fallbackloop_run( AskForthVm* vm ) {
     askf_print_char( (ascii)'\n' );
-    askf_print( (ascii*)"[ DEBUGGER / RECOVERY ]", 21 );
+    askf_print( (ascii*)"[ DEBUGGER / RECOVERY ]", 23 );
     askf_print_char( (ascii)'\n' );
     askf_print( (ascii*)"Type 'help' for more", 20 );
     askf_print_char( (ascii)'\n' );
