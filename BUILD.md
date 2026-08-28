@@ -2,9 +2,14 @@
 
 This document will guide you on how to build AskForth for different platforms
 
-## Supported Platforms
-    - Linux
-    - Windows
+## Platform Status
+
+| Platform | Status |
+|----------|--------|
+| Linux    | Supported |
+| Windows  | Supported |
+| ESP32    | Planned |
+| skdojo   | Planned |
 
 ## Build on Linux
 
@@ -106,3 +111,12 @@ make
 
 The MSYS2 environment is only used as the build environment. AskForth itself is compiled as a native Windows executable.
 
+### Windows Security Warning
+
+The Windows executable is currently **unsigned**.
+
+Depending on the Windows security configuration, Windows Smart App Control or SmartScreen may prevent the executable from running or display a security warning.
+
+This is expected for development builds.
+
+The project is open-source, and code signing for distributed Windows releases may be added in the future.

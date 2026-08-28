@@ -13,6 +13,25 @@ The goal is not to reproduce a particular traditional Forth implementation, but 
 
 AskForth is currently under active development.
 
+## Platform Status
+
+| Platform | Status |
+|----------|--------|
+| Linux    | Supported |
+| Windows  | Supported |
+| ESP32    | Planned |
+| skdojo   | Planned |
+
+### Windows Builds
+
+The Windows executable is currently **unsigned**.
+
+Depending on the Windows security configuration, Windows Smart App Control or SmartScreen may prevent the executable from running or display a security warning.
+
+This is expected for development builds.
+
+The project is open-source, and code signing for distributed Windows releases may be added in the future.
+
 ---
 
 ## Why AskForth?
@@ -257,7 +276,7 @@ For example:
 
 loads block 3 as Forth source.
 
-On the current Linux implementation, blocks are backed by persistent file storage.
+On Linux and Windows, blocks are backed by persistent file storage.
 
 ---
 
@@ -381,22 +400,9 @@ The main execution model is implemented and the system is already usable as an i
 
 Current areas of development include:
 
-* Windows support
 * More platform backends
 * More robust fault handling
 * More Forth words
 * Improved documentation
 * Completing the VM reset functionality
 * Further refinement of the Debugger / Recovery system
-
----
-
-## Portability
-
-Portability is one of the design goals of AskForth.
-
-The VM itself is intended to remain independent from the host operating system, while platform-specific functionality is provided by platform backends.
-
-Linux is currently the primary supported platform.
-
-Windows support is planned as the next major portability target.
