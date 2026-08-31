@@ -44,6 +44,7 @@ typedef struct {
      u32 _32u;
      u16 _16u;
      u8  _8u;
+     askf_addr_t _addr_t;
     } val;
     AskForth_CellSize* cell_scale;
     boolean is_signed;

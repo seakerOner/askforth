@@ -15,6 +15,27 @@ typedef float f32;
 typedef double f64;
 typedef u8 boolean;
 
+#if UINTPTR_MAX == UINT64_MAX
+#elif UINTPTR_MAX == UINT32_MAX
+#elif UINTPTR_MAX == UINT16_MAX
+#elif UINTPTR_MAX == UINT32_MAX
+#else
+    #error "Unsupported pointer size"
+#endif
+
+
+#if   defined( ARQBITS64 )
+    typedef u64 askf_addr_t;
+#elif defined( ARQBITS32 )
+    typedef u32 askf_addr_t;
+#elif defined( ARQBITS16 )
+    typedef u16 askf_addr_t;
+#elif defined( ARQBITS8  )
+    typedef u8 askf_addr_t;
+#else 
+    typedef u64 askf_addr_t; // default to 64bits
+#endif
+
 typedef u8 ascii;
 
 #define NULL (void *)0

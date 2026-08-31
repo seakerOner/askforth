@@ -41,7 +41,17 @@ int main( void ) {
     AskForthInputBuffer input_buffer                = {0};
     AskForthInputBuffer input_buffer_x              = {0};
     AskForthInputBuffer fallback_input_buffer       = {0};
-    AskForth_CellSize   initial_cell_base_scale     = ASKF_BITS64;
+
+    #if   defined( ARQBITS64 )
+        AskForth_CellSize   initial_cell_base_scale     = ASKF_BITS64;
+    #elif defined( ARQBITS32 )
+        AskForth_CellSize   initial_cell_base_scale     = ASKF_BITS32;
+    #elif defined( ARQBITS16 )
+        AskForth_CellSize   initial_cell_base_scale     = ASKF_BITS16;
+    #elif defined( ARQBITS8  )
+        AskForth_CellSize   initial_cell_base_scale     = ASKF_BITS8;
+    #endif
+
     AskForthErrorTrace  tracer                      = {0};
     AskForthTokenizer   tokenizer                   = {0};
     AskForthTokenizer   tokenizer_x                 = {0};

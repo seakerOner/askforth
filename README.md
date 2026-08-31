@@ -1,7 +1,7 @@
 # AskForth
 > An experimental Forth implementation in C, focused on a small VM, runtime introspection, flexible stacks, extensible dictionaries, and recoverable execution.
 
-> AskForth's guide: **TODO**
+> AskForth's guide: [GUIDE](./GUIDE/)
 
 > How to build AskForth: [GUIDE](./BUILD.md)
 
@@ -77,11 +77,6 @@ Library
 A library can contain multiple dictionaries, allowing words to be grouped into separate namespaces.
 
 Dictionaries are part of the Forth environment and can be created and populated from Forth code.
-
-Words can be implemented as either:
-
-* Native C words
-* Threaded Forth words
 
 ---
 
@@ -163,97 +158,6 @@ This is an important part of the AskForth design:
 
 The `examples.fs` file contains examples of this approach.
 
----
-
-## Feature Overview
-
-### Execution
-
-AskForth supports:
-
-* Interactive interpretation
-* Compilation of threaded words
-* Native C words
-* Threaded Forth words
-* Immediate words
-* Runtime execution frames
-* Explicit interpreter and compiler states
-
-A normal definition looks like:
-
-```forth
-: square core
-    dup *
-;
-```
-
-The resulting word is represented as threaded execution data managed by the VM.
-
----
-
-### Native and Threaded Words
-
-AskForth combines two kinds of executable words.
-
-**Native words** directly call C functions.
-
-They are useful for:
-
-* VM operations
-* I/O
-* memory primitives
-* platform functionality
-* low-level operations
-
-**Threaded words** contain execution entries managed by the Forth VM.
-
-Threaded code can combine:
-
-* literals
-* other threaded words
-* native C functions
-* control-flow instructions
-* termination markers
-
-This provides a bridge between the low-level VM and the Forth language.
-
----
-
-## Memory
-
-AskForth provides a Forth-managed memory area with words such as:
-
-```forth
-@
-!
-C@
-C!
-HERE
-ALLOT
-CELLS
-CELL+
-CHARS
-CHAR+
-FILL
-MOVE
-```
-
-For example:
-
-```forth
-HERE
-```
-
-returns the current allocation address.
-
-```forth
-64 ALLOT
-```
-
-advances the allocation position by 64 bytes.
-
----
-
 ## Persistent Blocks
 
 AskForth provides Forth blocks for persistent source and data storage.
@@ -277,23 +181,6 @@ For example:
 loads block 3 as Forth source.
 
 On Linux and Windows, blocks are backed by persistent file storage.
-
----
-
-## Input and Parsing
-
-AskForth separates input, tokenization and execution.
-
-The VM supports multiple input contexts, allowing Forth code to process additional sources without simply replacing the main interpreter input.
-
-This is used by functionality such as:
-
-```forth
-LOAD
-INCLUDE
-```
-
-The tokenizer keeps source context such as the current token and its position, which also allows the debugger to report where execution failed.
 
 ---
 

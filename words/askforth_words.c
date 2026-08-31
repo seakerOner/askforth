@@ -75,7 +75,7 @@ static void askf_word_dot_stack ( void ) {
 
 
     for ( u8 x = 0; x < depth; x++ ) {
-        switch ( *cell.cell_scale ) {
+        switch ( vm->stack->cell_scale ) {
             case ASKF_BITS64:
                 cell.val._64u = vm->stack->cells.space_64[x];
                 break;
@@ -208,7 +208,7 @@ static void askf_word_nip ( void ) {
     AskForth_Cell b  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
 
     askf_stack_pop( &b, vm->stack );
-    askf_stack_pop( &a, vm->stack );
+    volatile u32 dummy = askf_stack_pop( &a, vm->stack );
 
     askf_stack_push( &b, vm->stack );
 }
@@ -252,8 +252,10 @@ static void askf_word_2drop( void ) {
         return;
     }
 
-    askf_stack_pop( &cell, vm->stack );
-    askf_stack_pop( &cell, vm->stack );
+    volatile u32 dummy;
+
+    dummy = askf_stack_pop( &cell, vm->stack );
+    dummy = askf_stack_pop( &cell, vm->stack );
 }
 
 static void askf_word_over( void ) {
@@ -314,7 +316,7 @@ static void askf_word_negate( void ) {
         return;
     }
 
-    cell.val._64s = 0 - cell.val._64u;
+    cell.val._addr_t = 0 - cell.val._addr_t;
     askf_stack_push( &cell, vm->stack );
 }
 
@@ -354,6 +356,12 @@ static void askf_word_parse_word( void ) {
         return;
     }
 
+    if ( ( vm->stack->cell_scale / 8 ) != sizeof( askf_addr_t ) ) {
+        _askf_word_failed( 
+                (ascii *)"PARSE-NAME -> cell width must match architecture word width", 59 );
+        return;
+    }
+
     tokenizer->ctx.idx += 1;
     u64 idx = tokenizer->ctx.idx;
 
@@ -378,9 +386,9 @@ static void askf_word_parse_word( void ) {
 
     COPY( tokenizer->tokens[idx].base, scratch, tokenizer->tokens[idx].length );
 
-    cell.val._64u = (u64)scratch;
+    cell.val._addr_t = (askf_addr_t)scratch;
     askf_stack_push( &cell, vm->stack );
-    cell.val._64u = tokenizer->tokens[idx].length;
+    cell.val._addr_t = tokenizer->tokens[idx].length;
     askf_stack_push( &cell, vm->stack );
 }
 
@@ -781,6 +789,13 @@ static void askf_word_type( void ){
 
     AskForth_Cell len   = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
     AskForth_Cell addr  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    
+    if ( ( vm->stack->cell_scale / 8  ) 
+            != sizeof( askf_addr_t ) ) {
+        _askf_word_failed( 
+                (ascii *)"TYPE -> cell width must match architecture word width", 53 );
+        return;
+    }
 
     askf_stack_pop( &len, vm->stack );
     askf_stack_pop( &addr, vm->stack );
@@ -799,11 +814,18 @@ static void askf_word_store( void ){
     AskForth_Cell val   = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
     AskForth_Cell addr  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
 
+    if ( ( vm->stack->cell_scale / 8  ) 
+            != sizeof( askf_addr_t ) ) {
+        _askf_word_failed( 
+                (ascii *)"! -> cell width must match architecture word width", 50 );
+        return;
+    }
+
     askf_stack_pop( &addr, vm->stack );
     askf_stack_pop( &val, vm->stack );
 
-    u64* ptr = ( u64* )addr.val._64u;
-    *ptr = val.val._64u;
+    askf_addr_t* ptr = ( askf_addr_t* )addr.val._addr_t;
+    *ptr = val.val._addr_t;
 }
 
 static void askf_word_byte_store( void ){
@@ -816,10 +838,17 @@ static void askf_word_byte_store( void ){
     AskForth_Cell val   = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
     AskForth_Cell addr  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
 
+    if ( ( vm->stack->cell_scale / 8  ) 
+            != sizeof( askf_addr_t ) ) {
+        _askf_word_failed( 
+                (ascii *)"! -> cell width must match architecture word width", 50 );
+        return;
+    }
+
     askf_stack_pop( &addr, vm->stack );
     askf_stack_pop( &val, vm->stack );
 
-    u8* ptr = ( u8* )addr.val._64u;
+    u8* ptr = ( u8* )addr.val._addr_t;
     *ptr = val.val._8u;
 }
 
@@ -832,11 +861,18 @@ static void askf_word_load_ptr( void ){
     }
     AskForth_Cell addr  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
 
+    if ( ( vm->stack->cell_scale / 8  ) 
+            != sizeof( askf_addr_t ) ) {
+        _askf_word_failed( 
+                (ascii *)"@ -> cell width must match architecture word width", 50 );
+        return;
+    }       
+
     askf_stack_pop( &addr, vm->stack );
 
-    u64* ptr = ( u64* )addr.val._64u;
+    askf_addr_t* ptr = ( askf_addr_t* )addr.val._addr_t;
 
-    addr.val._64u = *ptr;
+    addr.val._addr_t = *ptr;
 
     askf_stack_push( &addr, vm->stack );
 }
@@ -852,8 +888,16 @@ static void askf_word_load_byte_ptr( void ){
 
     askf_stack_pop( &addr, vm->stack );
 
-    u8* ptr = ( u8* )addr.val._64u;
+    if ( ( vm->stack->cell_scale / 8  ) 
+            != sizeof( askf_addr_t ) ) {
+        _askf_word_failed( 
+                (ascii *)"c@ -> cell width must match architecture word width", 51 );
+        return;
+    }
 
+    u8* ptr = ( u8* )addr.val._addr_t;
+
+    addr.val._addr_t = 0;
     addr.val._8u = *ptr;
 
     askf_stack_push( &addr, vm->stack );
@@ -864,9 +908,13 @@ static void askf_word_here( void ) {
 
     AskForth_Cell addr  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
 
-    *addr.cell_scale = ASKF_BITS64;
+    if ( ( vm->stack->cell_scale / 8  ) != sizeof( askf_addr_t ) ) {
+        _askf_word_failed( 
+                (ascii *)"HERE -> cell width must match architecture word width", 53 );
+        return;
+    }
 
-    addr.val._64u = ( u64 )( (( u8* )vm->ram->start_ptr ) + vm->ram->byte_index );
+    addr.val._addr_t = ( askf_addr_t )( (( u8* )vm->ram->start_ptr ) + vm->ram->byte_index );
 
     askf_stack_push( &addr, vm->stack );
 }
@@ -906,7 +954,7 @@ static void askf_word_cells( void ) {
         return;
     }
 
-    val.val._64u *= sizeof( val.val._64u );
+    val.val._64u *= sizeof( askf_addr_t );
 
     askf_stack_push( &val, vm->stack );
 }
@@ -923,7 +971,7 @@ static void askf_word_cell_add( void ) {
         return;
     }
 
-    val.val._64u += sizeof( val.val._64u );
+    val.val._64u += sizeof( askf_addr_t );
 
     askf_stack_push( &val, vm->stack );
 }
@@ -940,7 +988,7 @@ static void askf_word_chars( void ) {
         return;
     }
 
-    val.val._64u *= sizeof( val.val._8u );
+    val.val._64u *= sizeof( u8 );
 
     askf_stack_push( &val, vm->stack );
 }
@@ -957,7 +1005,7 @@ static void askf_word_char_add( void ) {
         return;
     }
 
-    val.val._64u += sizeof( val.val._8u );
+    val.val._64u += sizeof( u8 );
 
     askf_stack_push( &val, vm->stack );
 }
@@ -982,14 +1030,14 @@ static void askf_word_print_string( void ) {
 
     ctx_idx++;
     ascii*  string_base     = tokenizer->tokens[ctx_idx].base;
-    u64     len             = 0;
+    askf_addr_t len         = 0;
     boolean got_terminator  = FALSE;
 
     while ( ctx_idx < tokenizer->index ) {
         AskForthToken* tkn = &tokenizer->tokens[ctx_idx];
         if ( tkn->base[tkn->length - 1] == '"' ) {
             got_terminator = TRUE;
-            len = (u64)( tkn->base + tkn->length ) - (u64)string_base;
+            len = (askf_addr_t)( tkn->base + tkn->length ) - (askf_addr_t)string_base;
             tkn->base[tkn->length - 1] = '\0';
             len -= 1;
             break;
@@ -1008,10 +1056,16 @@ static void askf_word_print_string( void ) {
     switch ( vm->interpret_state ) {
         case ASKF_INTERPRET: {
             AskForth_Cell cell = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-            cell.val._64u = (u64)string_base;
+            cell.val._addr_t = (askf_addr_t)string_base;
             askf_stack_push( &cell, vm->stack );
-            cell.val._64u = (u64)len;
+            cell.val._addr_t = len;
             askf_stack_push( &cell, vm->stack );
+
+            if ( ( vm->stack->cell_scale / 8  ) != sizeof( askf_addr_t ) ) {
+                _askf_word_failed( 
+                    (ascii *)".\" -> cell width must match architecture word width", 51 );
+                return;
+            }
 
             askf_word_type();
             } break;
@@ -1054,18 +1108,24 @@ static void askf_word_store_string( void ) {
             return;
     }
 
+    if ( ( vm->stack->cell_scale / 8  ) != sizeof( askf_addr_t ) ) {
+        _askf_word_failed( 
+            (ascii *)".\" -> cell width must match architecture word width", 51 );
+        return;
+    }
+
     u64 ctx_idx = tokenizer->ctx.idx;
 
     ctx_idx++;
     ascii*  string_base     = tokenizer->tokens[ctx_idx].base;
-    u64     len             = 0;
+    askf_addr_t len         = 0;
     boolean got_terminator  = FALSE;
 
     while ( ctx_idx < tokenizer->index ) {
         AskForthToken* tkn = &tokenizer->tokens[ctx_idx];
         if ( tkn->base[tkn->length - 1] == '"' ) {
             got_terminator = TRUE;
-            len = (u64)( tkn->base + tkn->length ) - (u64)string_base;
+            len = (askf_addr_t)( tkn->base + tkn->length ) - (askf_addr_t)string_base;
             tkn->base[tkn->length - 1] = '\0';
             len -= 1;
             break;
@@ -1088,8 +1148,8 @@ static void askf_word_store_string( void ) {
     AskForth_Cell cell_addr = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
     AskForth_Cell cell_len  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
 
-    cell_addr.val._64u = (u64) new_base;
-    cell_len.val._64u  = len;
+    cell_addr.val._addr_t = (askf_addr_t) new_base;
+    cell_len.val._addr_t  = len;
 
     askf_stack_push( &cell_addr, vm->stack );
     askf_stack_push( &cell_len, vm->stack );
@@ -1336,6 +1396,12 @@ static void askf_word_fill( void ) {
         _askf_word_failed( (ascii*)"FILL -> Expects ( addr n char - )", 33 );
     }
 
+    if ( ( vm->stack->cell_scale / 8  ) != sizeof( askf_addr_t ) ) {
+        _askf_word_failed( 
+            (ascii *)"FILL -> cell width must match architecture word width", 53 );
+        return;
+    }
+
     AskForth_Cell _char = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
     AskForth_Cell bytes = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
     AskForth_Cell addr  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
@@ -1352,6 +1418,12 @@ static void askf_word_copy( void ) {
 
     if ( vm->stack->index < 3 ) {
         _askf_word_failed( (ascii*)"MOVE -> Expects ( old_addr new_addr n_bytes - )", 47 );
+    }
+
+    if ( ( vm->stack->cell_scale / 8  ) != sizeof( askf_addr_t ) ) {
+        _askf_word_failed( 
+            (ascii *)"COPY -> cell width must match architecture word width", 53 );
+        return;
     }
 
     AskForth_Cell bytes     = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
@@ -1428,6 +1500,7 @@ static void askf_word_block( void ) {
         _askf_word_failed( (ascii*)"BLOCK -> OOB BLOCK", 18 );
         return;
     }
+
     ascii* block_start = vm->blocks->start_blocks + ( vm->blocks->block_size * cell.val._64u );
 
     cell.val._64u = ( u64 )block_start;
@@ -1482,6 +1555,12 @@ static void askf_word_max_lines( void ) {
 
 static void askf_word_colon( void ) { 
     AskForthVm* vm       = askf_get_global_vm();
+
+    if ( ( vm->stack->cell_scale / 8  ) != sizeof( askf_addr_t ) ) {
+        _askf_word_failed( 
+            (ascii *)": -> cell width must match architecture word width", 50 );
+        return;
+    }
     
     askf_word_parse_word();
     askf_word_parse_word();
@@ -1593,6 +1672,12 @@ static void askf_word_load( void ) {
 
 static void askf_word_add_dic( void ) { 
     AskForthVm* vm       = askf_get_global_vm();
+
+    if ( ( vm->stack->cell_scale / 8  ) != sizeof( askf_addr_t ) ) {
+        _askf_word_failed( 
+            (ascii *)"ADD-DIC -> cell width must match architecture word width", 56 );
+        return;
+    }
 
     askf_word_parse_word();
 
@@ -1858,6 +1943,12 @@ static void askf_word_bracket_close( void ) {
 static void askf_word_single_quote( void ) {
     AskForthVm* vm              = askf_get_global_vm();
 
+    if ( ( vm->stack->cell_scale / 8  ) != sizeof( askf_addr_t ) ) {
+        _askf_word_failed( 
+            (ascii *)"'-> cell width must match architecture word width", 49 );
+        return;
+    }
+
     askf_word_parse_word();
 
     if ( vm->stack->index < 2 ) {
@@ -1905,6 +1996,12 @@ static void askf_word_execute( void ) {
         return;
     }
 
+    if ( ( vm->stack->cell_scale / 8  ) != sizeof( askf_addr_t ) ) {
+        _askf_word_failed( 
+            (ascii *)"EXECUTE -> cell width must match architecture word width", 56 );
+        return;
+    }
+
     AskForth_Cell addr = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
 
     askf_stack_pop( &addr, vm->stack );
@@ -1928,6 +2025,12 @@ static void askf_word_compile_comma( void )  {
 
     if ( vm->stack->index < 1 ) {
         _askf_word_failed( (ascii*)"COMPILE, -> Expects addr", 24 );
+        return;
+    }
+
+    if ( ( vm->stack->cell_scale / 8  ) != sizeof( askf_addr_t ) ) {
+        _askf_word_failed( 
+            (ascii *)"COMPILE, -> cell width must match architecture word width", 57 );
         return;
     }
 
@@ -1976,6 +2079,12 @@ static void askf_word_postpone( void ) {
 
     if ( vm->interpret_state != ASKF_COMPILE ) {
         _askf_word_failed( (ascii*)"POSTPONE -> Must be used in compile code", 40 );
+        return;
+    }
+
+    if ( ( vm->stack->cell_scale / 8  ) != sizeof( askf_addr_t ) ) {
+        _askf_word_failed( 
+            (ascii *)"POSTPONE -> cell width must match architecture word width", 57 );
         return;
     }
 

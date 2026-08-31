@@ -20,13 +20,13 @@ To build AskForth on Linux you will need:
 Enter the project directory and run
 
 ```bash
-make linux
+make x86-64-linux
 ```
 
 The executable will be generated at: 
 
 ```text
-build/AskForth
+build/x86-64-linux/AskForth
 ```
 
 ## Build on Windows
@@ -75,7 +75,7 @@ cd /path/to/AskForth
 Build the Windows target:
 
 ```bash
-make windows
+make x86-64-windows
 ```
 
 The executable will be generated as:
@@ -95,7 +95,7 @@ From the MSYS2 UCRT64 terminal:
 The generated executable is a native Windows executable and can also be run from Windows PowerShell or Command Prompt:
 
 ```powershell
-.\build\askforth.exe
+.\build\x86-64-windows\askforth.exe
 ```
 
 ### MSYS2 Environment

@@ -1,7 +1,15 @@
 # For windows executable creation MSYS2 is needed with required toolchain
-CC 	  = gcc
-BUILD = ./build
-ARQ   = x86-64
+CC 	  		= gcc
+
+BUILD 		= ./build
+
+# native C compilation arquitecture 
+# this controls GCC's -march and is independent from the Forth 
+ARQ   		?= x86-64
+
+# AskForth data-stack cell-width
+# must match the arquitecture bits
+CELL-BITS 	?= 64
 
 EXECUTABLE_NAME = askforth
 EXECUTABLE_EXT  = 
@@ -11,6 +19,7 @@ TARGET ?= -DTARGET_LINUX
 FLAGS = -Wall -Wextra -x c -O2
 FLAGS += -march=$(ARQ)
 FLAGS += $(TARGET)
+FLAGS += -DARQBITS$(CELL-BITS)
 
 OBJECTS = 				\
 	main.o 				\
@@ -69,13 +78,8 @@ clean:
 	rm -f $(BUILD)/$(EXECUTABLE_NAME).exe
 	@echo "Cleaned Build Files..."
 
-linux: 
-	$(MAKE) TARGET=-DTARGET_LINUX askforth
+x86-64-linux:
+	$(MAKE) BUILD=./build/x86-64-linux CELL-BITS=64 TARGET=-DTARGET_LINUX askforth 
 
-windows:
-	$(MAKE) TARGET=-DTARGET_WINDOWS EXECUTABLE_EXT=.exe askforth
-
-
-run: askforth
-	@echo " "
-	$(BUILD)/$(EXECUTABLE_NAME)$(EXECUTABLE_EXT)
+x86-64-windows:
+	$(MAKE) BUILD=./build/x86-64-windows CELL-BITS=64 TARGET=-DTARGET_WINDOWS EXECUTABLE_EXT=.exe askforth 
