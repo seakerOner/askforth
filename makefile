@@ -79,7 +79,7 @@ clean:
 	@echo "Cleaned Build Files..."
 
 x86-64-linux:
-	$(MAKE) BUILD=./build/x86-64-linux CELL-BITS=64 TARGET=-DTARGET_LINUX askforth 
+	$(MAKE) ARQ=x86-64 BUILD=./build/x86-64-linux CELL-BITS=64 TARGET=-DTARGET_LINUX askforth 
 
 x86-64-windows:
-	$(MAKE) BUILD=./build/x86-64-windows CELL-BITS=64 TARGET=-DTARGET_WINDOWS EXECUTABLE_EXT=.exe askforth 
+	$(MAKE) ARQ=x86-64 BUILD=./build/x86-64-windows CELL-BITS=64 TARGET=-DTARGET_WINDOWS EXECUTABLE_EXT=.exe askforth 
