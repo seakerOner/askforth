@@ -337,7 +337,7 @@ static void askf_word_parse_word( void ) {
     AskForthToken* scratch  = NULL;
     if ( vm->interpret_state == ASKF_COMPILE && 
             ((AskForth_Library*)vm->lib)->curr_compiling.here ) {
-        askf_compile_threaded_memory( THREADED_FLAG_SKIPPABLE );
+        askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_skippable );
         scratch  = askf_alloc( len );
         askf_compile_threaded_memory( len );
     }  else if ( vm->interpret_state == ASKF_COMPILE 
@@ -843,7 +843,7 @@ static void askf_word_allot( void ) {
 
     if ( vm->interpret_state == ASKF_COMPILE && 
             ((AskForth_Library*)vm->lib)->curr_compiling.here ) {
-        askf_compile_threaded_memory( THREADED_FLAG_SKIPPABLE );
+        askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_skippable );
         vm->ram->byte_index += val->val._64u;
         askf_compile_threaded_memory( val->val._64u );
     } else {
@@ -970,17 +970,17 @@ static void askf_word_print_string( void ) {
             } break;
         case ASKF_COMPILE: {
 
-            askf_compile_threaded_memory( THREADED_FLAG_SKIPPABLE );
+            askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_skippable );
 
             ascii* ptr = (ascii*)askf_alloc( len );
             COPY( string_base, ptr, len );
             askf_compile_threaded_memory( len );
 
 
-            askf_compile_threaded_memory( THREADED_FLAG_LITERAL );
+            askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_literal );
             askf_compile_threaded_memory( (u64)ptr );
 
-            askf_compile_threaded_memory( THREADED_FLAG_LITERAL );
+            askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_literal );
             askf_compile_threaded_memory( (u64)len );
 
             askf_compile_threaded_memory( (u64)askf_word_type );
@@ -1585,7 +1585,7 @@ static boolean _askf_0branch( void ) {
     }
 
     AskForth_Cell* cell          = global_c00;
-    askf_compile_threaded_memory( THREADED_FLAG_0BRANCH );
+    askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_0branch );
 
     // push into cf_stack the addr of memory on threaded code to later store ( on BRANCH )
     // the offset if flag is 0 on runtime
@@ -1726,7 +1726,7 @@ static void askf_word_repeat( void ) {
     askf_stack_pop( while_placeholder, vm->cf_stack );
     askf_stack_pop( begin_address, vm->cf_stack );
 
-    askf_compile_threaded_memory( THREADED_FLAG_BRANCH );
+    askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_branch );
     u64 offset = begin_address->val._64u - ( u64 )lib->curr_compiling.here;
     askf_compile_threaded_memory( offset );
 
@@ -1846,10 +1846,11 @@ static void askf_word_compile_comma( void )  {
 
     switch ( word->source.type ) {
         case ASKF_WORD_NATIVE:
+            askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_native );
             askf_compile_threaded_memory( (u64)word->source.source.native_code );
             break;
         case ASKF_WORD_THREADED:
-            askf_compile_threaded_memory( THREADED_FLAG_THREADEDWORD );
+            askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_threadedword );
             askf_compile_threaded_memory( (u64)word );
             break;
         default:
@@ -1872,7 +1873,7 @@ static void askf_word_literal( void ) {
 
     askf_stack_pop( val, vm->stack );
 
-    askf_compile_threaded_memory( THREADED_FLAG_LITERAL );
+    askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_literal );
     askf_compile_threaded_memory( val->val._64u );
 }
 
@@ -1924,10 +1925,11 @@ static void askf_word_postpone( void ) {
     // idk not working like other compilations
     switch ( word->source.type ) {
         case ASKF_WORD_NATIVE:
+            askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_native );
             askf_compile_threaded_memory( (u64)word->source.source.native_code );
             break;
         case ASKF_WORD_THREADED:
-            askf_compile_threaded_memory( THREADED_FLAG_THREADEDWORD );
+            askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_threadedword );
             askf_compile_threaded_memory( (u64)word );
             break;
     }

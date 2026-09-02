@@ -4,9 +4,9 @@
 
 #include "../words/askforth_words.h"
 
-// #include <stdio.h>
-
 AskForthVm* global_vm = NULL;
+
+boolean dispatch_calls_set  = FALSE;
 
 void askf_vm_to_global_state( AskForthVm* vm ) {
     global_vm = vm;
@@ -107,8 +107,14 @@ static AskForthThreadedFrame* _askf_pop_ip_frame( AskForthVm* vm ) {
     return &vm->tframes_stack->frames[vm->tframes_stack->index];
 }
 
-static void _askf_execute_threaded_frames( void ) {
+#define NEXT() ip++
+#define RUN_OP() goto *(void*)*ip++
+
+void _askf_execute_threaded_frames( void ) {
     AskForthVm* vm               = askf_get_global_vm();
+
+    if ( !dispatch_calls_set )
+        goto set_dispatch_calls;
 
     AskForthThreadedFrame* frame = _askf_pop_ip_frame( vm );
 
@@ -123,37 +129,89 @@ static void _askf_execute_threaded_frames( void ) {
     else 
         ip = (u64*)frame->base_ip;
 
+
 return_call:
     while ( *ip != THREADED_FLAG_END ) {
-        // literal value comming
-        if ( *ip == THREADED_FLAG_LITERAL ) {
-            ip++;
+        RUN_OP();
+        // if ( *ip == THREADED_FLAG_LITERAL ) {
+        //     ip++;
+        //
+        //     AskForth_Cell new_cell = askf_new_cell_payload( vm->stack );
+        //     new_cell.val._64u      = *ip;
+        //     askf_stack_push( &new_cell, vm->stack );
+        //     ip++;
+        //
+        // } else if ( *ip == THREADED_FLAG_THREADEDWORD ) {
+        //     AskForth_Word* new_word = (AskForth_Word*)*( ip + 1 );
+        //
+        //     _askf_push_ip_frame( vm, word, (u64)(ip + 2), TRUE); // next threaded execution
+        //
+        //     word = new_word;
+        //     ip   = ( u64* )new_word->source.source.threaded_code_start_addr;
+        //
+        // } else if ( *ip == THREADED_FLAG_SKIPPABLE ) {
+        //     ip++;
+        //     u64 bytes_toskip = *ip;
+        //     ip = (u64*)( ( (u8*)ip ) + bytes_toskip );
+        //     ip++;
+        //
+        // } else if ( *ip == THREADED_FLAG_0BRANCH ) {
+        //     ip++;
+        //
+        //     if ( vm->stack->index < 1 ) {
+        //         _askf_word_failed( (ascii*)"0branch expects value on the stack", 34 );
+        //         _askf_word_failed( word->name , word->name_len );
+        //         return;
+        //     }
+        //
+        //     AskForth_Cell flag = askf_new_cell_payload( vm->stack );
+        //     askf_stack_pop( &flag, vm->stack );
+        //
+        //     if ( flag.val._64u == 0 ) {
+        //         u64 bytes_toskip = *ip;
+        //         ip = (u64*)( ( (u8*)ip ) + bytes_toskip );
+        //     } else 
+        //         ip++;
+        //
+        // } else if ( *ip == THREADED_FLAG_BRANCH ) {
+        //     ip++;
+        //     u64 bytes_toskip = *ip;
+        //     ip = (u64*)( ( (u8*)ip ) + bytes_toskip );
+        //
+        // } else { //native code  
+        //     ((nat_code*)*ip)();
+        //
+        //     ip++;
+        //     if ( vm->outer_state == ASKF_VM_OUTER_STATE_FAILED_CRITICAL ||
+        //             vm->outer_state == ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL) {
+        //         _askf_push_ip_frame( vm, word, (u64)ip, TRUE);
+        //         return;
+        //     }
+        // }
 
+        op_literal: {
             AskForth_Cell new_cell = askf_new_cell_payload( vm->stack );
             new_cell.val._64u      = *ip;
             askf_stack_push( &new_cell, vm->stack );
-            ip++;
-        
-        // threaded code coming
-        } else if ( *ip == THREADED_FLAG_THREADEDWORD ) {
-            AskForth_Word* new_word = (AskForth_Word*)*( ip + 1 );
+            NEXT();
+            continue;
+        }
+        op_threadedword:{
+            AskForth_Word* new_word = (AskForth_Word*)*( ip );
 
-            _askf_push_ip_frame( vm, word, (u64)(ip + 2), TRUE); // next threaded execution
+            _askf_push_ip_frame( vm, word, (u64)(ip + 1), TRUE); // next threaded execution
 
             word = new_word;
             ip   = ( u64* )new_word->source.source.threaded_code_start_addr;
-            
-        // memory to skip over
-        } else if ( *ip == THREADED_FLAG_SKIPPABLE ) {
-            ip++;
+            continue;
+        }
+        op_skippable: {
             u64 bytes_toskip = *ip;
             ip = (u64*)( ( (u8*)ip ) + bytes_toskip );
-            ip++;
-
-        // 0BRANCH
-        } else if ( *ip == THREADED_FLAG_0BRANCH ) {
-            ip++;
-
+            NEXT();
+            continue;
+        }
+        op_0branch:{
             if ( vm->stack->index < 1 ) {
                 _askf_word_failed( (ascii*)"0branch expects value on the stack", 34 );
                 _askf_word_failed( word->name , word->name_len );
@@ -167,23 +225,25 @@ return_call:
                 u64 bytes_toskip = *ip;
                 ip = (u64*)( ( (u8*)ip ) + bytes_toskip );
             } else 
-                ip++;
+                NEXT();
 
-        // BRANCH
-        } else if ( *ip == THREADED_FLAG_BRANCH ) {
-            ip++;
+            continue;
+        }
+        op_branch:{
             u64 bytes_toskip = *ip;
             ip = (u64*)( ( (u8*)ip ) + bytes_toskip );
-
-        } else { //native code  
+            continue;
+        }
+        op_native:{
             ((nat_code*)*ip)();
+            NEXT();
 
-            ip++;
             if ( vm->outer_state == ASKF_VM_OUTER_STATE_FAILED_CRITICAL ||
                     vm->outer_state == ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL) {
                 _askf_push_ip_frame( vm, word, (u64)ip, TRUE);
                 return;
             }
+            continue;
         }
     }
 
@@ -201,6 +261,17 @@ return_call:
         ip = (u64*)restored_frame->base_ip;
 
     goto return_call;
+
+    // GCC labels-as-values are local to this function.
+    // Capture their addresses for the threaded-code compiler.
+set_dispatch_calls:
+    vm->dispatch_calls.op_literal       = &&op_literal;
+    vm->dispatch_calls.op_threadedword  = &&op_threadedword;
+    vm->dispatch_calls.op_0branch       = &&op_0branch;
+    vm->dispatch_calls.op_branch        = &&op_branch;
+    vm->dispatch_calls.op_native        = &&op_native;
+    vm->dispatch_calls.op_skippable     = &&op_skippable;
+    dispatch_calls_set  = TRUE;
 }
 
 void askf_execute_threaded_word( void ) {
@@ -317,7 +388,7 @@ void askf_exec( AskForthVm* vm, AskForthParseType parse_type ) {
             } else {
                 switch ( vm->interpret_state ) {
                     case ASKF_COMPILE:
-                        askf_compile_threaded_memory( THREADED_FLAG_LITERAL );
+                        askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_literal );
                         askf_compile_threaded_memory( new_cell.val._64u );
                         break;
                     case ASKF_INTERPRET:
@@ -362,6 +433,7 @@ void askf_exec( AskForthVm* vm, AskForthParseType parse_type ) {
                } else {
                     switch ( word->source.type ) {
                         case ASKF_WORD_NATIVE:
+                            askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_native );
                             askf_compile_threaded_memory( (u64)word->source.source.native_code );
                             break;
                         case ASKF_WORD_THREADED:
@@ -370,7 +442,7 @@ void askf_exec( AskForthVm* vm, AskForthParseType parse_type ) {
                                 break;
                             }
 
-                            askf_compile_threaded_memory( THREADED_FLAG_THREADEDWORD );
+                            askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_threadedword );
                             askf_compile_threaded_memory( (u64)word );
                             break;
                     }

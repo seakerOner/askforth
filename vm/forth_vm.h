@@ -62,6 +62,15 @@ typedef struct {
     u64 capacity;
 } AskForthThreadedFramesStack;
 
+typedef struct {
+    void* op_literal;
+    void* op_native;
+    void* op_threadedword;
+    void* op_0branch;
+    void* op_branch;
+    void* op_skippable;
+} AskForthDispatchOps;
+
 typedef struct AskForthVm_t {
     AskForth_Stack*                         stack;
     AskForth_Stack*                         cf_stack;
@@ -85,6 +94,7 @@ typedef struct AskForthVm_t {
     AskForthTokenizer*                      fallback_tokenizer;
     AskForthNumBase                         num_base;
 
+    AskForthDispatchOps                     dispatch_calls;
 } AskForthVm;
 
 void askf_vm_to_global_state( AskForthVm* vm );
@@ -99,6 +109,8 @@ void askf_vm_change_cell_scale( AskForth_CellSize new_cell_size );
 void askf_vm_change_outer_state( AskForthVmOuterState new_state );
 
 void askf_execute_threaded_word( void );
+
+void _askf_execute_threaded_frames( void );
 
 void askf_vm_trace_error( AskForthError error );
 AskForthError* askf_vm_get_most_recent_error( void );
