@@ -9,12 +9,6 @@
 #include "../memory/blocks.h"
 
 #define THREADED_FLAG_END           0x0
-#define THREADED_FLAG_LITERAL       0x1
-#define THREADED_FLAG_THREADEDWORD  0x2
-#define THREADED_FLAG_SKIPPABLE     0x3
-
-#define THREADED_FLAG_0BRANCH       0x5
-#define THREADED_FLAG_BRANCH        0x6
 
 #define ASKF_THREADEDFRAMES_STACK_CAPACITY  256
 

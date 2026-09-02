@@ -141,62 +141,7 @@ void _askf_execute_threaded_frames( void ) {
 return_call:
     while ( *ip != THREADED_FLAG_END ) {
         RUN_OP();
-        // if ( *ip == THREADED_FLAG_LITERAL ) {
-        //     ip++;
-        //
-        //     AskForth_Cell new_cell = askf_new_cell_payload( vm->stack );
-        //     new_cell.val._64u      = *ip;
-        //     askf_stack_push( &new_cell, vm->stack );
-        //     ip++;
-        //
-        // } else if ( *ip == THREADED_FLAG_THREADEDWORD ) {
-        //     AskForth_Word* new_word = (AskForth_Word*)*( ip + 1 );
-        //
-        //     _askf_push_ip_frame( vm, word, (u64)(ip + 2), TRUE); // next threaded execution
-        //
-        //     word = new_word;
-        //     ip   = ( u64* )new_word->source.source.threaded_code_start_addr;
-        //
-        // } else if ( *ip == THREADED_FLAG_SKIPPABLE ) {
-        //     ip++;
-        //     u64 bytes_toskip = *ip;
-        //     ip = (u64*)( ( (u8*)ip ) + bytes_toskip );
-        //     ip++;
-        //
-        // } else if ( *ip == THREADED_FLAG_0BRANCH ) {
-        //     ip++;
-        //
-        //     if ( vm->stack->index < 1 ) {
-        //         _askf_word_failed( (ascii*)"0branch expects value on the stack", 34 );
-        //         _askf_word_failed( word->name , word->name_len );
-        //         return;
-        //     }
-        //
-        //     AskForth_Cell flag = askf_new_cell_payload( vm->stack );
-        //     askf_stack_pop( &flag, vm->stack );
-        //
-        //     if ( flag.val._64u == 0 ) {
-        //         u64 bytes_toskip = *ip;
-        //         ip = (u64*)( ( (u8*)ip ) + bytes_toskip );
-        //     } else 
-        //         ip++;
-        //
-        // } else if ( *ip == THREADED_FLAG_BRANCH ) {
-        //     ip++;
-        //     u64 bytes_toskip = *ip;
-        //     ip = (u64*)( ( (u8*)ip ) + bytes_toskip );
-        //
-        // } else { //native code  
-        //     ((nat_code*)*ip)();
-        //
-        //     ip++;
-        //     if ( vm->outer_state == ASKF_VM_OUTER_STATE_FAILED_CRITICAL ||
-        //             vm->outer_state == ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL) {
-        //         _askf_push_ip_frame( vm, word, (u64)ip, TRUE);
-        //         return;
-        //     }
-        // }
-
+        
         op_literal: {
             AskForth_Cell new_cell = askf_new_cell_payload( vm->stack );
             new_cell.val._64u      = *ip;

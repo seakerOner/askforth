@@ -972,9 +972,9 @@ static void askf_word_print_string( void ) {
 
             askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_skippable );
 
-            ascii* ptr = (ascii*)askf_alloc( len );
-            COPY( string_base, ptr, len );
-            askf_compile_threaded_memory( len );
+            ascii* ptr = (ascii*)askf_alloc( len+1 );
+            COPY( string_base, ptr, len+1 );
+            askf_compile_threaded_memory( len+1 );
 
 
             askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_literal );
@@ -983,6 +983,7 @@ static void askf_word_print_string( void ) {
             askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_literal );
             askf_compile_threaded_memory( (u64)len );
 
+            askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_native  );
             askf_compile_threaded_memory( (u64)askf_word_type );
         }
             break;
@@ -1038,9 +1039,16 @@ static void askf_word_store_string( void ) {
         return;
     }
 
-    ascii* new_base = askf_alloc( sizeof(ascii) * len );
+    if ( vm->interpret_state == ASKF_COMPILE )
+        askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_skippable );
+
+    ascii* new_base = askf_alloc( sizeof(ascii) * len+1 );
+    
+    if ( vm->interpret_state == ASKF_COMPILE )
+        askf_compile_threaded_memory( len+1 );
 
     COPY( string_base, new_base, len );
+    new_base[len+1] = '\0';
 
     AskForth_Cell* cell_addr = global_c00;
     AskForth_Cell* cell_len  = global_c01;
@@ -1613,7 +1621,7 @@ static boolean _askf_branch( void ) {
 
     askf_stack_pop( previous_offset_ptr, vm->cf_stack );
 
-    *lib->curr_compiling.here   = THREADED_FLAG_BRANCH;
+    *lib->curr_compiling.here   = (u64)vm->dispatch_calls.op_branch;
     lib->curr_compiling.here    = askf_alloc( sizeof(u64) );
 
     AskForth_Cell* cell          = global_c01;
