@@ -6,8 +6,6 @@
 
 AskForthVm* global_vm = NULL;
 
-boolean dispatch_calls_set  = FALSE;
-
 void askf_vm_to_global_state( AskForthVm* vm ) {
     global_vm = vm;
 }
@@ -113,8 +111,18 @@ static AskForthThreadedFrame* _askf_pop_ip_frame( AskForthVm* vm ) {
 void _askf_execute_threaded_frames( void ) {
     AskForthVm* vm               = askf_get_global_vm();
 
-    if ( !dispatch_calls_set )
-        goto set_dispatch_calls;
+    // GCC labels-as-values are local to this function.
+    // Capture their addresses for the threaded-code compiler.
+    if ( !vm->dispatch_calls.initialized ) {
+        vm->dispatch_calls.op_literal       = &&op_literal;
+        vm->dispatch_calls.op_threadedword  = &&op_threadedword;
+        vm->dispatch_calls.op_0branch       = &&op_0branch;
+        vm->dispatch_calls.op_branch        = &&op_branch;
+        vm->dispatch_calls.op_native        = &&op_native;
+        vm->dispatch_calls.op_skippable     = &&op_skippable;
+        vm->dispatch_calls.initialized      = TRUE;
+        return;
+    }
 
     AskForthThreadedFrame* frame = _askf_pop_ip_frame( vm );
 
@@ -262,16 +270,6 @@ return_call:
 
     goto return_call;
 
-    // GCC labels-as-values are local to this function.
-    // Capture their addresses for the threaded-code compiler.
-set_dispatch_calls:
-    vm->dispatch_calls.op_literal       = &&op_literal;
-    vm->dispatch_calls.op_threadedword  = &&op_threadedword;
-    vm->dispatch_calls.op_0branch       = &&op_0branch;
-    vm->dispatch_calls.op_branch        = &&op_branch;
-    vm->dispatch_calls.op_native        = &&op_native;
-    vm->dispatch_calls.op_skippable     = &&op_skippable;
-    dispatch_calls_set  = TRUE;
 }
 
 void askf_execute_threaded_word( void ) {

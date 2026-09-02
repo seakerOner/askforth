@@ -69,6 +69,7 @@ typedef struct {
     void* op_0branch;
     void* op_branch;
     void* op_skippable;
+    boolean initialized;
 } AskForthDispatchOps;
 
 typedef struct AskForthVm_t {
