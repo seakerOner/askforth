@@ -10,6 +10,14 @@
     #include <stdio.h>
 #endif
 
+AskForthVm* vm            = NULL;
+
+// global preallocated cells for native words to use 
+AskForth_Cell* global_c00 = NULL;
+AskForth_Cell* global_c01 = NULL;
+AskForth_Cell* global_c02 = NULL;
+AskForth_Cell* global_c03 = NULL;
+
 static void _askf_word_failed( ascii* msg, u64 len ) {
     AskForthError err = {0};
     err.error = ASKF_ERROR_WORD_FAILED;
@@ -22,10 +30,7 @@ static void _askf_word_failed( ascii* msg, u64 len ) {
 }
 
 static void askf_word_dot( void ) {
-    AskForthVm* vm = askf_get_global_vm();
-
-    AskForth_Cell cell = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    u32 res = askf_stack_pop( &cell, vm->stack );
+    u32 res = askf_stack_pop( global_c00, vm->stack );
 
     // TODO: throw error stack underflow
     if ( !res ) {
@@ -33,36 +38,21 @@ static void askf_word_dot( void ) {
         return;
     }
 
-    askf_print_cell(&cell);
+    askf_print_cell( global_c00 );
     askf_print( (ascii*)" ", 1 );
 }
 
 static void askf_word_stack_depth( void ) {
-    AskForthVm* vm = askf_get_global_vm();
-
-    if ( vm == NULL ) {
-        // TODO: throw error
-        return;
-    }
-
-    u8 depth            = vm->stack->index;
-    AskForth_Cell cell  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    cell.val._8u        = depth;
-
-    askf_stack_push( &cell, vm->stack );
+    global_c00->val._8u = vm->stack->index;
+    askf_stack_push( global_c00, vm->stack );
 }
 
 static void askf_word_dot_stack ( void ) {
-    AskForthVm* vm      = askf_get_global_vm();
-    AskForth_Cell cell  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-
-    u8 bits = vm->stack->cell_scale;
-    cell.val._8u = bits;
-    askf_print_cell( &cell );
+    global_c00->val._8u = (u8)vm->stack->cell_scale;
+    askf_print_cell( global_c00 );
     askf_print( (ascii*)" BITS ", 6 );
 
-    u8 depth            = vm->stack->index;
-    cell.val._8u        = depth;
+    global_c00->val._8u = vm->stack->index;
 
     if ( vm->stack->is_signed )
         askf_print( (ascii*)"S ", 2 );
@@ -70,173 +60,157 @@ static void askf_word_dot_stack ( void ) {
         askf_print( (ascii*)"U ", 2 );
 
     askf_print( (ascii*)"<", 1 );
-    askf_print_cell( &cell );
+    askf_print_cell( global_c00 );
     askf_print( (ascii*)"> ", 2 );
 
 
-    for ( u8 x = 0; x < depth; x++ ) {
+    for ( u8 x = 0; x < vm->stack->index; x++ ) {
         switch ( vm->stack->cell_scale ) {
             case ASKF_BITS64:
-                cell.val._64u = vm->stack->cells.space_64[x];
+                global_c00->val._64u = vm->stack->cells.space_64[x];
                 break;
             case ASKF_BITS32:
-                cell.val._32u = vm->stack->cells.space_32[x];
+                global_c00->val._32u = vm->stack->cells.space_32[x];
                 break;
             case ASKF_BITS16:
-                cell.val._16u = vm->stack->cells.space_16[x];
+                global_c00->val._16u = vm->stack->cells.space_16[x];
                 break;
             case ASKF_BITS8:
-                cell.val._8u  = vm->stack->cells.space_8[x];
+                global_c00->val._8u  = vm->stack->cells.space_8[x];
                 break;
             default:
                 break;
         }
-            askf_print_cell( &cell );
+            askf_print_cell( global_c00 );
             askf_print( (ascii*)" ", 1 );
     }
 }
 
 static void askf_word_dup ( void ) {
-    AskForthVm* vm      = askf_get_global_vm();
-    AskForth_Cell cell  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-
-    u32 res = askf_stack_pop( &cell, vm->stack );
+    u32 res = askf_stack_pop( global_c00, vm->stack );
 
     if ( !res ) {
         _askf_word_failed( ( ascii* )"dup -> Stack Empty" , 18);
         return;
     }
-    askf_stack_push( &cell, vm->stack );
-    askf_stack_push( &cell, vm->stack );
+
+    askf_stack_push( global_c00, vm->stack );
+    askf_stack_push( global_c00, vm->stack );
 }
 
 static void askf_word_2dup ( void ) {
-    AskForthVm* vm      = askf_get_global_vm();
-
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( ( ascii* )"2dup -> Expects ( a b - )" , 25 );
         return;
     }
 
-    AskForth_Cell a = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    AskForth_Cell b = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    AskForth_Cell* a = global_c00;
+    AskForth_Cell* b = global_c01;
 
-    askf_stack_pop( &b, vm->stack );
-    askf_stack_pop( &a, vm->stack );
+    askf_stack_pop( b, vm->stack );
+    askf_stack_pop( a, vm->stack );
 
-    askf_stack_push( &a, vm->stack );
-    askf_stack_push( &b, vm->stack );
-    askf_stack_push( &a, vm->stack );
-    askf_stack_push( &b, vm->stack );
+    askf_stack_push( a, vm->stack );
+    askf_stack_push( b, vm->stack );
+    askf_stack_push( a, vm->stack );
+    askf_stack_push( b, vm->stack );
 }
 
 static void askf_word_swap( void ) {
-    AskForthVm* vm          = askf_get_global_vm();
-    AskForth_Cell cell_ts   = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    AskForth_Cell cell_ss   = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    AskForth_Cell* cell_ts   = global_c00;
+    AskForth_Cell* cell_ss   = global_c01;
 
-    u32 res1 = askf_stack_pop( &cell_ts, vm->stack );
+    u32 res1 = askf_stack_pop( cell_ts, vm->stack );
 
     if ( !res1 ) {
         _askf_word_failed( ( ascii* )"swap -> Stack Empty" , 18);
     }
 
-    u32 res2 = askf_stack_pop( &cell_ss, vm->stack );
+    u32 res2 = askf_stack_pop( cell_ss, vm->stack );
 
     if ( !res2 ) {
         _askf_word_failed( ( ascii* )"swap -> Stack misses 2nd value" , 30);
     }
 
-    askf_stack_push( &cell_ts, vm->stack );
-    askf_stack_push( &cell_ss, vm->stack );
+    askf_stack_push( cell_ts, vm->stack );
+    askf_stack_push( cell_ss, vm->stack );
 }
 
 static void askf_word_2swap( void ) {
-    AskForthVm* vm          = askf_get_global_vm();
-
     if ( vm->stack->index < 4 ) {
         _askf_word_failed( ( ascii* )"2swap -> Expects ( a b c d - )" , 30 );
         return;
     }
 
-    AskForth_Cell cell_a   = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    AskForth_Cell cell_b   = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    AskForth_Cell cell_c   = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    AskForth_Cell cell_d   = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    AskForth_Cell* cell_a   = global_c00;
+    AskForth_Cell* cell_b   = global_c01;
+    AskForth_Cell* cell_c   = global_c02;
+    AskForth_Cell* cell_d   = global_c03;
 
-    askf_stack_pop( &cell_d, vm->stack );
-    askf_stack_pop( &cell_c, vm->stack );
-    askf_stack_pop( &cell_b, vm->stack );
-    askf_stack_pop( &cell_a, vm->stack );
+    askf_stack_pop( cell_d, vm->stack );
+    askf_stack_pop( cell_c, vm->stack );
+    askf_stack_pop( cell_b, vm->stack );
+    askf_stack_pop( cell_a, vm->stack );
 
-    askf_stack_push( &cell_c, vm->stack );
-    askf_stack_push( &cell_d, vm->stack );
-    askf_stack_push( &cell_a, vm->stack );
-    askf_stack_push( &cell_b, vm->stack );
+    askf_stack_push( cell_c, vm->stack );
+    askf_stack_push( cell_d, vm->stack );
+    askf_stack_push( cell_a, vm->stack );
+    askf_stack_push( cell_b, vm->stack );
 }
 
 static void askf_word_rot ( void ) {
-    AskForthVm* vm      = askf_get_global_vm();
-
     if ( vm->stack->index < 3 ) {
         _askf_word_failed( ( ascii* )"rot -> Expects ( a b c - )" , 27 );
         return;
     }
 
-    AskForth_Cell a  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    AskForth_Cell b  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    AskForth_Cell c  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    AskForth_Cell* a  = global_c00;
+    AskForth_Cell* b  = global_c01;
+    AskForth_Cell* c  = global_c02;
 
-    askf_stack_pop( &c, vm->stack );
-    askf_stack_pop( &b, vm->stack );
-    askf_stack_pop( &a, vm->stack );
+    askf_stack_pop( c, vm->stack );
+    askf_stack_pop( b, vm->stack );
+    askf_stack_pop( a, vm->stack );
 
-    askf_stack_push( &b, vm->stack );
-    askf_stack_push( &c, vm->stack );
-    askf_stack_push( &a, vm->stack );
+    askf_stack_push( b, vm->stack );
+    askf_stack_push( c, vm->stack );
+    askf_stack_push( a, vm->stack );
 }
 
 static void askf_word_nip ( void ) {
-    AskForthVm* vm      = askf_get_global_vm();
-
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( ( ascii* )"nip -> Expects ( a b - )" , 24 );
         return;
     }
 
-    AskForth_Cell a  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    AskForth_Cell b  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    AskForth_Cell* a  = global_c00;
+    AskForth_Cell* b  = global_c01;
 
-    askf_stack_pop( &b, vm->stack );
-    volatile u32 dummy = askf_stack_pop( &a, vm->stack );
+    askf_stack_pop( b, vm->stack );
+    volatile u32 dummy = askf_stack_pop( a, vm->stack );
 
-    askf_stack_push( &b, vm->stack );
+    askf_stack_push( b, vm->stack );
 }
 
 static void askf_word_tuck ( void ) {
-    AskForthVm* vm      = askf_get_global_vm();
-
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( ( ascii* )"nip -> Expects ( a b - )" , 24 );
         return;
     }
 
-    AskForth_Cell a  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    AskForth_Cell b  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    AskForth_Cell* a  = global_c00;
+    AskForth_Cell* b  = global_c01;
 
-    askf_stack_pop( &b, vm->stack );
-    askf_stack_pop( &a, vm->stack );
+    askf_stack_pop( b, vm->stack );
+    askf_stack_pop( a, vm->stack );
 
-    askf_stack_push( &b, vm->stack );
-    askf_stack_push( &a, vm->stack );
-    askf_stack_push( &b, vm->stack );
+    askf_stack_push( b, vm->stack );
+    askf_stack_push( a, vm->stack );
+    askf_stack_push( b, vm->stack );
 }
 
 static void askf_word_drop( void ) {
-    AskForthVm* vm      = askf_get_global_vm();
-    AskForth_Cell cell  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-
-    u32 res = askf_stack_pop( &cell, vm->stack );
+    u32 res = askf_stack_pop( global_c00, vm->stack );
 
     if ( !res ) {
         _askf_word_failed( (ascii*)"drop -> Empty Stack", 19 );
@@ -244,9 +218,6 @@ static void askf_word_drop( void ) {
 }
 
 static void askf_word_2drop( void ) {
-    AskForthVm* vm      = askf_get_global_vm();
-    AskForth_Cell cell  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"2drop -> Expects ( a b - )", 26 );
         return;
@@ -254,74 +225,68 @@ static void askf_word_2drop( void ) {
 
     volatile u32 dummy;
 
-    dummy = askf_stack_pop( &cell, vm->stack );
-    dummy = askf_stack_pop( &cell, vm->stack );
+    dummy = askf_stack_pop( global_c00, vm->stack );
+    dummy = askf_stack_pop( global_c00, vm->stack );
 }
 
 static void askf_word_over( void ) {
-    AskForthVm* vm          = askf_get_global_vm();
-    AskForth_Cell cell_ts   = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    AskForth_Cell cell_ss   = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    AskForth_Cell* cell_ts   = global_c00;
+    AskForth_Cell* cell_ss   = global_c01;
 
-    u32 res1 = askf_stack_pop( &cell_ts, vm->stack );
+    u32 res1 = askf_stack_pop( cell_ts, vm->stack );
 
     if ( !res1 ) {
         _askf_word_failed( (ascii*)"over -> Empty Stack", 19 );
     }
 
-    u32 res2 = askf_stack_pop( &cell_ss, vm->stack );
+    u32 res2 = askf_stack_pop( cell_ss, vm->stack );
 
     if ( !res2 ) {
         _askf_word_failed( (ascii*)"over -> 2nd value expected on stack", 35 );
     }
 
-    askf_stack_push( &cell_ss, vm->stack );
-    askf_stack_push( &cell_ts, vm->stack );
-    askf_stack_push( &cell_ss, vm->stack );
+    askf_stack_push( cell_ss, vm->stack );
+    askf_stack_push( cell_ts, vm->stack );
+    askf_stack_push( cell_ss, vm->stack );
 }
 
 static void askf_word_2over( void ) {
-    AskForthVm* vm          = askf_get_global_vm();
     if ( vm->stack->index < 4 ) {
         _askf_word_failed( (ascii*)"2over -> Expects ( a b c d - )", 30 );
         return;
     }
     
-    AskForth_Cell cell_a   = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    AskForth_Cell cell_b   = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    AskForth_Cell cell_c   = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    AskForth_Cell cell_d   = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    AskForth_Cell* cell_a   = global_c00;
+    AskForth_Cell* cell_b   = global_c01;
+    AskForth_Cell* cell_c   = global_c02;
+    AskForth_Cell* cell_d   = global_c03;
 
-    askf_stack_pop( &cell_a, vm->stack );
-    askf_stack_pop( &cell_b, vm->stack );
-    askf_stack_pop( &cell_c, vm->stack );
-    askf_stack_pop( &cell_d, vm->stack );
+    askf_stack_pop( cell_a, vm->stack );
+    askf_stack_pop( cell_b, vm->stack );
+    askf_stack_pop( cell_c, vm->stack );
+    askf_stack_pop( cell_d, vm->stack );
 
 
-    askf_stack_push( &cell_d, vm->stack );
-    askf_stack_push( &cell_c, vm->stack );
-    askf_stack_push( &cell_b, vm->stack );
-    askf_stack_push( &cell_a, vm->stack );
-    askf_stack_push( &cell_d, vm->stack );
-    askf_stack_push( &cell_c, vm->stack );
+    askf_stack_push( cell_d, vm->stack );
+    askf_stack_push( cell_c, vm->stack );
+    askf_stack_push( cell_b, vm->stack );
+    askf_stack_push( cell_a, vm->stack );
+    askf_stack_push( cell_d, vm->stack );
+    askf_stack_push( cell_c, vm->stack );
 }
 
 static void askf_word_negate( void ) {
-    AskForthVm* vm      = askf_get_global_vm();
-    AskForth_Cell cell  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-
-    u32 res = askf_stack_pop( &cell, vm->stack );
+    u32 res = askf_stack_pop( global_c00, vm->stack );
     if ( !res ) {
         _askf_word_failed( (ascii*)"negate -> Empty Stack", 21 );
         return;
     }
 
-    cell.val._addr_t = 0 - cell.val._addr_t;
-    askf_stack_push( &cell, vm->stack );
+    global_c00->val._addr_t = 0 - global_c00->val._addr_t;
+    askf_stack_push( global_c00, vm->stack );
 }
 
 static void askf_word_lib( void ) {
-    AskForthVm* vm              = askf_get_global_vm();
     AskForth_Library* lib       = (AskForth_Library*)vm->lib;
 
     AskForth_Dictionary* base   = lib->dictionaries_base;
@@ -336,7 +301,6 @@ static void askf_word_lib( void ) {
 }
 
 static void askf_word_parse_word( void ) {
-    AskForthVm* vm               = askf_get_global_vm();
     AskForthTokenizer* tokenizer = NULL;
 
     switch ( vm->parse_type ) {
@@ -365,7 +329,7 @@ static void askf_word_parse_word( void ) {
     tokenizer->ctx.idx += 1;
     u64 idx = tokenizer->ctx.idx;
 
-    AskForth_Cell cell      = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    AskForth_Cell* cell      = global_c00;
 
     // TODO: decide if this is what i want from parse_word
     u64 len =  sizeof( ascii ) * tokenizer->tokens[idx].length ;
@@ -386,15 +350,13 @@ static void askf_word_parse_word( void ) {
 
     COPY( tokenizer->tokens[idx].base, scratch, tokenizer->tokens[idx].length );
 
-    cell.val._addr_t = (askf_addr_t)scratch;
-    askf_stack_push( &cell, vm->stack );
-    cell.val._addr_t = tokenizer->tokens[idx].length;
-    askf_stack_push( &cell, vm->stack );
+    cell->val._addr_t = (askf_addr_t)scratch;
+    askf_stack_push( cell, vm->stack );
+    cell->val._addr_t = tokenizer->tokens[idx].length;
+    askf_stack_push( cell, vm->stack );
 }
 
 static void askf_word_words( void ) {
-    AskForthVm* vm       = askf_get_global_vm();
-
     askf_word_parse_word();
 
     if ( vm->outer_state != ASKF_VM_OUTER_STATE_EXECUTE ) {
@@ -406,15 +368,15 @@ static void askf_word_words( void ) {
         return;
     }
 
-    AskForth_Cell len    = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    AskForth_Cell addr   = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    AskForth_Cell* len    = global_c00;
+    AskForth_Cell* addr   = global_c01;
 
-    askf_stack_pop( &len, vm->stack );
-    askf_stack_pop( &addr, vm->stack );
+    askf_stack_pop( len, vm->stack );
+    askf_stack_pop( addr, vm->stack );
     
     AskForthToken tkn           = {0};
-    tkn.base                    = (ascii*)addr.val._64u;
-    tkn.length                  = len.val._64u;
+    tkn.base                    = (ascii*)addr->val._64u;
+    tkn.length                  = len->val._64u;
     AskForth_Dictionary* dic    = askf_library_find_dic( vm, &tkn );
 
     if ( !dic ) {
@@ -440,318 +402,279 @@ static void askf_word_words( void ) {
 }
 
 static void askf_word_add( void ) {
-    AskForthVm* vm       = askf_get_global_vm();
-
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"+ -> Expects 2 values on stack" , 30 );
         return;
     }
 
-    AskForth_Cell top_stack = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    askf_stack_pop( &top_stack, vm->stack );
+    AskForth_Cell* top_stack = global_c00;
+    AskForth_Cell* below_top__stack = global_c01;
 
-    AskForth_Cell below_top__stack = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    askf_stack_pop( &below_top__stack, vm->stack );
+    askf_stack_pop( top_stack, vm->stack );
+    askf_stack_pop( below_top__stack, vm->stack );
 
-    top_stack.val._64u = below_top__stack.val._64u + top_stack.val._64u;
+    top_stack->val._64u = below_top__stack->val._64u + top_stack->val._64u;
 
-    askf_stack_push( &top_stack, vm->stack );
+    askf_stack_push( top_stack, vm->stack );
 }
 
 static void askf_word_minus( void ) {
-    AskForthVm* vm       = askf_get_global_vm();
-
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"- -> Expects 2 values on stack" , 30 );
         return;
     }
 
-    AskForth_Cell top_stack = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    askf_stack_pop( &top_stack, vm->stack );
+    AskForth_Cell* top_stack        = global_c00;
+    AskForth_Cell* below_top__stack = global_c01;
 
-    AskForth_Cell below_top__stack = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    askf_stack_pop( &below_top__stack, vm->stack );
+    askf_stack_pop( top_stack, vm->stack );
+    askf_stack_pop( below_top__stack, vm->stack );
 
-    top_stack.val._64u = below_top__stack.val._64u - top_stack.val._64u;
+    top_stack->val._64u = below_top__stack->val._64u - top_stack->val._64u;
 
-    askf_stack_push( &top_stack, vm->stack );
+    askf_stack_push( top_stack, vm->stack );
 }
 
 static void askf_word_multiply( void ) {
-    AskForthVm* vm       = askf_get_global_vm();
-
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"* -> Expects 2 values on stack" , 30 );
         return;
     }
 
-    AskForth_Cell top_stack = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    askf_stack_pop( &top_stack, vm->stack );
+    AskForth_Cell* top_stack        = global_c00;
+    AskForth_Cell* below_top__stack = global_c01;
 
-    AskForth_Cell below_top__stack = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    askf_stack_pop( &below_top__stack, vm->stack );
+    askf_stack_pop( top_stack, vm->stack );
+    askf_stack_pop( below_top__stack, vm->stack );
 
-    top_stack.val._64u = below_top__stack.val._64u * top_stack.val._64u;
+    top_stack->val._64u = below_top__stack->val._64u * top_stack->val._64u;
 
-    askf_stack_push( &top_stack, vm->stack );
+    askf_stack_push( top_stack, vm->stack );
 }
 
 static void askf_word_slashmod( void ) {
-    AskForthVm* vm       = askf_get_global_vm();
-
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"/mod -> Expects 2 values on stack" , 33 );
         return;
     }
 
-    AskForth_Cell top_stack = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    askf_stack_pop( &top_stack, vm->stack );
+    AskForth_Cell* top_stack = global_c00;
+    AskForth_Cell* below_top__stack = global_c01;
+    askf_stack_pop( top_stack, vm->stack );
+    askf_stack_pop( below_top__stack, vm->stack );
 
-    AskForth_Cell below_top__stack = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    askf_stack_pop( &below_top__stack, vm->stack );
+    u64 slash   = below_top__stack->val._64u / top_stack->val._64u;
+    u64 mod     = below_top__stack->val._64u % top_stack->val._64u;
 
-    u64 slash   = below_top__stack.val._64u / top_stack.val._64u;
-    u64 mod     = below_top__stack.val._64u % top_stack.val._64u;
-
-    top_stack.val._64u = slash;
-    askf_stack_push( &top_stack, vm->stack );
-    top_stack.val._64u = mod;
-    askf_stack_push( &top_stack, vm->stack );
+    top_stack->val._64u = slash;
+    askf_stack_push( top_stack, vm->stack );
+    top_stack->val._64u = mod;
+    askf_stack_push( top_stack, vm->stack );
 }
 
 static void askf_word_equals( void ) {
-    AskForthVm* vm       = askf_get_global_vm();
-
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"= -> Expects 2 values on stack" , 30 );
         return;
     }
 
-    AskForth_Cell top_stack = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    askf_stack_pop( &top_stack, vm->stack );
+    AskForth_Cell* top_stack        = global_c00;
+    AskForth_Cell* below_top__stack = global_c01;
+    askf_stack_pop( top_stack, vm->stack );
+    askf_stack_pop( below_top__stack, vm->stack );
 
-    AskForth_Cell below_top__stack = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    askf_stack_pop( &below_top__stack, vm->stack );
+    u64 val = below_top__stack->val._64u == top_stack->val._64u;
 
-    u64 val = below_top__stack.val._64u == top_stack.val._64u;
-
-    top_stack.val._64u = val;
-    askf_stack_push( &top_stack, vm->stack );
+    top_stack->val._64u = val;
+    askf_stack_push( top_stack, vm->stack );
 }
 
 static void askf_word_equals_zero( void ) {
-    AskForthVm* vm       = askf_get_global_vm();
-
     if ( vm->stack->index < 1 ) {
         _askf_word_failed( (ascii*)"0= -> Expects 1 values on stack" , 31 );
         return;
     }
 
-    AskForth_Cell top_stack = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    askf_stack_pop( &top_stack, vm->stack );
+    AskForth_Cell* top_stack = global_c00;
+    askf_stack_pop( top_stack, vm->stack );
 
-    u64 val = 0 == top_stack.val._64u;
+    u64 val = 0 == top_stack->val._64u;
 
-    top_stack.val._64u = val;
-    askf_stack_push( &top_stack, vm->stack );
+    top_stack->val._64u = val;
+    askf_stack_push( top_stack, vm->stack );
 }
 
 static void askf_word_less_than( void ) {
-    AskForthVm* vm       = askf_get_global_vm();
-
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"< -> Expects 2 values on stack" , 30 );
         return;
     }
 
-    AskForth_Cell top_stack = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    askf_stack_pop( &top_stack, vm->stack );
-
-    AskForth_Cell below_top__stack = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    askf_stack_pop( &below_top__stack, vm->stack );
+    AskForth_Cell* top_stack        = global_c00;
+    AskForth_Cell* below_top__stack = global_c01;
+    askf_stack_pop( top_stack, vm->stack );
+    askf_stack_pop( below_top__stack, vm->stack );
 
     u64 val = 0;
-    if ( top_stack.is_signed ) 
-        val = below_top__stack.val._64s < top_stack.val._64s;
+    if ( vm->stack->is_signed ) 
+        val = below_top__stack->val._64s < top_stack->val._64s;
     else
-        val = below_top__stack.val._64u < top_stack.val._64u;
+        val = below_top__stack->val._64u < top_stack->val._64u;
 
-    top_stack.val._64u = val;
-    askf_stack_push( &top_stack, vm->stack );
+    top_stack->val._64u = val;
+    askf_stack_push( top_stack, vm->stack );
 }
 
 static void askf_word_less_than_or_equal( void ) {
-    AskForthVm* vm       = askf_get_global_vm();
-
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"< -> Expects 2 values on stack" , 30 );
         return;
     }
 
-    AskForth_Cell top_stack = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    askf_stack_pop( &top_stack, vm->stack );
+    AskForth_Cell* top_stack        = global_c00;
+    AskForth_Cell* below_top__stack = global_c01;
 
-    AskForth_Cell below_top__stack = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    askf_stack_pop( &below_top__stack, vm->stack );
+    askf_stack_pop( top_stack, vm->stack );
+    askf_stack_pop( below_top__stack, vm->stack );
 
     u64 val = 0;
-    if ( top_stack.is_signed ) 
-        val = below_top__stack.val._64s <= top_stack.val._64s;
+    if ( vm->stack->is_signed ) 
+        val = below_top__stack->val._64s <= top_stack->val._64s;
     else
-        val = below_top__stack.val._64u <= top_stack.val._64u;
+        val = below_top__stack->val._64u <= top_stack->val._64u;
 
-    top_stack.val._64u = val;
-    askf_stack_push( &top_stack, vm->stack );
+    top_stack->val._64u = val;
+    askf_stack_push( top_stack, vm->stack );
 }
 
 static void askf_word_less_than_zero( void ) {
-    AskForthVm* vm       = askf_get_global_vm();
-
     if ( vm->stack->index < 1 ) {
         _askf_word_failed( (ascii*)"0< -> Expects 1 values on stack" , 31 );
         return;
     }
 
-    AskForth_Cell top_stack = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    askf_stack_pop( &top_stack, vm->stack );
+    AskForth_Cell* top_stack = global_c00;
+    askf_stack_pop( top_stack, vm->stack );
 
     u64 val = 0;
-    if ( top_stack.is_signed )
-        val = 0 < top_stack.val._64s;
+    if ( vm->stack->is_signed )
+        val = 0 < top_stack->val._64s;
     else
-        val = 0 < top_stack.val._64u;
+        val = 0 < top_stack->val._64u;
 
-    top_stack.val._64u = val;
-    askf_stack_push( &top_stack, vm->stack );
+    top_stack->val._64u = val;
+    askf_stack_push( top_stack, vm->stack );
 }
 
 static void askf_word_more_than( void ) {
-    AskForthVm* vm       = askf_get_global_vm();
-
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"> -> Expects 2 values on stack" , 30 );
         return;
     }
 
-    AskForth_Cell top_stack = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    askf_stack_pop( &top_stack, vm->stack );
+    AskForth_Cell* top_stack        = global_c00;
+    AskForth_Cell* below_top__stack = global_c01;
 
-    AskForth_Cell below_top__stack = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    askf_stack_pop( &below_top__stack, vm->stack );
+    askf_stack_pop( top_stack, vm->stack );
+    askf_stack_pop( below_top__stack, vm->stack );
 
     u64 val = 0;
     
-    if ( top_stack.is_signed )
-        val = below_top__stack.val._64s > top_stack.val._64s;
+    if ( vm->stack->is_signed )
+        val = below_top__stack->val._64s > top_stack->val._64s;
     else
-        val = below_top__stack.val._64u > top_stack.val._64u;
+        val = below_top__stack->val._64u > top_stack->val._64u;
 
-    top_stack.val._64u = val;
-    askf_stack_push( &top_stack, vm->stack );
+    top_stack->val._64u = val;
+    askf_stack_push( top_stack, vm->stack );
 }
 
 static void askf_word_more_than_or_equal( void ) {
-    AskForthVm* vm       = askf_get_global_vm();
-
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"> -> Expects 2 values on stack" , 30 );
         return;
     }
 
-    AskForth_Cell top_stack = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    askf_stack_pop( &top_stack, vm->stack );
+    AskForth_Cell* top_stack        = global_c00;
+    AskForth_Cell* below_top__stack = global_c01;
 
-    AskForth_Cell below_top__stack = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    askf_stack_pop( &below_top__stack, vm->stack );
+    askf_stack_pop( top_stack, vm->stack );
+    askf_stack_pop( below_top__stack, vm->stack );
 
     u64 val = 0;
     
-    if ( top_stack.is_signed )
-        val = below_top__stack.val._64s >= top_stack.val._64s;
+    if ( vm->stack->is_signed )
+        val = below_top__stack->val._64s >= top_stack->val._64s;
     else
-        val = below_top__stack.val._64u >= top_stack.val._64u;
+        val = below_top__stack->val._64u >= top_stack->val._64u;
 
-    top_stack.val._64u = val;
-    askf_stack_push( &top_stack, vm->stack );
+    top_stack->val._64u = val;
+    askf_stack_push( top_stack, vm->stack );
 }
 
 static void askf_word_more_than_zero( void ) {
-    AskForthVm* vm       = askf_get_global_vm();
-
     if ( vm->stack->index < 1 ) {
         _askf_word_failed( (ascii*)"0> -> Expects 1 values on stack" , 31 );
         return;
     }
 
-    AskForth_Cell top_stack = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    askf_stack_pop( &top_stack, vm->stack );
+    AskForth_Cell* top_stack = global_c00;
+    askf_stack_pop( top_stack, vm->stack );
 
     u64 val = 0;
 
-    if ( top_stack.is_signed )
-         val = 0 > top_stack.val._64s;
+    if ( vm->stack->is_signed )
+         val = 0 > top_stack->val._64s;
     else
-         val = 0 > top_stack.val._64u;
+         val = 0 > top_stack->val._64u;
 
-    top_stack.val._64u = val;
-    askf_stack_push( &top_stack, vm->stack );
+    top_stack->val._64u = val;
+    askf_stack_push( top_stack, vm->stack );
 }
 
 static void askf_word_not_equal( void ) {
-    AskForthVm* vm       = askf_get_global_vm();
-
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"<> -> Expects 2 values on stack" , 31 );
         return;
     }
 
-    AskForth_Cell top_stack = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    askf_stack_pop( &top_stack, vm->stack );
+    AskForth_Cell* top_stack        = global_c00;
+    AskForth_Cell* below_top__stack = global_c01;
 
-    AskForth_Cell below_top__stack = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    askf_stack_pop( &below_top__stack, vm->stack );
+    askf_stack_pop( top_stack, vm->stack );
+    askf_stack_pop( below_top__stack, vm->stack );
 
-    u64 val = below_top__stack.val._64u != top_stack.val._64u;
+    u64 val = below_top__stack->val._64u != top_stack->val._64u;
 
-    top_stack.val._64u = val;
-    askf_stack_push( &top_stack, vm->stack );
+    top_stack->val._64u = val;
+    askf_stack_push( top_stack, vm->stack );
 }
 
 static void  askf_word_not_equal_zero( void ) {
-    AskForthVm* vm       = askf_get_global_vm();
-
     if ( vm->stack->index < 1 ) {
         _askf_word_failed( (ascii*)"0<> -> Expects 1 values on stack" , 32 );
         return;
     }
 
-    AskForth_Cell top_stack = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    askf_stack_pop( &top_stack, vm->stack );
+    AskForth_Cell* top_stack = global_c00;
+    askf_stack_pop( global_c00, vm->stack );
 
-    u64 val = 0 != top_stack.val._64u;
+    u64 val = 0 != top_stack->val._64u;
 
-    top_stack.val._64u = val;
-    askf_stack_push( &top_stack, vm->stack );
+    top_stack->val._64u = val;
+    askf_stack_push( top_stack, vm->stack );
 }
 
 static void askf_word_make_stack_signed( void ) {
-    AskForthVm* vm       = askf_get_global_vm();
-
     vm->stack->is_signed = TRUE;
 }
 
 static void askf_word_make_stack_unsigned( void ) {
-    AskForthVm* vm       = askf_get_global_vm();
-
     vm->stack->is_signed = FALSE;
 }
 
 static void askf_word_bits( void ) {
-    AskForthVm* vm       = askf_get_global_vm();
-
-    AskForth_Cell cell   = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-
-    u32 res = askf_stack_pop( &cell, vm->stack );
+    u32 res = askf_stack_pop( global_c00, vm->stack );
 
     if ( !res ) {
         _askf_word_failed( (ascii*)" BITS -> Empty Stack", 21 );
@@ -760,12 +683,12 @@ static void askf_word_bits( void ) {
 
     AskForth_CellSize new_cell_size = {0};
 
-    switch ( cell.val._64u ) {
+    switch ( global_c00->val._64u ) {
         case ASKF_BITS8:
         case ASKF_BITS16:
         case ASKF_BITS32:
         case ASKF_BITS64:
-            new_cell_size = cell.val._64u;
+            new_cell_size = global_c00->val._64u;
             askf_vm_change_cell_scale( new_cell_size );
             break;
         default:
@@ -780,15 +703,13 @@ static void askf_word_bits( void ) {
 }
 
 static void askf_word_type( void ){
-    AskForthVm* vm       = askf_get_global_vm();
-
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"TYPE -> Expects ( addr len - )", 30);
         return;
     }
 
-    AskForth_Cell len   = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    AskForth_Cell addr  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    AskForth_Cell* len   = global_c00;
+    AskForth_Cell* addr  = global_c01;
     
     if ( ( vm->stack->cell_scale / 8  ) 
             != sizeof( askf_addr_t ) ) {
@@ -797,22 +718,20 @@ static void askf_word_type( void ){
         return;
     }
 
-    askf_stack_pop( &len, vm->stack );
-    askf_stack_pop( &addr, vm->stack );
+    askf_stack_pop( len, vm->stack );
+    askf_stack_pop( addr, vm->stack );
 
-    askf_print( ( ascii* )addr.val._64u, len.val._32u );
+    askf_print( ( ascii* )addr->val._64u, len->val._32u );
     askf_print( ( ascii* )" ", 1 );
 }
 
 static void askf_word_store( void ){
-    AskForthVm* vm       = askf_get_global_vm();
-
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"! -> Expects ( val addr - )", 27);
         return;
     }
-    AskForth_Cell val   = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    AskForth_Cell addr  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    AskForth_Cell* val   = global_c00;
+    AskForth_Cell* addr  = global_c01;
 
     if ( ( vm->stack->cell_scale / 8  ) 
             != sizeof( askf_addr_t ) ) {
@@ -821,22 +740,20 @@ static void askf_word_store( void ){
         return;
     }
 
-    askf_stack_pop( &addr, vm->stack );
-    askf_stack_pop( &val, vm->stack );
+    askf_stack_pop( addr, vm->stack );
+    askf_stack_pop( val, vm->stack );
 
-    askf_addr_t* ptr = ( askf_addr_t* )addr.val._addr_t;
-    *ptr = val.val._addr_t;
+    askf_addr_t* ptr = ( askf_addr_t* )addr->val._addr_t;
+    *ptr = val->val._addr_t;
 }
 
 static void askf_word_byte_store( void ){
-    AskForthVm* vm       = askf_get_global_vm();
-
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"! -> Expects ( val addr - )", 27);
         return;
     }
-    AskForth_Cell val   = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    AskForth_Cell addr  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    AskForth_Cell* val   = global_c00;
+    AskForth_Cell* addr  = global_c01;
 
     if ( ( vm->stack->cell_scale / 8  ) 
             != sizeof( askf_addr_t ) ) {
@@ -845,21 +762,19 @@ static void askf_word_byte_store( void ){
         return;
     }
 
-    askf_stack_pop( &addr, vm->stack );
-    askf_stack_pop( &val, vm->stack );
+    askf_stack_pop( addr, vm->stack );
+    askf_stack_pop( val, vm->stack );
 
-    u8* ptr = ( u8* )addr.val._addr_t;
-    *ptr = val.val._8u;
+    u8* ptr = ( u8* )addr->val._addr_t;
+    *ptr = val->val._8u;
 }
 
 static void askf_word_load_ptr( void ){
-    AskForthVm* vm       = askf_get_global_vm();
-
     if ( vm->stack->index < 1 ) {
         _askf_word_failed( (ascii*)"@ -> Expects ( addr - )", 27);
         return;
     }
-    AskForth_Cell addr  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    AskForth_Cell* addr  = global_c00;
 
     if ( ( vm->stack->cell_scale / 8  ) 
             != sizeof( askf_addr_t ) ) {
@@ -868,25 +783,23 @@ static void askf_word_load_ptr( void ){
         return;
     }       
 
-    askf_stack_pop( &addr, vm->stack );
+    askf_stack_pop( addr, vm->stack );
 
-    askf_addr_t* ptr = ( askf_addr_t* )addr.val._addr_t;
+    askf_addr_t* ptr = ( askf_addr_t* )addr->val._addr_t;
 
-    addr.val._addr_t = *ptr;
+    addr->val._addr_t = *ptr;
 
-    askf_stack_push( &addr, vm->stack );
+    askf_stack_push( addr, vm->stack );
 }
 
 static void askf_word_load_byte_ptr( void ){
-    AskForthVm* vm       = askf_get_global_vm();
-
     if ( vm->stack->index < 1 ) {
         _askf_word_failed( (ascii*)"c@ -> Expects ( addr - )", 27);
         return;
     }
-    AskForth_Cell addr  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    AskForth_Cell* addr  = global_c00;
 
-    askf_stack_pop( &addr, vm->stack );
+    askf_stack_pop( addr, vm->stack );
 
     if ( ( vm->stack->cell_scale / 8  ) 
             != sizeof( askf_addr_t ) ) {
@@ -895,18 +808,16 @@ static void askf_word_load_byte_ptr( void ){
         return;
     }
 
-    u8* ptr = ( u8* )addr.val._addr_t;
+    u8* ptr = ( u8* )addr->val._addr_t;
 
-    addr.val._addr_t = 0;
-    addr.val._8u = *ptr;
+    addr->val._addr_t = 0;
+    addr->val._8u = *ptr;
 
-    askf_stack_push( &addr, vm->stack );
+    askf_stack_push( addr, vm->stack );
 }
 
 static void askf_word_here( void ) {
-    AskForthVm* vm       = askf_get_global_vm();
-
-    AskForth_Cell addr  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    AskForth_Cell* addr  = global_c00;
 
     if ( ( vm->stack->cell_scale / 8  ) != sizeof( askf_addr_t ) ) {
         _askf_word_failed( 
@@ -914,17 +825,15 @@ static void askf_word_here( void ) {
         return;
     }
 
-    addr.val._addr_t = ( askf_addr_t )( (( u8* )vm->ram->start_ptr ) + vm->ram->byte_index );
+    addr->val._addr_t = ( askf_addr_t )( (( u8* )vm->ram->start_ptr ) + vm->ram->byte_index );
 
-    askf_stack_push( &addr, vm->stack );
+    askf_stack_push( addr, vm->stack );
 }
 
 static void askf_word_allot( void ) {
-    AskForthVm* vm       = askf_get_global_vm();
+    AskForth_Cell* val  = global_c00;
 
-    AskForth_Cell val  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-
-    u32 res = askf_stack_pop( &val, vm->stack );
+    u32 res = askf_stack_pop( val, vm->stack );
 
     if ( !res ) {
         _askf_word_failed( (ascii*)"ALLOT -> Expects ( bytes - )", 26 );
@@ -935,84 +844,74 @@ static void askf_word_allot( void ) {
     if ( vm->interpret_state == ASKF_COMPILE && 
             ((AskForth_Library*)vm->lib)->curr_compiling.here ) {
         askf_compile_threaded_memory( THREADED_FLAG_SKIPPABLE );
-        vm->ram->byte_index += val.val._64u;
-        askf_compile_threaded_memory( val.val._64u );
+        vm->ram->byte_index += val->val._64u;
+        askf_compile_threaded_memory( val->val._64u );
     } else {
-        vm->ram->byte_index += val.val._64u;
+        vm->ram->byte_index += val->val._64u;
     }
 }
 
 static void askf_word_cells( void ) {
-    AskForthVm* vm       = askf_get_global_vm();
+    AskForth_Cell* val  = global_c00;
 
-    AskForth_Cell val  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-
-    u32 res = askf_stack_pop( &val, vm->stack );
+    u32 res = askf_stack_pop( val, vm->stack );
 
     if ( !res ) {
         _askf_word_failed( (ascii*)"cells -> Expects ( n - )", 24 );
         return;
     }
 
-    val.val._64u *= sizeof( askf_addr_t );
+    val->val._64u *= sizeof( askf_addr_t );
 
-    askf_stack_push( &val, vm->stack );
+    askf_stack_push( val, vm->stack );
 }
 
 static void askf_word_cell_add( void ) {
-    AskForthVm* vm       = askf_get_global_vm();
+    AskForth_Cell* val  = global_c00;
 
-    AskForth_Cell val  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-
-    u32 res = askf_stack_pop( &val, vm->stack );
+    u32 res = askf_stack_pop( val, vm->stack );
 
     if ( !res ) {
         _askf_word_failed( (ascii*)"cell+ -> Expects ( n - )", 24 );
         return;
     }
 
-    val.val._64u += sizeof( askf_addr_t );
+    val->val._64u += sizeof( askf_addr_t );
 
-    askf_stack_push( &val, vm->stack );
+    askf_stack_push( val, vm->stack );
 }
 
 static void askf_word_chars( void ) {
-    AskForthVm* vm       = askf_get_global_vm();
+    AskForth_Cell* val  = global_c00;
 
-    AskForth_Cell val  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-
-    u32 res = askf_stack_pop( &val, vm->stack );
+    u32 res = askf_stack_pop( val, vm->stack );
 
     if ( !res ) {
         _askf_word_failed( (ascii*)"chars -> Expects ( n - )", 24 );
         return;
     }
 
-    val.val._64u *= sizeof( u8 );
+    val->val._64u *= sizeof( u8 );
 
-    askf_stack_push( &val, vm->stack );
+    askf_stack_push( val, vm->stack );
 }
 
 static void askf_word_char_add( void ) {
-    AskForthVm* vm       = askf_get_global_vm();
+    AskForth_Cell* val  = global_c00;
 
-    AskForth_Cell val  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-
-    u32 res = askf_stack_pop( &val, vm->stack );
+    u32 res = askf_stack_pop( val, vm->stack );
 
     if ( !res ) {
         _askf_word_failed( (ascii*)"char+ -> Expects ( n - )", 24 );
         return;
     }
 
-    val.val._64u += sizeof( u8 );
+    val->val._64u += sizeof( u8 );
 
-    askf_stack_push( &val, vm->stack );
+    askf_stack_push( val, vm->stack );
 }
 
 static void askf_word_print_string( void ) {
-    AskForthVm* vm = askf_get_global_vm();
-
     AskForthTokenizer* tokenizer = NULL;
 
     switch ( vm->parse_type ) {
@@ -1055,11 +954,11 @@ static void askf_word_print_string( void ) {
 
     switch ( vm->interpret_state ) {
         case ASKF_INTERPRET: {
-            AskForth_Cell cell = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-            cell.val._addr_t = (askf_addr_t)string_base;
-            askf_stack_push( &cell, vm->stack );
-            cell.val._addr_t = len;
-            askf_stack_push( &cell, vm->stack );
+            AskForth_Cell* cell = global_c00;
+            cell->val._addr_t = (askf_addr_t)string_base;
+            askf_stack_push( cell, vm->stack );
+            cell->val._addr_t = len;
+            askf_stack_push( cell, vm->stack );
 
             if ( ( vm->stack->cell_scale / 8  ) != sizeof( askf_addr_t ) ) {
                 _askf_word_failed( 
@@ -1093,8 +992,6 @@ static void askf_word_print_string( void ) {
 }
 
 static void askf_word_store_string( void ) {
-    AskForthVm* vm = askf_get_global_vm();
-
     AskForthTokenizer* tokenizer = NULL;
 
     switch ( vm->parse_type ) {
@@ -1145,19 +1042,17 @@ static void askf_word_store_string( void ) {
 
     COPY( string_base, new_base, len );
 
-    AskForth_Cell cell_addr = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    AskForth_Cell cell_len  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    AskForth_Cell* cell_addr = global_c00;
+    AskForth_Cell* cell_len  = global_c01;
 
-    cell_addr.val._addr_t = (askf_addr_t) new_base;
-    cell_len.val._addr_t  = len;
+    cell_addr->val._addr_t = (askf_addr_t) new_base;
+    cell_len->val._addr_t  = len;
 
-    askf_stack_push( &cell_addr, vm->stack );
-    askf_stack_push( &cell_len, vm->stack );
+    askf_stack_push( cell_addr, vm->stack );
+    askf_stack_push( cell_len, vm->stack );
 }
 
 static void askf_word_comment_parenteshis( void ) {
-    AskForthVm* vm = askf_get_global_vm();
-
     AskForthTokenizer* tokenizer = NULL;
 
     switch ( vm->parse_type ) {
@@ -1192,8 +1087,6 @@ static void askf_word_comment_parenteshis( void ) {
 }
 
 static void askf_word_comment_slash( void ) {
-    AskForthVm* vm = askf_get_global_vm();
-
     AskForthTokenizer* tokenizer = NULL;
 
     switch ( vm->parse_type ) {
@@ -1239,159 +1132,131 @@ static void askf_word_cr( void ) {
 }
 
 static void askf_word_emit( void ) { 
-    AskForthVm* vm = askf_get_global_vm();
-
-    AskForth_Cell ascii_char = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    u32 res = askf_stack_pop( &ascii_char, vm->stack );
+    AskForth_Cell* ascii_char = global_c00;
+    u32 res = askf_stack_pop( ascii_char, vm->stack );
 
     if ( !res ) {
         _askf_word_failed( (ascii*)"EMIT -> Expects ( ascii_char - )", 32 );
         return;
     }
 
-    askf_print( &ascii_char.val._8u, 1 );
+    askf_print( &ascii_char->val._8u, 1 );
 }
 
 static void askf_word_lshift( void ) {
-    AskForthVm* vm       = askf_get_global_vm();
-
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"lshift -> Expects 2 values on stack" , 35 );
         return;
     }
 
-    AskForth_Cell top_stack = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    askf_stack_pop( &top_stack, vm->stack );
+    AskForth_Cell* top_stack        = global_c00;
+    AskForth_Cell* below_top__stack = global_c01;
+    askf_stack_pop( top_stack, vm->stack );
+    askf_stack_pop( below_top__stack, vm->stack );
 
-    AskForth_Cell below_top__stack = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    askf_stack_pop( &below_top__stack, vm->stack );
+    top_stack->val._64u = below_top__stack->val._64u << top_stack->val._64u;
 
-    top_stack.val._64u = below_top__stack.val._64u << top_stack.val._64u;
-
-    askf_stack_push( &top_stack, vm->stack );
+    askf_stack_push( top_stack, vm->stack );
 }
 
 static void askf_word_rshift( void ) {
-    AskForthVm* vm       = askf_get_global_vm();
-
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"rshift -> Expects 2 values on stack" , 35 );
         return;
     }
 
-    AskForth_Cell top_stack = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    askf_stack_pop( &top_stack, vm->stack );
+    AskForth_Cell* top_stack        = global_c00;
+    AskForth_Cell* below_top__stack = global_c01;
+    askf_stack_pop( top_stack, vm->stack );
+    askf_stack_pop( below_top__stack, vm->stack );
 
-    AskForth_Cell below_top__stack = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    askf_stack_pop( &below_top__stack, vm->stack );
+    top_stack->val._64u = below_top__stack->val._64u >> top_stack->val._64u;
 
-    top_stack.val._64u = below_top__stack.val._64u >> top_stack.val._64u;
-
-    askf_stack_push( &top_stack, vm->stack );
+    askf_stack_push( top_stack, vm->stack );
 }
 
 static void askf_word_xor( void ) {
-    AskForthVm* vm       = askf_get_global_vm();
-
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"xor -> Expects 2 values on stack" , 32 );
         return;
     }
 
-    AskForth_Cell top_stack = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    askf_stack_pop( &top_stack, vm->stack );
+    AskForth_Cell* top_stack        = global_c00;
+    AskForth_Cell* below_top__stack = global_c01;
 
-    AskForth_Cell below_top__stack = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    askf_stack_pop( &below_top__stack, vm->stack );
+    askf_stack_pop( top_stack, vm->stack );
+    askf_stack_pop( below_top__stack, vm->stack );
 
-    top_stack.val._64u = below_top__stack.val._64u ^ top_stack.val._64u;
+    top_stack->val._64u = below_top__stack->val._64u ^ top_stack->val._64u;
 
-    askf_stack_push( &top_stack, vm->stack );
+    askf_stack_push( top_stack, vm->stack );
 }
 
 static void askf_word_and( void ) {
-    AskForthVm* vm       = askf_get_global_vm();
-
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"and -> Expects 2 values on stack" , 32 );
         return;
     }
 
-    AskForth_Cell top_stack = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    askf_stack_pop( &top_stack, vm->stack );
+    AskForth_Cell* top_stack        = global_c00;
+    AskForth_Cell* below_top__stack = global_c01;
 
-    AskForth_Cell below_top__stack = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    askf_stack_pop( &below_top__stack, vm->stack );
+    askf_stack_pop( top_stack, vm->stack );
+    askf_stack_pop( below_top__stack, vm->stack );
 
-    top_stack.val._64u = below_top__stack.val._64u & top_stack.val._64u;
+    top_stack->val._64u = below_top__stack->val._64u & top_stack->val._64u;
 
-    askf_stack_push( &top_stack, vm->stack );
+    askf_stack_push( top_stack, vm->stack );
 }
 
 static void askf_word_or( void ) {
-    AskForthVm* vm       = askf_get_global_vm();
-
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"or -> Expects ( a b - )" , 23 );
         return;
     }
 
-    AskForth_Cell top_stack = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    askf_stack_pop( &top_stack, vm->stack );
+    AskForth_Cell* top_stack        = global_c00;
+    AskForth_Cell* below_top__stack = global_c01;
 
-    AskForth_Cell below_top__stack = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    askf_stack_pop( &below_top__stack, vm->stack );
+    askf_stack_pop( top_stack, vm->stack );
+    askf_stack_pop( below_top__stack, vm->stack );
 
-    top_stack.val._64u = below_top__stack.val._64u | top_stack.val._64u;
+    top_stack->val._64u = below_top__stack->val._64u | top_stack->val._64u;
 
-    askf_stack_push( &top_stack, vm->stack );
+    askf_stack_push( top_stack, vm->stack );
 }
 
 static void askf_word_invert( void ) {
-    AskForthVm* vm       = askf_get_global_vm();
-
     if ( vm->stack->index < 1 ) {
         _askf_word_failed( (ascii*)"invert -> Expects ( n - )" , 25 );
         return;
     }
 
-    AskForth_Cell top_stack = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    askf_stack_pop( &top_stack, vm->stack );
+    AskForth_Cell* top_stack = global_c00;
+    askf_stack_pop( top_stack, vm->stack );
 
-    top_stack.val._64u = ~top_stack.val._64u;
+    top_stack->val._64u = ~top_stack->val._64u;
 
-    askf_stack_push( &top_stack, vm->stack );
+    askf_stack_push( top_stack, vm->stack );
 }
 
 static void askf_word_clearstack( void ) {
-    AskForthVm* vm       = askf_get_global_vm();
-
     vm->stack->index = 0;
 }
 
 static void askf_word_true( void ) {
-    AskForthVm* vm       = askf_get_global_vm();
+    global_c00->val._64u = -1;
 
-    AskForth_Cell top_stack = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-
-    top_stack.val._64u = -1;
-
-    askf_stack_push( &top_stack, vm->stack );
+    askf_stack_push( global_c00, vm->stack );
 }
 
 static void askf_word_false( void ) {
-    AskForthVm* vm       = askf_get_global_vm();
+    global_c00->val._64u = 0;
 
-    AskForth_Cell top_stack = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-
-    top_stack.val._64u = 0;
-
-    askf_stack_push( &top_stack, vm->stack );
+    askf_stack_push( global_c00, vm->stack );
 }
 
 static void askf_word_fill( void ) {
-    AskForthVm* vm       = askf_get_global_vm();
-
     if ( vm->stack->index < 3 ) {
         _askf_word_failed( (ascii*)"FILL -> Expects ( addr n char - )", 33 );
     }
@@ -1402,20 +1267,18 @@ static void askf_word_fill( void ) {
         return;
     }
 
-    AskForth_Cell _char = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    AskForth_Cell bytes = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    AskForth_Cell addr  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    AskForth_Cell* _char = global_c00;
+    AskForth_Cell* bytes = global_c01;
+    AskForth_Cell* addr  = global_c02;
 
-    askf_stack_pop( &_char, vm->stack );
-    askf_stack_pop( &bytes, vm->stack );
-    askf_stack_pop( &addr , vm->stack );
+    askf_stack_pop( _char, vm->stack );
+    askf_stack_pop( bytes, vm->stack );
+    askf_stack_pop( addr , vm->stack );
 
-    FILL( ((u8*)addr.val._64u), _char.val._64u , bytes.val._64u );
+    FILL( ((u8*)addr->val._64u), _char->val._64u , bytes->val._64u );
 }
 
 static void askf_word_copy( void ) {
-    AskForthVm* vm       = askf_get_global_vm();
-
     if ( vm->stack->index < 3 ) {
         _askf_word_failed( (ascii*)"MOVE -> Expects ( old_addr new_addr n_bytes - )", 47 );
     }
@@ -1426,15 +1289,15 @@ static void askf_word_copy( void ) {
         return;
     }
 
-    AskForth_Cell bytes     = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    AskForth_Cell new_addr  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    AskForth_Cell old_addr  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    AskForth_Cell* bytes     = global_c00;
+    AskForth_Cell* new_addr  = global_c01;
+    AskForth_Cell* old_addr  = global_c02;
 
-    askf_stack_pop( &bytes, vm->stack );
-    askf_stack_pop( &new_addr, vm->stack );
-    askf_stack_pop( &old_addr, vm->stack );
+    askf_stack_pop( bytes, vm->stack );
+    askf_stack_pop( new_addr, vm->stack );
+    askf_stack_pop( old_addr, vm->stack );
 
-    COPY( ((u8*)old_addr.val._64u) , ((u8*)new_addr.val._64u), bytes.val._64u );
+    COPY( ((u8*)old_addr->val._64u) , ((u8*)new_addr->val._64u), bytes->val._64u );
 }
 
 static void askf_word_flush( void ) { 
@@ -1446,22 +1309,19 @@ static void askf_word_flush( void ) {
 }
 
 static void askf_word_list( void ) { 
-    AskForthVm* vm       = askf_get_global_vm();
-
     if ( vm->stack->index < 1 ) {
         _askf_word_failed( (ascii*)"LIST -> Expects ( n - )", 23);
         return;
     }
-    AskForth_Cell block_id = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    askf_stack_pop( &block_id, vm->stack );
+    AskForth_Cell* block_id = global_c00;
+    askf_stack_pop( block_id, vm->stack );
 
     ascii* start_block = (ascii*)
-        ( vm->blocks->start_blocks + ( vm->blocks->block_size * block_id.val._64u ));
+        ( vm->blocks->start_blocks + ( vm->blocks->block_size * block_id->val._64u ));
 
     u64 max_lines      = 16;
     u64 max_line_chars = vm->blocks->block_size / max_lines;
-    AskForth_Cell cell = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    cell.is_signed     = FALSE;
+    AskForth_Cell* cell = global_c01;
 
     for ( u64 x = 0; x < max_lines; x++) {
         if ( x < 10 )
@@ -1469,8 +1329,8 @@ static void askf_word_list( void ) {
         else if ( x < 100 )
             askf_print( (ascii*)" ", 1);
 
-        cell.val._64u = x;
-        askf_print_cell( &cell );
+        cell->val._64u = x;
+        askf_print_cell( cell );
         if ( x < 10 )
             askf_print( (ascii*)"  | ", 4);
         else if ( x < 100 )
@@ -1487,75 +1347,62 @@ static void askf_word_list( void ) {
 }
 
 static void askf_word_block( void ) { 
-    AskForthVm* vm       = askf_get_global_vm();
-
     if ( vm->stack->index < 1 ) {
         _askf_word_failed( (ascii*)"BLOCK -> Expects ( n - )", 24);
         return;
     }
-    AskForth_Cell cell = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    askf_stack_pop( &cell, vm->stack );
+    AskForth_Cell* cell = global_c00;
+    askf_stack_pop( cell, vm->stack );
 
-    if ( cell.val._64u > vm->blocks->capacity ) {
+    if ( cell->val._64u > vm->blocks->capacity ) {
         _askf_word_failed( (ascii*)"BLOCK -> OOB BLOCK", 18 );
         return;
     }
 
-    ascii* block_start = vm->blocks->start_blocks + ( vm->blocks->block_size * cell.val._64u );
+    ascii* block_start = vm->blocks->start_blocks + ( vm->blocks->block_size * cell->val._64u );
 
-    cell.val._64u = ( u64 )block_start;
+    cell->val._64u = ( u64 )block_start;
 
-    askf_stack_push( &cell, vm->stack );
+    askf_stack_push( cell, vm->stack );
 }
 
 static void askf_word_block_size( void ) { 
-    AskForthVm* vm       = askf_get_global_vm();
-
-    AskForth_Cell cell   = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    cell.val._64u        = vm->blocks->block_size;
-
-    askf_stack_push( &cell, vm->stack );
+    global_c00->val._64u = vm->blocks->block_size;
+    askf_stack_push( global_c00, vm->stack );
 }
 
 static void askf_word_line( void ) { 
-    AskForthVm* vm       = askf_get_global_vm();
-
     if ( vm->stack->index < 1 ) {
         _askf_word_failed( (ascii*)"LINE -> Expects ( block_addr n - )", 32 );
         return;
     }
 
-    AskForth_Cell line       = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    AskForth_Cell blk_addr   = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    AskForth_Cell* line       = global_c00;
+    AskForth_Cell* blk_addr   = global_c01;
 
-    askf_stack_pop( &line, vm->stack );
-    askf_stack_pop( &blk_addr, vm->stack );
+    askf_stack_pop( line, vm->stack );
+    askf_stack_pop( blk_addr, vm->stack );
 
-    if ( line.val._64u > 24 ) {
+    if ( line->val._64u > 24 ) {
         _askf_word_failed( (ascii*)"LINE -> line > 16", 17);
         return;
     }
 
     u64 max_line_len     = vm->blocks->block_size / 16;
 
-    blk_addr.val._64u = blk_addr.val._64u + ( max_line_len * line.val._64u );
+    blk_addr->val._64u = blk_addr->val._64u + ( max_line_len * line->val._64u );
 
-    askf_stack_push( &blk_addr, vm->stack );
+    askf_stack_push( blk_addr, vm->stack );
 }
 
 static void askf_word_max_lines( void ) { 
-    AskForthVm* vm       = askf_get_global_vm();
+    global_c00->val._64u        = 16;
 
-    AskForth_Cell cell   = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    cell.val._64u        = 16;
-
-    askf_stack_push( &cell, vm->stack );
+    askf_stack_push( global_c00, vm->stack );
 
 }
 
 static void askf_word_colon( void ) { 
-    AskForthVm* vm       = askf_get_global_vm();
-
     if ( ( vm->stack->cell_scale / 8  ) != sizeof( askf_addr_t ) ) {
         _askf_word_failed( 
             (ascii *)": -> cell width must match architecture word width", 50 );
@@ -1570,21 +1417,21 @@ static void askf_word_colon( void ) {
         return;
     }
 
-    AskForth_Cell cell = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    AskForth_Cell* cell = global_c00;
 
     AskForthToken dic_name = {0};
 
-    askf_stack_pop( &cell, vm->stack );
-    dic_name.length = cell.val._64u;
-    askf_stack_pop( &cell, vm->stack );
-    dic_name.base   = (ascii*)cell.val._64u;
+    askf_stack_pop( cell, vm->stack );
+    dic_name.length = cell->val._64u;
+    askf_stack_pop( cell, vm->stack );
+    dic_name.base   = (ascii*)cell->val._64u;
 
     AskForthToken word_name = {0};
 
-    askf_stack_pop( &cell, vm->stack );
-    word_name.length = cell.val._64u;
-    askf_stack_pop( &cell, vm->stack );
-    word_name.base   = (ascii*)cell.val._64u;
+    askf_stack_pop( cell, vm->stack );
+    word_name.length = cell->val._64u;
+    askf_stack_pop( cell, vm->stack );
+    word_name.base   = (ascii*)cell->val._64u;
 
 
     if ( word_name.length > ASKF_MAX_NAME_LEN ) {
@@ -1607,15 +1454,12 @@ static void askf_word_colon( void ) {
 }
 
 static void askf_word_semicolon( void ) { 
-    AskForthVm* vm       = askf_get_global_vm();
-    
     vm->interpret_state  = ASKF_INTERPRET;
 
     askf_compile_threaded_memory( THREADED_FLAG_END );
 }
 
 static void askf_word_immediate( void ) { 
-    AskForthVm* vm       = askf_get_global_vm();
     if ( !( (AskForth_Library*)vm->lib )->curr_compiling.word ) {
         _askf_word_failed( (ascii*)"IMMEDIATE -> No last word definition found", 42 );
         return;
@@ -1624,44 +1468,40 @@ static void askf_word_immediate( void ) {
 }
 
 static void askf_word_add_line_toblock( void ) {
-    AskForthVm* vm       = askf_get_global_vm();
-
     if ( vm->stack->index < 1 ) {
         _askf_word_failed( (ascii*)"a -> Expects ( block_addr )", 27 );
         return;
     }
 
-    AskForth_Cell addr = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    askf_stack_pop( &addr, vm->stack );
+    AskForth_Cell* addr = global_c00;
+    askf_stack_pop( addr, vm->stack );
 
-    u32 read = askf_read_input_blocking_tobuff( vm, (ascii*)addr.val._64u, 
+    u32 read = askf_read_input_blocking_tobuff( vm, (ascii*)addr->val._64u, 
             vm->blocks->block_size );
 
     // remove the \n from the input
     if ( read )
-        ((ascii*)addr.val._64u)[read-1] = ' ';
+        ((ascii*)addr->val._64u)[read-1] = ' ';
 
-    addr.val._64u = (u64)read;
-    askf_stack_push( &addr, vm->stack );
+    addr->val._64u = (u64)read;
+    askf_stack_push( addr, vm->stack );
 }
 
 static void askf_word_load( void ) {
-    AskForthVm* vm       = askf_get_global_vm();
-
     if ( vm->stack->index < 1 ) {
         _askf_word_failed( (ascii*)"LOAD -> Expects ( n_block )", 27 );
         return;
     }
 
-    AskForth_Cell addr = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    askf_stack_pop( &addr, vm->stack );
+    AskForth_Cell* addr = global_c00;
+    askf_stack_pop( addr, vm->stack );
 
-    if ( addr.val._64u > vm->blocks->capacity ) {
+    if ( addr->val._64u > vm->blocks->capacity ) {
         _askf_word_failed( (ascii*)"LOAD -> OOB BLOCK", 17 );
         return;
     }
 
-    ascii* block = vm->blocks->start_blocks + vm->blocks->block_size * addr.val._64u;
+    ascii* block = vm->blocks->start_blocks + vm->blocks->block_size * addr->val._64u;
 
     // TODO: choose how to execute
     COPY( block, vm->input_buffer_x->base, vm->blocks->block_size );
@@ -1671,8 +1511,6 @@ static void askf_word_load( void ) {
 }
 
 static void askf_word_add_dic( void ) { 
-    AskForthVm* vm       = askf_get_global_vm();
-
     if ( ( vm->stack->cell_scale / 8  ) != sizeof( askf_addr_t ) ) {
         _askf_word_failed( 
             (ascii *)"ADD-DIC -> cell width must match architecture word width", 56 );
@@ -1686,23 +1524,21 @@ static void askf_word_add_dic( void ) {
         return;
     }
 
-    AskForth_Cell len  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    AskForth_Cell addr = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    AskForth_Cell* len  = global_c00;
+    AskForth_Cell* addr = global_c01;
 
-    askf_stack_pop( &len, vm->stack );
-    askf_stack_pop( &addr, vm->stack );
+    askf_stack_pop( len, vm->stack );
+    askf_stack_pop( addr, vm->stack );
 
-    if ( len.val._64u > 28 ) {
+    if ( len->val._64u > 28 ) {
         _askf_word_failed( (ascii*)"ADD-DIC -> name too long", 24 );
         return;
     }
 
-    askf_create_dic( vm, (ascii*)addr.val._64u, len.val._64u );
+    askf_create_dic( vm, (ascii*)addr->val._64u, len->val._64u );
 }
 
 static void askf_word_abort( void ) { 
-    AskForthVm* vm       = askf_get_global_vm();
-
     if ( vm->interpret_state == ASKF_COMPILE )
         vm->interpret_state = ASKF_INTERPRET;
 
@@ -1725,27 +1561,22 @@ static void askf_word_bye( void ) {
 }
 
 static void askf_word_iscomptime( void ) { 
-    AskForthVm* vm      = askf_get_global_vm();
+    AskForth_Cell* mode  = global_c00;
 
-    AskForth_Cell mode  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    mode->val._64u       = vm->interpret_state == ASKF_COMPILE ? -1 : 0 ;
 
-    mode.val._64u       = vm->interpret_state == ASKF_COMPILE ? -1 : 0 ;
-
-    askf_stack_push( &mode, vm->stack );
+    askf_stack_push( mode, vm->stack );
 }
 
 static void askf_word_isinterptime( void ) { 
-    AskForthVm* vm      = askf_get_global_vm();
+    AskForth_Cell* mode  = global_c00;
 
-    AskForth_Cell mode  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    mode->val._64u       = vm->interpret_state == ASKF_INTERPRET ? -1 : 0 ;
 
-    mode.val._64u       = vm->interpret_state == ASKF_INTERPRET ? -1 : 0 ;
-
-    askf_stack_push( &mode, vm->stack );
+    askf_stack_push( mode, vm->stack );
 }
 
 static boolean _askf_0branch( void ) {
-    AskForthVm* vm              = askf_get_global_vm();
     AskForth_Library* lib       = (AskForth_Library*)vm->lib;
 
     if ( vm->interpret_state != ASKF_COMPILE ) {
@@ -1753,13 +1584,13 @@ static boolean _askf_0branch( void ) {
         return FALSE;
     }
 
-    AskForth_Cell cell          = askf_new_cell_payload( vm->cf_stack, vm->cf_stack->is_signed );
+    AskForth_Cell* cell          = global_c00;
     askf_compile_threaded_memory( THREADED_FLAG_0BRANCH );
 
     // push into cf_stack the addr of memory on threaded code to later store ( on BRANCH )
     // the offset if flag is 0 on runtime
-    cell.val._64u               = ( u64 )lib->curr_compiling.here;
-    askf_stack_push( &cell, vm->cf_stack );
+    cell->val._64u               = ( u64 )lib->curr_compiling.here;
+    askf_stack_push( cell, vm->cf_stack );
 
     lib->curr_compiling.here    = askf_alloc( sizeof( u64 ) );
 
@@ -1767,7 +1598,6 @@ static boolean _askf_0branch( void ) {
 }
 
 static boolean _askf_branch( void ) {
-    AskForthVm* vm              = askf_get_global_vm();
     AskForth_Library* lib       = (AskForth_Library*)vm->lib;
 
     if ( vm->interpret_state != ASKF_COMPILE ) {
@@ -1779,24 +1609,22 @@ static boolean _askf_branch( void ) {
         return FALSE;
     }
 
-    AskForth_Cell previous_offset_ptr = 
-        askf_new_cell_payload( vm->cf_stack, vm->cf_stack->is_signed);
+    AskForth_Cell* previous_offset_ptr = global_c00;
 
-    askf_stack_pop( &previous_offset_ptr, vm->cf_stack );
+    askf_stack_pop( previous_offset_ptr, vm->cf_stack );
 
     *lib->curr_compiling.here   = THREADED_FLAG_BRANCH;
     lib->curr_compiling.here    = askf_alloc( sizeof(u64) );
 
-    AskForth_Cell cell          = 
-        askf_new_cell_payload( vm->cf_stack, vm->cf_stack->is_signed );
-    cell.val._64u               = ( u64 )lib->curr_compiling.here;
-    askf_stack_push( &cell, vm->cf_stack );
+    AskForth_Cell* cell          = global_c01;
+    cell->val._64u               = ( u64 )lib->curr_compiling.here;
+    askf_stack_push( cell, vm->cf_stack );
 
     lib->curr_compiling.here    = askf_alloc( sizeof(u64) );
 
-    u64 offset = (u64)lib->curr_compiling.here - previous_offset_ptr.val._64u;
+    u64 offset = (u64)lib->curr_compiling.here - previous_offset_ptr->val._64u;
 
-    *((u64*)previous_offset_ptr.val._64u) = offset;
+    *((u64*)previous_offset_ptr->val._64u) = offset;
 
     return TRUE;
 }
@@ -1812,8 +1640,6 @@ static void askf_word_branch( void ) {
 }
 
 static void askf_word_if( void ) {
-    AskForthVm* vm      = askf_get_global_vm();
-
     if ( vm->interpret_state != ASKF_COMPILE ) {
         _askf_word_failed( (ascii*)"IF -> Can only be used in compiled code", 39 );
         return;
@@ -1826,8 +1652,6 @@ static void askf_word_if( void ) {
 }
 
 static void askf_word_else( void ) {
-    AskForthVm* vm      = askf_get_global_vm();
-
     if ( vm->interpret_state != ASKF_COMPILE ) {
         _askf_word_failed( (ascii*)"ELSE -> Can only be used in compiled code", 41 );
         return;
@@ -1840,7 +1664,6 @@ static void askf_word_else( void ) {
 }
 
 static void askf_word_then( void ) {
-    AskForthVm* vm              = askf_get_global_vm();
     AskForth_Library* lib       = (AskForth_Library*)vm->lib;
 
     if ( vm->interpret_state != ASKF_COMPILE ) {
@@ -1848,18 +1671,17 @@ static void askf_word_then( void ) {
         return;
     }
 
-    AskForth_Cell previous_offset_ptr = askf_new_cell_payload( vm->cf_stack, vm->cf_stack->is_signed);
-    askf_stack_pop( &previous_offset_ptr, vm->cf_stack );
+    AskForth_Cell* previous_offset_ptr = global_c00;
+    askf_stack_pop( previous_offset_ptr, vm->cf_stack );
 
-    u64 offset = (u64)lib->curr_compiling.here - previous_offset_ptr.val._64u;
+    u64 offset = (u64)lib->curr_compiling.here - previous_offset_ptr->val._64u;
 
-    *((u64*)previous_offset_ptr.val._64u) = offset;
+    *((u64*)previous_offset_ptr->val._64u) = offset;
 
     lib->curr_compiling.here = askf_alloc( sizeof(u64) );
 }
 
 static void askf_word_begin( void ) {
-    AskForthVm* vm              = askf_get_global_vm();
     AskForth_Library* lib       = (AskForth_Library*)vm->lib;
 
     if ( vm->interpret_state != ASKF_COMPILE ) {
@@ -1869,14 +1691,11 @@ static void askf_word_begin( void ) {
 
     u64 address                 = (u64)lib->curr_compiling.here;
 
-    AskForth_Cell cell  = askf_new_cell_payload( vm->cf_stack, vm->cf_stack->is_signed);
-    cell.val._64u       = address;
-    askf_stack_push( &cell, vm->cf_stack );
+    global_c00->val._64u       = address;
+    askf_stack_push( global_c00, vm->cf_stack );
 }
 
 static void askf_word_while( void ) {
-    AskForthVm* vm      = askf_get_global_vm();
-
     if ( vm->interpret_state != ASKF_COMPILE ) {
         _askf_word_failed( (ascii*)"WHILE -> Can only be used in compiled code", 42 );
         return;
@@ -1889,7 +1708,6 @@ static void askf_word_while( void ) {
 }
 
 static void askf_word_repeat( void ) {
-    AskForthVm* vm      = askf_get_global_vm();
     AskForth_Library* lib = ( AskForth_Library* )vm->lib;
 
     if ( vm->interpret_state != ASKF_COMPILE ) {
@@ -1902,25 +1720,21 @@ static void askf_word_repeat( void ) {
         return;
     }
 
-    AskForth_Cell while_placeholder = 
-        askf_new_cell_payload( vm->cf_stack, vm->cf_stack->is_signed);
-    AskForth_Cell begin_address = 
-        askf_new_cell_payload( vm->cf_stack, vm->cf_stack->is_signed);
+    AskForth_Cell* while_placeholder = global_c00;
+    AskForth_Cell* begin_address     = global_c01; 
 
-    askf_stack_pop( &while_placeholder, vm->cf_stack );
-    askf_stack_pop( &begin_address, vm->cf_stack );
+    askf_stack_pop( while_placeholder, vm->cf_stack );
+    askf_stack_pop( begin_address, vm->cf_stack );
 
     askf_compile_threaded_memory( THREADED_FLAG_BRANCH );
-    u64 offset = begin_address.val._64u - ( u64 )lib->curr_compiling.here;
+    u64 offset = begin_address->val._64u - ( u64 )lib->curr_compiling.here;
     askf_compile_threaded_memory( offset );
 
-    offset = ( u64 )lib->curr_compiling.here - while_placeholder.val._64u;
-    *( ( u64* )while_placeholder.val._64u )  = offset;
+    offset = ( u64 )lib->curr_compiling.here - while_placeholder->val._64u;
+    *( ( u64* )while_placeholder->val._64u )  = offset;
 }
 
 static void askf_word_bracket_open( void ) {
-    AskForthVm* vm              = askf_get_global_vm();
-
     if ( vm->interpret_state != ASKF_COMPILE ) {
         _askf_word_failed( (ascii*)"[ -> Must be called in compile time", 35 );
         return;
@@ -1930,8 +1744,6 @@ static void askf_word_bracket_open( void ) {
 }
 
 static void askf_word_bracket_close( void ) {
-    AskForthVm* vm              = askf_get_global_vm();
-
     if ( vm->interpret_state != ASKF_INTERPRET ) {
         _askf_word_failed( (ascii*)"] -> Must be called in interpret time", 37 );
         return;
@@ -1941,8 +1753,6 @@ static void askf_word_bracket_close( void ) {
 }
 
 static void askf_word_single_quote( void ) {
-    AskForthVm* vm              = askf_get_global_vm();
-
     if ( ( vm->stack->cell_scale / 8  ) != sizeof( askf_addr_t ) ) {
         _askf_word_failed( 
             (ascii *)"'-> cell width must match architecture word width", 49 );
@@ -1956,15 +1766,15 @@ static void askf_word_single_quote( void ) {
         return;
     }
 
-    AskForth_Cell len  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    AskForth_Cell addr = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    AskForth_Cell* len  = global_c00;
+    AskForth_Cell* addr = global_c01;
 
-    askf_stack_pop( &len, vm->stack );
-    askf_stack_pop( &addr, vm->stack );
+    askf_stack_pop( len, vm->stack );
+    askf_stack_pop( addr, vm->stack );
 
     AskForthToken token = {0};
-    token.base      = ( ascii* )addr.val._64u;
-    token.length    = len.val._64u;
+    token.base      = ( ascii* )addr->val._64u;
+    token.length    = len->val._64u;
     token.line_end  = FALSE;
 
     AskForth_Word* word =  askf_library_find_word( vm, &token );
@@ -1982,15 +1792,11 @@ static void askf_word_single_quote( void ) {
         return;
     }
 
-    AskForth_Cell cell = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-
-    cell.val._64u = ( u64 )word;
-    askf_stack_push( &cell, vm->stack );
+    global_c02->val._64u = ( u64 )word;
+    askf_stack_push( global_c02, vm->stack );
 }
 
 static void askf_word_execute( void ) {
-    AskForthVm* vm              = askf_get_global_vm();
-
     if ( vm->stack->index < 1 ) {
         _askf_word_failed( (ascii*)"EXECUTE -> Expects addr", 23 );
         return;
@@ -2002,11 +1808,11 @@ static void askf_word_execute( void ) {
         return;
     }
 
-    AskForth_Cell addr = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    AskForth_Cell* addr = global_c00;
 
-    askf_stack_pop( &addr, vm->stack );
+    askf_stack_pop( addr, vm->stack );
 
-    AskForth_Word* word = ( AskForth_Word* )addr.val._64u;
+    AskForth_Word* word = ( AskForth_Word* )addr->val._64u;
 
     switch ( word->source.type ) {
         case ASKF_WORD_NATIVE:
@@ -2021,8 +1827,6 @@ static void askf_word_execute( void ) {
 }
 
 static void askf_word_compile_comma( void )  {
-    AskForthVm* vm              = askf_get_global_vm();
-
     if ( vm->stack->index < 1 ) {
         _askf_word_failed( (ascii*)"COMPILE, -> Expects addr", 24 );
         return;
@@ -2034,11 +1838,11 @@ static void askf_word_compile_comma( void )  {
         return;
     }
 
-    AskForth_Cell addr = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    AskForth_Cell* addr = global_c00;
 
-    askf_stack_pop( &addr, vm->stack );
+    askf_stack_pop( addr, vm->stack );
 
-    AskForth_Word* word = ( AskForth_Word* )addr.val._64u;
+    AskForth_Word* word = ( AskForth_Word* )addr->val._64u;
 
     switch ( word->source.type ) {
         case ASKF_WORD_NATIVE:
@@ -2054,8 +1858,6 @@ static void askf_word_compile_comma( void )  {
 }
 
 static void askf_word_literal( void ) {
-    AskForthVm* vm              = askf_get_global_vm();
-
     if ( vm->interpret_state != ASKF_COMPILE ) {
         _askf_word_failed( (ascii*)"LITERAL -> Must be used in compile code", 39 );
         return;
@@ -2066,17 +1868,15 @@ static void askf_word_literal( void ) {
         return;
     }
 
-    AskForth_Cell val = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    AskForth_Cell* val = global_c00;
 
-    askf_stack_pop( &val, vm->stack );
+    askf_stack_pop( val, vm->stack );
 
     askf_compile_threaded_memory( THREADED_FLAG_LITERAL );
-    askf_compile_threaded_memory( val.val._64u );
+    askf_compile_threaded_memory( val->val._64u );
 }
 
 static void askf_word_postpone( void ) {
-    AskForthVm* vm              = askf_get_global_vm();
-
     if ( vm->interpret_state != ASKF_COMPILE ) {
         _askf_word_failed( (ascii*)"POSTPONE -> Must be used in compile code", 40 );
         return;
@@ -2095,15 +1895,15 @@ static void askf_word_postpone( void ) {
         return;
     }
 
-    AskForth_Cell len  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-    AskForth_Cell addr = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    AskForth_Cell* len  = global_c00;
+    AskForth_Cell* addr = global_c01;
 
-    askf_stack_pop( &len, vm->stack );
-    askf_stack_pop( &addr, vm->stack );
+    askf_stack_pop( len, vm->stack );
+    askf_stack_pop( addr, vm->stack );
 
     AskForthToken token = {0};
-    token.base      = ( ascii* )addr.val._64u;
-    token.length    = len.val._64u;
+    token.base      = ( ascii* )addr->val._64u;
+    token.length    = len->val._64u;
     token.line_end  = FALSE;
 
     AskForth_Word* word =  askf_library_find_word( vm, &token );
@@ -2134,44 +1934,38 @@ static void askf_word_postpone( void ) {
 }
 
 void askf_word_push_rstack( void ) {
-    AskForthVm* vm = askf_get_global_vm();
-
-    AskForth_Cell val = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    AskForth_Cell* val = global_c00;
     
-    if ( !askf_stack_pop( &val, vm->stack ) ) {
+    if ( !askf_stack_pop( val, vm->stack ) ) {
         _askf_word_failed( (ascii*)">R -> Data stack is empty", 25 );
         return;
     }
 
-    askf_stack_push( &val, vm->rstack );
+    askf_stack_push( val, vm->rstack );
 }
 
 void askf_word_pop_rstack( void ) {
-    AskForthVm* vm = askf_get_global_vm();
-
-    AskForth_Cell val = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    AskForth_Cell* val = global_c00;
     
-    if ( !askf_stack_pop( &val, vm->rstack ) ) {
+    if ( !askf_stack_pop( val, vm->rstack ) ) {
         _askf_word_failed( (ascii*)"R> -> Data stack is empty", 25 );
         return;
     }
 
-    askf_stack_push( &val, vm->stack );
+    askf_stack_push( val, vm->stack );
 }
 
 void askf_word_peek_rstack( void ) {
-    AskForthVm* vm = askf_get_global_vm();
-    
-    AskForth_Cell val = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    AskForth_Cell* val = global_c00;
 
     if ( vm->rstack->index < 1 ) {
         _askf_word_failed( (ascii*)"R@ -> rstack is empty", 21 );
         return;
     }
 
-    val.val._64u = vm->rstack->cells.space_64[vm->rstack->index-1];
+    val->val._64u = vm->rstack->cells.space_64[vm->rstack->index-1];
 
-    askf_stack_push( &val, vm->stack );
+    askf_stack_push( val, vm->stack );
 }
 
 #if defined( TARGET_LINUX ) || defined( TARGET_WINDOWS )
@@ -2220,8 +2014,6 @@ static u64 _askf_custom_fgets( ascii* buff, u64 cap, FILE* stream, int* is_eof )
 }
 
     static void askf_word_include( void ) { 
-        AskForthVm* vm       = askf_get_global_vm();
-
         askf_word_parse_word();
 
         if ( vm->stack->index < 2 ) {
@@ -2229,18 +2021,18 @@ static u64 _askf_custom_fgets( ascii* buff, u64 cap, FILE* stream, int* is_eof )
             return;
         }
 
-        AskForth_Cell len   = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
-        AskForth_Cell path  = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+        AskForth_Cell* len   = global_c00;
+        AskForth_Cell* path  = global_c01;
 
 
-        askf_stack_pop( &len, vm->stack );
-        askf_stack_pop( &path, vm->stack );
+        askf_stack_pop( len, vm->stack );
+        askf_stack_pop( path, vm->stack );
 
-        FILE *f = fopen( (char*)path.val._64u, "r");
+        FILE *f = fopen( (char*)path->val._64u, "r");
 
         if ( !f ) {
             _askf_word_failed( (ascii*)"INCLUDE -> Could not open file", 30 );
-            _askf_word_failed( (ascii*)path.val._64u, len.val._64u );
+            _askf_word_failed( (ascii*)path->val._64u, len->val._64u );
             return;
         }
 
@@ -2277,6 +2069,20 @@ void _askf_print_failed_add_word( AskForthToken* tkn ) {
 }
 
 void askf_add_core_words( void ) {
+    vm                  = askf_get_global_vm();
+    AskForth_Cell cell  = askf_new_cell_payload( vm->stack );
+
+    global_c00 = askf_alloc( sizeof(AskForth_Cell) );
+    global_c01 = askf_alloc( sizeof(AskForth_Cell) );
+    global_c02 = askf_alloc( sizeof(AskForth_Cell) );
+    global_c03 = askf_alloc( sizeof(AskForth_Cell) );
+
+    COPY( &cell, global_c00, sizeof(AskForth_Cell) );
+    COPY( &cell, global_c01, sizeof(AskForth_Cell) );
+    COPY( &cell, global_c02, sizeof(AskForth_Cell) );
+    COPY( &cell, global_c03, sizeof(AskForth_Cell) );
+
+    
     AskForthToken core_dic_name = {0};
     core_dic_name.base          = (ascii*)"core";
     core_dic_name.length        = 4;

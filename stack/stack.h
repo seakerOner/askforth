@@ -47,12 +47,12 @@ typedef struct {
      askf_addr_t _addr_t;
     } val;
     AskForth_CellSize* cell_scale;
-    boolean is_signed;
+    boolean* is_signed;
 } AskForth_Cell;
 
 u32 askf_start_stack( AskForth_CellSize cell_scale, AskForth_Stack* stack );
 
-AskForth_Cell askf_new_cell_payload( AskForth_Stack* stack, boolean is_signed );
+AskForth_Cell askf_new_cell_payload( AskForth_Stack* stack );
 
 void askf_stack_push( AskForth_Cell* cell, AskForth_Stack* stack );
 

@@ -116,19 +116,20 @@ static void _askf_execute_threaded_frames( void ) {
         return;
 
     AskForth_Word* word          = (AskForth_Word*)frame->word;
-    u64* ip = NULL;
+    u64* ip                      = NULL;
 
     if ( frame->to_resume )
         ip = (u64*)frame->resume_ip;
     else 
         ip = (u64*)frame->base_ip;
 
+return_call:
     while ( *ip != THREADED_FLAG_END ) {
         // literal value comming
         if ( *ip == THREADED_FLAG_LITERAL ) {
             ip++;
 
-            AskForth_Cell new_cell = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+            AskForth_Cell new_cell = askf_new_cell_payload( vm->stack );
             new_cell.val._64u      = *ip;
             askf_stack_push( &new_cell, vm->stack );
             ip++;
@@ -138,23 +139,10 @@ static void _askf_execute_threaded_frames( void ) {
             AskForth_Word* new_word = (AskForth_Word*)*( ip + 1 );
 
             _askf_push_ip_frame( vm, word, (u64)(ip + 2), TRUE); // next threaded execution
-            _askf_push_ip_frame( vm, new_word, 
-                    new_word->source.source.threaded_code_start_addr, FALSE);
 
-            _askf_execute_threaded_frames();
-
-            if ( vm->outer_state == ASKF_VM_OUTER_STATE_FAILED_CRITICAL ||
-                    vm->outer_state == ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL) {
-                return;
-            }
-
-            frame = _askf_pop_ip_frame( vm );
-
-            if ( frame->to_resume )
-                ip = (u64*)frame->resume_ip;
-            else 
-                ip = (u64*)frame->base_ip;
-
+            word = new_word;
+            ip   = ( u64* )new_word->source.source.threaded_code_start_addr;
+            
         // memory to skip over
         } else if ( *ip == THREADED_FLAG_SKIPPABLE ) {
             ip++;
@@ -172,7 +160,7 @@ static void _askf_execute_threaded_frames( void ) {
                 return;
             }
 
-            AskForth_Cell flag = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+            AskForth_Cell flag = askf_new_cell_payload( vm->stack );
             askf_stack_pop( &flag, vm->stack );
 
             if ( flag.val._64u == 0 ) {
@@ -198,12 +186,27 @@ static void _askf_execute_threaded_frames( void ) {
             }
         }
     }
+
+    if ( vm->outer_state == ASKF_VM_OUTER_STATE_FAILED_CRITICAL ||
+        vm->outer_state == ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL || 
+        vm->tframes_stack->index == 0 ) {
+        return;
+    }
+
+    AskForthThreadedFrame* restored_frame = _askf_pop_ip_frame( vm );
+    word = ( AskForth_Word* )restored_frame->word;
+    if ( restored_frame->to_resume )
+        ip = (u64*)restored_frame->resume_ip;
+    else 
+        ip = (u64*)restored_frame->base_ip;
+
+    goto return_call;
 }
 
 void askf_execute_threaded_word( void ) {
     AskForthVm* vm = askf_get_global_vm();
 
-    AskForth_Cell word = askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+    AskForth_Cell word = askf_new_cell_payload( vm->stack );
     askf_stack_pop( &word, vm->stack );
 
     _askf_push_ip_frame( vm, 
@@ -291,7 +294,7 @@ void askf_exec( AskForthVm* vm, AskForthParseType parse_type ) {
         AskForth_Word* word =  askf_library_find_word( vm, &tokenizer->tokens[x] );
 
         if ( word == NULL ) {
-            AskForth_Cell new_cell =  askf_new_cell_payload( vm->stack, vm->stack->is_signed );
+            AskForth_Cell new_cell =  askf_new_cell_payload( vm->stack );
 
             boolean is_number = askf_parse_token_to_num( &tokenizer->tokens[x] , &new_cell );
 

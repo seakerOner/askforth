@@ -113,10 +113,10 @@ u32 askf_stack_pop( AskForth_Cell* out_cell , AskForth_Stack* stack ) {
     return 1;
 }
 
-AskForth_Cell askf_new_cell_payload( AskForth_Stack* stack, boolean is_signed ) {
+AskForth_Cell askf_new_cell_payload( AskForth_Stack* stack ) {
     AskForth_Cell cell  = {0};
     cell.cell_scale     = &stack->cell_scale;
-    cell.is_signed      = is_signed;
+    cell.is_signed      = &stack->is_signed;
 
     return cell;
 }

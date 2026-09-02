@@ -132,7 +132,7 @@ static void _askf_fallback_cmd_stack( AskForthVm* vm ) {
     else
         askf_print( (ascii*)"UNSIGNED ", 9 );
 
-    AskForth_Cell cell = askf_new_cell_payload( stack, stack->is_signed );
+    AskForth_Cell cell = askf_new_cell_payload( stack );
 
     switch ( stack->cell_scale ) {
         case ASKF_BITS64:
@@ -200,7 +200,7 @@ static void _askf_fallback_cmd_stack( AskForthVm* vm ) {
 static void _askf_fallback_cmd_rstack( AskForthVm* vm ) {
     AskForth_Stack* stack = vm->rstack;
 
-    AskForth_Cell cell = askf_new_cell_payload( stack, stack->is_signed );
+    AskForth_Cell cell = askf_new_cell_payload( stack );
     if ( stack->is_signed ) 
         askf_print( (ascii*)"SIGNED ", 7 );
     else
@@ -280,7 +280,7 @@ static void _askf_fallback_cmd_rstack( AskForthVm* vm ) {
 static void _askf_fallback_cmd_cfstack( AskForthVm* vm ) {
     AskForth_Stack* stack = vm->cf_stack;
 
-    AskForth_Cell cell = askf_new_cell_payload( stack, stack->is_signed );
+    AskForth_Cell cell = askf_new_cell_payload( stack );
     if ( stack->is_signed ) 
         askf_print( (ascii*)"SIGNED ", 7 );
     else
