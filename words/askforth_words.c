@@ -4,6 +4,7 @@
 #include "../input/input.h"
 #include "../stack/stack.h"
 #include "../memory/blocks.h"
+#include "../optimizer/optimizer.h"
 #include "../fallback_loop/fallback.h"
 
 #if defined( TARGET_LINUX ) || defined( TARGET_WINDOWS )
@@ -1475,6 +1476,22 @@ static void askf_word_immediate( void ) {
     ( (AskForth_Library*)vm->lib )->curr_compiling.word->is_immediate = TRUE;
 }
 
+static void askf_word_optimize( void ) {
+    if ( !( (AskForth_Library*)vm->lib )->curr_compiling.word ) {
+        _askf_word_failed( (ascii*)"OPTIMIZE -> No last word definition found", 41 );
+        return;
+    }
+    if (( (AskForth_Library*)vm->lib )->curr_compiling.word->source.type == ASKF_WORD_NATIVE ) {
+        _askf_word_failed( (ascii*)"OPTIMIZE -> Cannot optimize a native word", 41 );
+        return;
+    }
+
+    askf_optimize_threaded_code(
+            (u64*)( (AskForth_Library*)vm->lib )->curr_compiling.word   
+            ->source.source.threaded_code_start_addr);
+
+}
+
 static void askf_word_add_line_toblock( void ) {
     if ( vm->stack->index < 1 ) {
         _askf_word_failed( (ascii*)"a -> Expects ( block_addr )", 27 );
@@ -2091,6 +2108,9 @@ void askf_add_core_words( void ) {
     COPY( &cell, global_c01, sizeof(AskForth_Cell) );
     COPY( &cell, global_c02, sizeof(AskForth_Cell) );
     COPY( &cell, global_c03, sizeof(AskForth_Cell) );
+
+    // trickery to set jump labels set (happens on first run)
+    _askf_execute_threaded_frames();
 
     
     AskForthToken core_dic_name = {0};
@@ -2841,6 +2861,17 @@ void askf_add_core_words( void ) {
 
     if ( !added_immediate )
         _askf_print_failed_add_word( &scratch_word_name );
+
+    // OPTIMIZE
+    scratch_word_name.base            = (ascii*)"OPTIMIZE";
+    scratch_word_name.length          = 8;
+
+    boolean added_optimize = 
+        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_optimize, scratch_word_name );
+
+    if ( !added_optimize )
+        _askf_print_failed_add_word( &scratch_word_name );
+
 
     #if defined( TARGET_LINUX ) || defined( TARGET_WINDOWS )
         // INCLUDE

@@ -1,0 +1,18 @@
+#include "optimizer.h"
+#include "mask_and_signatures.h"
+
+static const AskForthOptimizerPatternKey patterns[] = {
+    OPT_PATTERN( MASK_MANUAL_2DUP, SIG_MANUAL_2DUP, SIG_MANUAL_2DUP_LEN ),
+    OPT_PATTERN( MASK_MANUAL_NIP, SIG_MANUAL_NIP, SIG_MANUAL_NIP_LEN ),
+    OPT_PATTERN( MASK_MANUAL_OVER_WITH_RSTACK, SIG_MANUAL_OVER_WITH_RSTACK, 
+            SIG_MANUAL_OVER_WITH_RSTACK_LEN),
+    OPT_PATTERN( MASK_SWAP_SWAP_NOOP, SIG_SWAP_SWAP_NOOP, SIG_SWAP_SWAP_NOOP_LEN),
+    OPT_PATTERN( MASK_DUP_DROP_NOOP, SIG_DUP_DROP_NOOP, SIG_DUP_DROP_NOOP_LEN ),
+    OPT_PATTERN( MASK_2DUP_2DROP_NOOP, SIG_2DUP_2DROP_NOOP, SIG_2DUP_2DROP_NOOP_LEN),
+    OPT_PATTERN( MASK_OVER_DROP_NOOP, SIG_OVER_DROP_NOOP, SIG_OVER_DROP_NOOP_LEN )
+};
+
+static const u64 patterns_len = sizeof(patterns) / sizeof(AskForthOptimizerPatternKey);
+
+void askf_optimize_threaded_code( u64* start_address ) {
+}

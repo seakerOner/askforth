@@ -130,8 +130,6 @@ int main( void ) {
     askf_tokenizer_new( &tokenizer_x, ( ASKFORTH_INPUT_BUFFER_MAX_CHARS / 2 ));
     askf_tokenizer_new( &fallback_tokenizer, ( ASKFORTH_INPUT_BUFFER_MAX_CHARS / 4 ));
 
-    // trickery to set jump labels set (happens on first run)
-    _askf_execute_threaded_frames();
 
     askf_add_core_words();
 

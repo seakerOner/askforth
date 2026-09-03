@@ -63,6 +63,10 @@ typedef struct {
     void* op_0branch;
     void* op_branch;
     void* op_skippable;
+
+    // optimized superinstructions
+    void* opt_noop;
+
     boolean initialized;
 } AskForthDispatchOps;
 

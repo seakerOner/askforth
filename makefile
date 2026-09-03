@@ -32,6 +32,7 @@ OBJECTS = 				\
 	core_words.o 		\
 	blocks.o 			\
 	fallback_loop.o		\
+	optimizer.o			\
 
 $(BUILD):
 	mkdir -p $(BUILD)
@@ -71,6 +72,9 @@ blocks.o: ./memory/blocks.c
 
 fallback_loop.o: ./fallback_loop/fallback.h
 	$(CC) $(FLAGS)	-c ./fallback_loop/fallback.c -o $(BUILD)/fallback_loop.o
+
+optimizer.o: ./optimizer/optimizer.h
+	$(CC) $(FLAGS)	-c ./optimizer/optimizer.c -o $(BUILD)/optimizer.o
 
 clean:
 	rm -f $(BUILD)/*.o

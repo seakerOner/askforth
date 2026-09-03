@@ -1,0 +1,83 @@
+#ifndef ASKF_MASKS_AND_SIGNATURES_H
+#define ASKF_MASKS_AND_SIGNATURES_H
+#include "../inttype.h"
+#include "optimizer.h"
+
+#include "signature_macro_helpers.h"
+
+// trivial stack operations signatures:
+//
+
+//  over over -> 2dup
+#define SIG_MANUAL_2DUP \
+    _DEF_SIG_2ARGS( PATTERN_STACK_OP_OVER, PATTERN_STACK_OP_OVER )
+
+#define SIG_MANUAL_2DUP_LEN 2
+
+#define MASK_MANUAL_2DUP \
+    MASK_PATTERN( PATTERN_STACK_OP_OVER )
+
+//  swap drop -> nip
+#define SIG_MANUAL_NIP \
+    _DEF_SIG_2ARGS( PATTERN_STACK_OP_SWAP, PATTERN_STACK_OP_DROP )
+
+#define SIG_MANUAL_NIP_LEN 2
+
+#define MASK_MANUAL_NIP \
+    ( MASK_PATTERN( PATTERN_STACK_OP_SWAP ) |   \
+      MASK_PATTERN( PATTERN_STACK_OP_DROP ))
+
+// swap dup >R swap R> -> over
+#define SIG_MANUAL_OVER_WITH_RSTACK \
+    _DEF_SIG_5ARGS( PATTERN_STACK_OP_SWAP, PATTERN_STACK_OP_DUP,    \
+                    PATTERN_RPUSH, PATTERN_STACK_OP_SWAP, PATTERN_RPOP )
+
+#define SIG_MANUAL_OVER_WITH_RSTACK_LEN 5
+
+#define MASK_MANUAL_OVER_WITH_RSTACK \
+    ( MASK_PATTERN( PATTERN_STACK_OP_SWAP ) |   \
+      MASK_PATTERN( PATTERN_STACK_OP_DUP  ) |   \
+      MASK_PATTERN( PATTERN_RPUSH         ) |   \
+      MASK_PATTERN( PATTERN_RPOP         ))
+
+
+// swap swap -> noop
+#define SIG_SWAP_SWAP_NOOP \
+    _DEF_SIG_2ARGS( PATTERN_STACK_OP_SWAP, PATTERN_STACK_OP_SWAP )
+
+#define SIG_SWAP_SWAP_NOOP_LEN 2 
+
+#define MASK_SWAP_SWAP_NOOP \
+    MASK_PATTERN( PATTERN_STACK_OP_SWAP ) 
+
+// dup drop -> noop
+#define SIG_DUP_DROP_NOOP \
+    _DEF_SIG_2ARGS( PATTERN_STACK_OP_DUP, PATTERN_STACK_OP_DROP )
+
+#define SIG_DUP_DROP_NOOP_LEN 2
+
+#define MASK_DUP_DROP_NOOP \
+    ( MASK_PATTERN( PATTERN_STACK_OP_DUP  ) |   \
+      MASK_PATTERN( PATTERN_STACK_OP_DROP ))
+
+//      2dup 2drop   -> noop
+#define SIG_2DUP_2DROP_NOOP \
+    _DEF_SIG_2ARGS( PATTERN_STACK_OP_2DUP, PATTERN_STACK_OP_2DROP )
+
+#define SIG_2DUP_2DROP_NOOP_LEN 2
+
+#define MASK_2DUP_2DROP_NOOP \
+    ( MASK_PATTERN( PATTERN_STACK_OP_2DUP  ) |   \
+      MASK_PATTERN( PATTERN_STACK_OP_2DROP ))
+
+//      over drop    -> noop
+#define SIG_OVER_DROP_NOOP \
+    _DEF_SIG_2ARGS( PATTERN_STACK_OP_OVER, PATTERN_STACK_OP_DROP )
+
+#define SIG_OVER_DROP_NOOP_LEN 2
+
+#define MASK_OVER_DROP_NOOP \
+    ( MASK_PATTERN( PATTERN_STACK_OP_OVER  ) |   \
+      MASK_PATTERN( PATTERN_STACK_OP_DROP ))
+
+#endif

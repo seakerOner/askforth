@@ -120,6 +120,8 @@ void _askf_execute_threaded_frames( void ) {
         vm->dispatch_calls.op_branch        = &&op_branch;
         vm->dispatch_calls.op_native        = &&op_native;
         vm->dispatch_calls.op_skippable     = &&op_skippable;
+
+        vm->dispatch_calls.opt_noop         = &&opt_noop;
         vm->dispatch_calls.initialized      = TRUE;
         return;
     }
@@ -196,6 +198,10 @@ return_call:
                 _askf_push_ip_frame( vm, word, (u64)ip, TRUE);
                 return;
             }
+            continue;
+        }
+
+        opt_noop: {
             continue;
         }
     }
