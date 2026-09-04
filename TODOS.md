@@ -12,4 +12,6 @@
 ## add number base (global state) for input parsing
     - The VM should have a num base global state for when trying to parse a token into a number
 
+## add new and better words to manipulate input
+
 ## add a threaded code optimizer

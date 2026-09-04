@@ -301,7 +301,7 @@ static void askf_word_lib( void ) {
     }
 }
 
-static void askf_word_parse_word( void ) {
+static void askf_word_parse_name( void ) {
     AskForthTokenizer* tokenizer = NULL;
 
     switch ( vm->parse_type ) {
@@ -317,7 +317,7 @@ static void askf_word_parse_word( void ) {
     }
 
     if ( tokenizer->ctx.idx + 1 >= tokenizer->index ) {
-        _askf_word_failed( (ascii*)"PARSE-WORD -> No token found", 28 );
+        _askf_word_failed( (ascii*)"PARSE-NAME -> No token found", 28 );
         return;
     }
 
@@ -332,33 +332,14 @@ static void askf_word_parse_word( void ) {
 
     AskForth_Cell* cell      = global_c00;
 
-    // TODO: decide if this is what i want from parse_word
-    u64 len =  sizeof( ascii ) * tokenizer->tokens[idx].length ;
-
-    AskForthToken* scratch  = NULL;
-    if ( vm->interpret_state == ASKF_COMPILE && 
-            ((AskForth_Library*)vm->lib)->curr_compiling.here ) {
-        askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_skippable );
-        scratch  = askf_alloc( len );
-        askf_compile_threaded_memory( len );
-    }  else if ( vm->interpret_state == ASKF_COMPILE 
-            && !((AskForth_Library*)vm->lib)->curr_compiling.here ) {
-        // this should not happen at any point if we are in compilation
-    } else {
-        scratch  = askf_alloc( len );
-    }
-
-
-    COPY( tokenizer->tokens[idx].base, scratch, tokenizer->tokens[idx].length );
-
-    cell->val._addr_t = (askf_addr_t)scratch;
+    cell->val._addr_t = (askf_addr_t)tokenizer->tokens[idx].base;
     askf_stack_push( cell, vm->stack );
     cell->val._addr_t = tokenizer->tokens[idx].length;
     askf_stack_push( cell, vm->stack );
 }
 
 static void askf_word_words( void ) {
-    askf_word_parse_word();
+    askf_word_parse_name();
 
     if ( vm->outer_state != ASKF_VM_OUTER_STATE_EXECUTE ) {
         return;
@@ -1428,8 +1409,8 @@ static void askf_word_colon( void ) {
         return;
     }
     
-    askf_word_parse_word();
-    askf_word_parse_word();
+    askf_word_parse_name();
+    askf_word_parse_name();
 
     if ( vm->stack->index < 4 ) {
         _askf_word_failed( (ascii*)": -> Expects ': word_name dic_name ' ", 37 );
@@ -1564,7 +1545,7 @@ static void askf_word_add_dic( void ) {
         return;
     }
 
-    askf_word_parse_word();
+    askf_word_parse_name();
 
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"ADD-DIC -> Expects a name", 25 );
@@ -1806,7 +1787,7 @@ static void askf_word_single_quote( void ) {
         return;
     }
 
-    askf_word_parse_word();
+    askf_word_parse_name();
 
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"' -> Expects token", 18 );
@@ -1938,7 +1919,7 @@ static void askf_word_postpone( void ) {
         return;
     }
 
-    askf_word_parse_word();
+    askf_word_parse_name();
 
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"POSTPONE -> Expects token", 25 );
@@ -1971,7 +1952,6 @@ static void askf_word_postpone( void ) {
         return;
     }
 
-    // idk not working like other compilations
     switch ( word->source.type ) {
         case ASKF_WORD_NATIVE:
             askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_native );
@@ -2028,8 +2008,8 @@ void askf_word_see( void ) {
         return;
     }
     
-    askf_word_parse_word();
-    askf_word_parse_word();
+    askf_word_parse_name();
+    askf_word_parse_name();
 
     if ( vm->stack->index < 4 ) {
         _askf_word_failed( (ascii*)"see -> Expects ': word_name dic_name ' ", 39 );
@@ -2226,7 +2206,7 @@ static u64 _askf_custom_fgets( ascii* buff, u64 cap, FILE* stream, int* is_eof )
 }
 
     static void askf_word_include( void ) { 
-        askf_word_parse_word();
+        askf_word_parse_name();
 
         if ( vm->stack->index < 2 ) {
             _askf_word_failed( (ascii*)"INCLUDE -> Path must be included", 32 );
@@ -2236,11 +2216,13 @@ static u64 _askf_custom_fgets( ascii* buff, u64 cap, FILE* stream, int* is_eof )
         AskForth_Cell* len   = global_c00;
         AskForth_Cell* path  = global_c01;
 
-
         askf_stack_pop( len, vm->stack );
         askf_stack_pop( path, vm->stack );
 
+        ascii tmp = ((ascii*)path->val._64u)[len->val._64u];
+        ((ascii*)path->val._64u)[len->val._64u] = '\0';
         FILE *f = fopen( (char*)path->val._64u, "r");
+        ((ascii*)path->val._64u)[len->val._64u] = tmp;
 
         if ( !f ) {
             _askf_word_failed( (ascii*)"INCLUDE -> Could not open file", 30 );
@@ -2462,7 +2444,7 @@ void askf_add_core_words( void ) {
     scratch_word_name.length          = 10;
 
     boolean added_parse_name = 
-        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_parse_word, scratch_word_name );
+        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_parse_name, scratch_word_name );
 
     if ( !added_parse_name )
         _askf_print_failed_add_word( &scratch_word_name );
