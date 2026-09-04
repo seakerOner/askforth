@@ -7,6 +7,17 @@
 
 // trivial stack operations signatures:
 //
+//  over over            -> 2dup
+//  swap drop            -> nip
+//  swap dup >R swap R>  -> over
+//  swap swap            -> OPT_NOOP
+//  dup drop             -> OPT_NOOP
+//  2dup 2drop           -> OPT_NOOP
+//  over drop            -> OPT_NOOP
+//  /mod drop            -> /
+
+// TODO:
+//  literal literal TYPE -> OPT_TYPE_STRING:
 
 //  over over -> 2dup
 #define SIG_MANUAL_2DUP \
@@ -78,6 +89,16 @@
 
 #define MASK_OVER_DROP_NOOP \
     ( MASK_PATTERN( PATTERN_STACK_OP_OVER  ) |   \
+      MASK_PATTERN( PATTERN_STACK_OP_DROP ))
+
+// /mod drop  -> /
+#define SIG_FAST_DIV \
+    _DEF_SIG_2ARGS( PATTERN_ARIT_DIVMOD, PATTERN_STACK_OP_DROP )
+
+#define SIG_FAST_DIV_LEN 2
+
+#define MASK_FAST_DIV \
+    ( MASK_PATTERN( PATTERN_ARIT_DIVMOD   ) |   \
       MASK_PATTERN( PATTERN_STACK_OP_DROP ))
 
 #endif

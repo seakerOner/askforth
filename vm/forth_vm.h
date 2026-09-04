@@ -8,8 +8,6 @@
 
 #include "../memory/blocks.h"
 
-#define THREADED_FLAG_END           0x0
-
 #define ASKF_THREADEDFRAMES_STACK_CAPACITY  256
 
 typedef enum {
@@ -63,9 +61,11 @@ typedef struct {
     void* op_0branch;
     void* op_branch;
     void* op_skippable;
+    void* op_endword;
 
     // optimized superinstructions
     void* opt_noop;
+    void* opt_type_string;
 
     boolean initialized;
 } AskForthDispatchOps;

@@ -6,8 +6,14 @@
 
 AskForthVm* global_vm = NULL;
 
+AskForth_Cell* vm_c00 = NULL;
+
 void askf_vm_to_global_state( AskForthVm* vm ) {
     global_vm = vm;
+    AskForth_Cell new_cell = askf_new_cell_payload( global_vm->stack );
+    vm_c00 = askf_alloc( sizeof(AskForth_Cell) );
+
+    COPY( &new_cell, vm_c00, sizeof(AskForth_Cell) );
 }
 
 AskForthVm* askf_get_global_vm( void ) {
@@ -120,8 +126,10 @@ void _askf_execute_threaded_frames( void ) {
         vm->dispatch_calls.op_branch        = &&op_branch;
         vm->dispatch_calls.op_native        = &&op_native;
         vm->dispatch_calls.op_skippable     = &&op_skippable;
+        vm->dispatch_calls.op_endword       = &&op_endword;
 
         vm->dispatch_calls.opt_noop         = &&opt_noop;
+        vm->dispatch_calls.opt_type_string  = &&opt_type_string;
         vm->dispatch_calls.initialized      = TRUE;
         return;
     }
@@ -141,23 +149,24 @@ void _askf_execute_threaded_frames( void ) {
 
 
 return_call:
-    while ( *ip != THREADED_FLAG_END ) {
+    while ( TRUE ) {
         RUN_OP();
         
         op_literal: {
-            AskForth_Cell new_cell = askf_new_cell_payload( vm->stack );
-            new_cell.val._64u      = *ip;
-            askf_stack_push( &new_cell, vm->stack );
+            vm_c00->val._64u      = *ip;
+            askf_stack_push( vm_c00, vm->stack );
             NEXT();
             continue;
         }
         op_threadedword:{
+            u64* new_code = (u64*)*ip;
+            NEXT();
             AskForth_Word* new_word = (AskForth_Word*)*( ip );
 
             _askf_push_ip_frame( vm, word, (u64)(ip + 1), TRUE); // next threaded execution
 
             word = new_word;
-            ip   = ( u64* )new_word->source.source.threaded_code_start_addr;
+            ip   = new_code;
             continue;
         }
         op_skippable: {
@@ -173,10 +182,9 @@ return_call:
                 return;
             }
 
-            AskForth_Cell flag = askf_new_cell_payload( vm->stack );
-            askf_stack_pop( &flag, vm->stack );
+            askf_stack_pop( vm_c00, vm->stack );
 
-            if ( flag.val._64u == 0 ) {
+            if ( vm_c00->val._64u == 0 ) {
                 u64 bytes_toskip = *ip;
                 ip = (u64*)( ( (u8*)ip ) + bytes_toskip );
             } else 
@@ -192,6 +200,7 @@ return_call:
         op_native:{
             ((nat_code*)*ip)();
             NEXT();
+            NEXT(); // skip word address 
 
             if ( vm->outer_state == ASKF_VM_OUTER_STATE_FAILED_CRITICAL ||
                     vm->outer_state == ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL) {
@@ -200,8 +209,19 @@ return_call:
             }
             continue;
         }
+        op_endword:{
+            break;
+        }
 
         opt_noop: {
+            continue;
+        }
+        opt_type_string: {
+            NEXT(); // skip literal flag
+            ascii* base = (ascii*)*ip++;
+            NEXT(); // skip literal flag
+            u64     len = *ip++;
+            askf_print( base, len );
             continue;
         }
     }
@@ -226,12 +246,11 @@ return_call:
 void askf_execute_threaded_word( void ) {
     AskForthVm* vm = askf_get_global_vm();
 
-    AskForth_Cell word = askf_new_cell_payload( vm->stack );
-    askf_stack_pop( &word, vm->stack );
+    askf_stack_pop( vm_c00, vm->stack );
 
     _askf_push_ip_frame( vm, 
-            (AskForth_Word*)word.val._64u, 
-            ((AskForth_Word*)word.val._64u)->source.source.threaded_code_start_addr, FALSE );
+            (AskForth_Word*)vm_c00->val._64u, 
+            ((AskForth_Word*)vm_c00->val._64u)->source.source.threaded_code_start_addr, FALSE );
     _askf_execute_threaded_frames();
 }
 
@@ -314,9 +333,7 @@ void askf_exec( AskForthVm* vm, AskForthParseType parse_type ) {
         AskForth_Word* word =  askf_library_find_word( vm, &tokenizer->tokens[x] );
 
         if ( word == NULL ) {
-            AskForth_Cell new_cell =  askf_new_cell_payload( vm->stack );
-
-            boolean is_number = askf_parse_token_to_num( &tokenizer->tokens[x] , &new_cell );
+            boolean is_number = askf_parse_token_to_num( &tokenizer->tokens[x] , vm_c00 );
 
             if ( !is_number ) {
                 AskForthErrorMessage* failed_token = ( AskForthErrorMessage* ) &tokenizer->tokens[x];
@@ -338,10 +355,10 @@ void askf_exec( AskForthVm* vm, AskForthParseType parse_type ) {
                 switch ( vm->interpret_state ) {
                     case ASKF_COMPILE:
                         askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_literal );
-                        askf_compile_threaded_memory( new_cell.val._64u );
+                        askf_compile_threaded_memory( vm_c00->val._64u );
                         break;
                     case ASKF_INTERPRET:
-                        askf_stack_push( &new_cell, vm->stack );
+                        askf_stack_push( vm_c00, vm->stack );
                         break;
                 }
                 continue;
@@ -384,15 +401,24 @@ void askf_exec( AskForthVm* vm, AskForthParseType parse_type ) {
                         case ASKF_WORD_NATIVE:
                             askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_native );
                             askf_compile_threaded_memory( (u64)word->source.source.native_code );
+                            askf_compile_threaded_memory( (u64)word );
                             break;
                         case ASKF_WORD_THREADED:
                             if ( _strequal( (ascii*)"EXIT", word->name, 4 ) ) {
-                                askf_compile_threaded_memory( THREADED_FLAG_END );
+                                askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_endword );
                                 break;
                             }
 
-                            askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_threadedword );
-                            askf_compile_threaded_memory( (u64)word );
+                            if ( word->is_inline ) {
+                                u64* ip = (u64*)word->source.source.threaded_code_start_addr;
+                                while( *ip != (u64)vm->dispatch_calls.op_endword )
+                                    askf_compile_threaded_memory(*ip++);
+                            } else {
+                                askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_threadedword );
+                                askf_compile_threaded_memory( 
+                                        (u64)word->source.source.threaded_code_start_addr );
+                                askf_compile_threaded_memory( (u64)word );
+                            }
                             break;
                     }
                }

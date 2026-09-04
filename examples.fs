@@ -11,8 +11,6 @@
 \
 \ ============================================================
 
-64 BITS UNSIGNED
-
 \ LIT is a small helper that compiles a literal into
 \ the word currently being compiled.
 
@@ -183,7 +181,7 @@
 
 : I core 
     R@
-;
+; INLINE
 
 : LOOP core 
     ['] R>    COMPILE, 
@@ -195,7 +193,7 @@
     ['] R>    COMPILE, 
     ['] R>    COMPILE, 
     ['] 2drop COMPILE, 
-; IMMEDIATE
+; IMMEDIATE 
 
 \ DO/LOOP is a higher-level loop built from the existing control-flow and return-stack primitives.
 \

@@ -27,7 +27,6 @@
 
 #include "../inttype.h"
 
-
 #define PATTERN_RPOP              0 
 #define PATTERN_SPOP              1
 #define PATTERN_LITERAL           2

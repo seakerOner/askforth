@@ -31,6 +31,7 @@ typedef struct AskForth_Word_t {
 
     AskForth_WordSource source;
     boolean is_immediate;
+    boolean is_inline;
     AskForth_Word* prev;
     AskForth_Word* next;
 } AskForth_Word;

@@ -986,6 +986,16 @@ static void askf_word_print_string( void ) {
 
             askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_native  );
             askf_compile_threaded_memory( (u64)askf_word_type );
+            AskForthToken type_token = {0};
+            type_token.base     = (ascii*)"TYPE";
+            type_token.length   = 4;
+            type_token.line_end = FALSE;
+            AskForth_Word* type_word = askf_library_find_word( vm, &type_token );
+
+            if ( type_word )
+                askf_compile_threaded_memory( (u64)type_word );
+            else 
+                askf_compile_threaded_memory( (u64)0 );
         }
             break;
         default:
@@ -1452,8 +1462,13 @@ static void askf_word_colon( void ) {
     AskForth_Dictionary* dic = askf_library_find_dic( vm, &dic_name );
 
     if ( !dic ) {
-        _askf_word_failed( (ascii*)": -> Dictionary not found: ", 27 );
-        _askf_word_failed(  dic_name.base , dic_name.length );
+        _askf_word_failed( (ascii*)": -> Dictionary not found", 25 );
+
+        AskForthError err = {0};
+        err.error = ASKF_ERROR_UNKNOWN_DIC;
+        err.zone  = ASKF_ERROR_ZONE_INNER;
+        err.opt_message = askf_alloc_new_opt_message( dic_name.base, dic_name.length );
+        askf_throw_error(err);
         return;
     }
 
@@ -1465,7 +1480,7 @@ static void askf_word_colon( void ) {
 static void askf_word_semicolon( void ) { 
     vm->interpret_state  = ASKF_INTERPRET;
 
-    askf_compile_threaded_memory( THREADED_FLAG_END );
+    askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_endword );
 }
 
 static void askf_word_immediate( void ) { 
@@ -1474,6 +1489,13 @@ static void askf_word_immediate( void ) {
         return;
     }
     ( (AskForth_Library*)vm->lib )->curr_compiling.word->is_immediate = TRUE;
+}
+static void askf_word_inline( void ) {
+    if ( !( (AskForth_Library*)vm->lib )->curr_compiling.word ) {
+        _askf_word_failed( (ascii*)"INLINE -> No last word definition found", 39 );
+        return;
+    }
+    ( (AskForth_Library*)vm->lib )->curr_compiling.word->is_inline = TRUE;
 }
 
 static void askf_word_optimize( void ) {
@@ -1873,9 +1895,11 @@ static void askf_word_compile_comma( void )  {
         case ASKF_WORD_NATIVE:
             askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_native );
             askf_compile_threaded_memory( (u64)word->source.source.native_code );
+            askf_compile_threaded_memory( (u64)word );
             break;
         case ASKF_WORD_THREADED:
             askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_threadedword );
+            askf_compile_threaded_memory( (u64)word->source.source.threaded_code_start_addr);
             askf_compile_threaded_memory( (u64)word );
             break;
         default:
@@ -1952,9 +1976,11 @@ static void askf_word_postpone( void ) {
         case ASKF_WORD_NATIVE:
             askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_native );
             askf_compile_threaded_memory( (u64)word->source.source.native_code );
+            askf_compile_threaded_memory( (u64)word );
             break;
         case ASKF_WORD_THREADED:
             askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_threadedword );
+            askf_compile_threaded_memory( (u64)word->source.source.threaded_code_start_addr);
             askf_compile_threaded_memory( (u64)word );
             break;
     }
@@ -1993,6 +2019,165 @@ void askf_word_peek_rstack( void ) {
     val->val._64u = vm->rstack->cells.space_64[vm->rstack->index-1];
 
     askf_stack_push( val, vm->stack );
+}
+
+void askf_word_see( void ) {
+    if ( ( vm->stack->cell_scale / 8  ) != sizeof( askf_addr_t ) ) {
+        _askf_word_failed( 
+            (ascii *)"see -> cell width must match architecture word width", 52 );
+        return;
+    }
+    
+    askf_word_parse_word();
+    askf_word_parse_word();
+
+    if ( vm->stack->index < 4 ) {
+        _askf_word_failed( (ascii*)"see -> Expects ': word_name dic_name ' ", 39 );
+        return;
+    }
+
+    AskForth_Cell* cell = global_c00;
+
+    AskForthToken dic_name = {0};
+
+    askf_stack_pop( cell, vm->stack );
+    dic_name.length = cell->val._64u;
+    askf_stack_pop( cell, vm->stack );
+    dic_name.base   = (ascii*)cell->val._64u;
+
+    AskForthToken word_name;
+
+    askf_stack_pop( cell, vm->stack );
+    word_name.length = cell->val._64u;
+    askf_stack_pop( cell, vm->stack );
+    word_name.base   = (ascii*)cell->val._64u;
+
+
+    if ( word_name.length > ASKF_MAX_NAME_LEN ) {
+        _askf_word_failed( (ascii*)"see -> word name > 28: ", 23 );
+        _askf_word_failed( word_name.base , word_name.length );
+        return;
+    }
+
+    AskForth_Dictionary* dic = askf_library_find_dic( vm, &dic_name );
+
+    if ( !dic ) {
+        _askf_word_failed( (ascii*)"see -> Unknown dictionary ", 25 );
+
+        AskForthError err = {0};
+        err.error = ASKF_ERROR_UNKNOWN_DIC;
+        err.zone  = ASKF_ERROR_ZONE_INNER;
+        ascii tmp = dic_name.base[dic_name.length];
+        dic_name.base[dic_name.length] = '\0';
+        err.opt_message = askf_alloc_new_opt_message( dic_name.base, dic_name.length+1 );
+        dic_name.base[dic_name.length] = tmp;
+
+        askf_throw_error(err);
+        return;
+    }
+
+    AskForth_Word* base = dic->recent_word;
+    u64* ip             = NULL;
+
+    while ( base ) {
+        if ( base->name_len != word_name.length )
+            goto skip_word;
+
+        for ( u64 x = 0; x < word_name.length; x++ )
+            if ( base->name[x] != word_name.base[x] )
+                goto skip_word;
+
+        if ( base->source.type == ASKF_WORD_NATIVE ) {
+            _askf_word_failed( (ascii*)"see -> Cannot see inside a native word", 38 );
+            return;
+        }
+        ip = (u64*)base->source.source.threaded_code_start_addr;
+        break;
+        
+        skip_word:
+        base = base->prev;
+    }
+
+    if ( !ip ) {
+        AskForthError err = {0};
+        err.error = ASKF_ERROR_UNKNOWN_WORD;
+        err.zone  = ASKF_ERROR_ZONE_INNER;
+        err.opt_message = askf_alloc_new_opt_message( word_name.base, word_name.length );
+        askf_throw_error(err);
+        return;
+    }
+
+    askf_print( (ascii*)": ", 2);
+    ascii tmp = word_name.base[word_name.length];
+    word_name.base[word_name.length] = '\0';
+    askf_print( word_name.base, word_name.length );
+    word_name.base[word_name.length] = tmp;
+    askf_print( (ascii*)" ", 1);
+    tmp = dic_name.base[dic_name.length];
+    dic_name.base[dic_name.length] = '\0';
+    askf_print( dic_name.base, dic_name.length );
+    dic_name.base[dic_name.length] = tmp;
+    askf_print_char( '\n' );
+
+    while ( TRUE ) {
+        u64 flag = *ip++;
+
+        if ( flag == (u64)vm->dispatch_calls.op_literal ) {
+            global_c00->val._64u = *ip;
+            askf_print_cell( global_c00 );
+        } 
+        else if ( flag == (u64)vm->dispatch_calls.op_native ) {
+            ip++;
+            AskForth_Word* word = (AskForth_Word*)*ip;
+            askf_print( word->name, word->name_len );
+        } 
+        else if ( flag == (u64)vm->dispatch_calls.op_threadedword ) {
+            ip++;
+            AskForth_Word* word = (AskForth_Word*)*ip;
+            askf_print( word->name, word->name_len );
+        } 
+        else if ( flag == (u64)vm->dispatch_calls.opt_noop ) {
+            askf_print( (ascii*)"OPT_NOOP", 8 );
+        }
+        else if ( flag == (u64)vm->dispatch_calls.op_skippable ) {
+            u64 bytes_toskip = *ip;
+            ip = (u64*)( ( (u8*)ip ) + bytes_toskip );
+            askf_print( (ascii*)"_SKIPMEM<",  9 );
+            global_c00->val._64u = bytes_toskip;
+            askf_print_cell( global_c00 );
+            askf_print( (ascii*)" bytes offset>", 14 );
+            askf_print_char( '\n' );
+        }
+        else if ( flag == (u64)vm->dispatch_calls.op_0branch ) {
+            askf_print_char( '\n' );
+            askf_print( (ascii*)"0BRANCH",  7 );
+            askf_print_char( '\n' );
+        }
+        else if ( flag == (u64)vm->dispatch_calls.op_branch ) {
+            askf_print_char( '\n' );
+            askf_print( (ascii*)"BRANCH",  6 );
+            askf_print_char( '\n' );
+        }
+        else if ( flag == (u64)vm->dispatch_calls.opt_type_string ) {
+            askf_print( (ascii*)"OPT_TYPE_STRING:",  16 );
+        } 
+        else if ( flag == (u64)vm->dispatch_calls.op_endword  ) {
+            askf_print_char( '\n' );
+            askf_print( (ascii*)"; ", 2);
+            break;
+        }
+
+        askf_print( (ascii*)" ", 1 );
+        ip++;
+    }
+
+    if ( base->is_immediate )
+        askf_print( (ascii*)"IMMEDIATE ", 10 );
+
+    if ( base->is_inline )
+        askf_print( (ascii*)"INLINE", 6 );
+
+    askf_print_char( '\n' );
 }
 
 #if defined( TARGET_LINUX ) || defined( TARGET_WINDOWS )
@@ -2872,6 +3057,17 @@ void askf_add_core_words( void ) {
     if ( !added_optimize )
         _askf_print_failed_add_word( &scratch_word_name );
 
+    // INLINE
+    scratch_word_name.base            = (ascii*)"INLINE";
+    scratch_word_name.length          = 6;
+
+    boolean added_inline = 
+        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_inline, scratch_word_name );
+
+    if ( !added_inline )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+
 
     #if defined( TARGET_LINUX ) || defined( TARGET_WINDOWS )
         // INCLUDE
@@ -3148,6 +3344,17 @@ void askf_add_core_words( void ) {
                 core_dic_name, FALSE, askf_word_peek_rstack, scratch_word_name );
 
     if ( !added_peek_rstack )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // see
+    scratch_word_name.base            = (ascii*)"see";
+    scratch_word_name.length          = 3;
+
+    boolean added_see = 
+        askf_dic_add_word_native( 
+                core_dic_name, FALSE, askf_word_see, scratch_word_name );
+
+    if ( !added_see )
         _askf_print_failed_add_word( &scratch_word_name );
 
 }
