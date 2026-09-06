@@ -1,15 +1,11 @@
 # AskForth
-> An experimental Forth implementation in C, focused on a small VM, runtime introspection, flexible stacks, extensible dictionaries, and recoverable execution.
+> A Forth implementation in C, focused on a small VM, runtime introspection, flexible stacks, extensible dictionaries, and recoverable execution.
 
 > AskForth's guide: [GUIDE](./GUIDE/)
 
 > How to build AskForth: [GUIDE](./BUILD.md)
 
-AskForth is a Forth implementation written in C and built around a small, explicit virtual machine.
-
-It is the third Forth implementation developed by the author ( me :D ).
-
-The goal is not to reproduce a particular traditional Forth implementation, but to explore how far a small Forth system can go when its VM exposes a few powerful primitives and higher-level language features are built on top of them.
+AskForth is the third Forth implementation I've developed.
 
 AskForth is currently under active development.
 
@@ -36,7 +32,7 @@ The project is open-source, and code signing for distributed Windows releases ma
 
 ## Why AskForth?
 
-AskForth explores a few ideas that are unusual, or at least not typical, in a Forth implementation.
+AskForth explores a few ideas that are unusual, or at least not typical (from what I have know), in a Forth implementation.
 
 ### Dynamic Cell Sizes
 
@@ -156,7 +152,7 @@ This is an important part of the AskForth design:
 
 > **Keep the VM primitives general, and build language facilities on top of them.**
 
-The `examples.fs` file contains examples of this approach.
+The [examples.fs](./examples.fs) file contains examples of this approach.
 
 ## Persistent Blocks
 

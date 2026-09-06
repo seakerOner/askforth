@@ -49,11 +49,11 @@ static void askf_word_stack_depth( void ) {
 }
 
 static void askf_word_dot_stack ( void ) {
-    global_c00->val._8u = (u8)vm->stack->cell_scale;
+    global_c00->val._64u = (u8)vm->stack->cell_scale;
     askf_print_cell( global_c00 );
     askf_print( (ascii*)" BITS ", 6 );
 
-    global_c00->val._8u = vm->stack->index;
+    global_c00->val._64u = vm->stack->index;
 
     if ( vm->stack->is_signed )
         askf_print( (ascii*)"S ", 2 );
