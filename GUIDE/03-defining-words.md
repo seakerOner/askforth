@@ -171,6 +171,59 @@ After this point, newly entered words are interpreted normally again.
 
 ---
 
+## Inline Words
+
+A word can be marked as `INLINE` when it is defined:
+
+```forth
+: test core 10 10 + . ; INLINE
+```
+
+An inline word is expanded directly into the threaded code of the word that uses it, instead of generating a normal threaded-word call.
+
+For example:
+
+```forth
+: test core 10 10 + . ; INLINE
+: banana core test ;
+```
+
+The resulting code for banana contains the body of test:
+
+``` forth
+: banana core
+10 10 + .
+;
+```
+
+### see and inline words
+
+`see` shows the threaded representation of a word. Therefore, when a word contains an inlined word, `see` displays the code that was actually compiled into the word rather than the original word reference.
+
+For example:
+
+```forth
+see banana core
+```
+
+will show:
+
+```forth
+: banana core
+10 10 + .
+;
+```
+
+even though the original definition was:
+
+``` forth
+: banana core test ;
+```
+
+The inlined code does not retain information about which word it originally came from. Once expanded, it is part of the caller's threaded code.
+
+---
+
 ## Immediate Words
 
 Not every word encountered during compilation should be compiled.

@@ -176,13 +176,11 @@ return_call:
             continue;
         }
         op_0branch:{
-            if ( vm->stack->index < 1 ) {
+            if ( !askf_stack_pop( vm_c00, vm->stack ) ) {
                 _askf_word_failed( (ascii*)"0branch expects value on the stack", 34 );
                 _askf_word_failed( word->name , word->name_len );
                 return;
             }
-
-            askf_stack_pop( vm_c00, vm->stack );
 
             if ( vm_c00->val._64u == 0 ) {
                 u64 bytes_toskip = *ip;
