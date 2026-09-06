@@ -32,7 +32,7 @@ The project is open-source, and code signing for distributed Windows releases ma
 
 ## Why AskForth?
 
-AskForth explores a few ideas that are unusual, or at least not typical (from what I have know), in a Forth implementation.
+AskForth explores a few ideas that are unusual, or at least not typical (from what I know), in a Forth implementation.
 
 ### Dynamic Cell Sizes
 
