@@ -7,13 +7,16 @@
 AskForthVm* global_vm = NULL;
 
 AskForth_Cell* vm_c00 = NULL;
+AskForth_Cell* vm_c01 = NULL;
 
 void askf_vm_to_global_state( AskForthVm* vm ) {
     global_vm = vm;
     AskForth_Cell new_cell = askf_new_cell_payload( global_vm->stack );
     vm_c00 = askf_alloc( sizeof(AskForth_Cell) );
+    vm_c01 = askf_alloc( sizeof(AskForth_Cell) );
 
     COPY( &new_cell, vm_c00, sizeof(AskForth_Cell) );
+    COPY( &new_cell, vm_c01, sizeof(AskForth_Cell) );
 }
 
 AskForthVm* askf_get_global_vm( void ) {
@@ -120,17 +123,18 @@ void _askf_execute_threaded_frames( void ) {
     // GCC labels-as-values are local to this function.
     // Capture their addresses for the threaded-code compiler.
     if ( !vm->dispatch_calls.initialized ) {
-        vm->dispatch_calls.op_literal       = &&op_literal;
-        vm->dispatch_calls.op_threadedword  = &&op_threadedword;
-        vm->dispatch_calls.op_0branch       = &&op_0branch;
-        vm->dispatch_calls.op_branch        = &&op_branch;
-        vm->dispatch_calls.op_native        = &&op_native;
-        vm->dispatch_calls.op_skippable     = &&op_skippable;
-        vm->dispatch_calls.op_endword       = &&op_endword;
+        vm->dispatch_calls.op_literal        = &&op_literal;
+        vm->dispatch_calls.op_threadedword   = &&op_threadedword;
+        vm->dispatch_calls.op_0branch        = &&op_0branch;
+        vm->dispatch_calls.op_branch         = &&op_branch;
+        vm->dispatch_calls.op_native         = &&op_native;
+        vm->dispatch_calls.op_skippable      = &&op_skippable;
+        vm->dispatch_calls.op_dispatch_error = &&op_dispatch_error;
+        vm->dispatch_calls.op_endword        = &&op_endword;
 
-        vm->dispatch_calls.opt_noop         = &&opt_noop;
-        vm->dispatch_calls.opt_type_string  = &&opt_type_string;
-        vm->dispatch_calls.initialized      = TRUE;
+        vm->dispatch_calls.opt_noop          = &&opt_noop;
+        vm->dispatch_calls.opt_type_string   = &&opt_type_string;
+        vm->dispatch_calls.initialized       = TRUE;
         return;
     }
 
@@ -206,6 +210,16 @@ return_call:
                 return;
             }
             continue;
+        }
+        op_dispatch_error: {
+            NEXT(); // skip literal flag
+            vm_c00->val._addr_t = *ip++;
+            NEXT(); // skip literal flag
+            vm_c01->val._addr_t = *ip;
+            _askf_word_failed( (ascii*)vm_c00->val._addr_t, vm_c01->val._addr_t );
+
+            //_askf_push_ip_frame( vm, word, (u64)(ip + 1), TRUE); // next op
+            break;
         }
         op_endword:{
             break;

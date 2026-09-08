@@ -61,6 +61,7 @@ typedef struct {
     void* op_0branch;
     void* op_branch;
     void* op_skippable;
+    void* op_dispatch_error;
     void* op_endword;
 
     // optimized superinstructions

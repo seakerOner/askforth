@@ -684,6 +684,12 @@ static void askf_word_bits( void ) {
         _askf_word_failed( (ascii*)"BITS -> Invalid BITS size", 25 );
 }
 
+static void askf_word_whatbits( void ) {
+    global_c00->val._64u = (u64)vm->stack->cell_scale;
+    
+    askf_stack_push( global_c00, vm->stack );
+}
+
 static void askf_word_type( void ){
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"TYPE -> Expects ( addr len - )", 30);
@@ -958,7 +964,6 @@ static void askf_word_print_string( void ) {
             COPY( string_base, ptr, len+1 );
             askf_compile_threaded_memory( len+1 );
 
-
             askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_literal );
             askf_compile_threaded_memory( (u64)ptr );
 
@@ -977,6 +982,79 @@ static void askf_word_print_string( void ) {
                 askf_compile_threaded_memory( (u64)type_word );
             else 
                 askf_compile_threaded_memory( (u64)0 );
+        }
+            break;
+        default:
+            break;
+    }
+}
+
+static void askf_word_error_with_string( void ) {
+    AskForthTokenizer* tokenizer = NULL;
+
+    switch ( vm->parse_type ) {
+        case ASKF_MAIN_PARSER:
+            tokenizer = vm->tokenizer;
+            break;
+        case ASKF_X_PARSER:
+            tokenizer = vm->tokenizer_x;
+            break;
+        default:
+            return;
+    }
+
+    u64 ctx_idx = tokenizer->ctx.idx;
+
+    ctx_idx++;
+    ascii*  string_base     = tokenizer->tokens[ctx_idx].base;
+    askf_addr_t len         = 0;
+    boolean got_terminator  = FALSE;
+
+    while ( ctx_idx < tokenizer->index ) {
+        AskForthToken* tkn = &tokenizer->tokens[ctx_idx];
+        if ( tkn->base[tkn->length - 1] == '"' ) {
+            got_terminator = TRUE;
+            len = (askf_addr_t)( tkn->base + tkn->length ) - (askf_addr_t)string_base;
+            break;
+        } 
+
+        ctx_idx++;
+    }
+
+    tokenizer->ctx.idx = ctx_idx;
+
+    if ( !got_terminator ) {
+        _askf_word_failed( (ascii*)"error\" -> Terminator not found on input buffer", 42 );
+        return;
+    }
+
+    if ( string_base[len-1] == '"' )
+        string_base[len-1] = ' ';
+
+    switch ( vm->interpret_state ) {
+        case ASKF_INTERPRET: {
+            ascii tmp = string_base[len];
+            string_base[len] = '\0';
+            _askf_word_failed( string_base, len );
+            string_base[len] = tmp;
+        } break;
+        case ASKF_COMPILE: {
+
+            askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_skippable );
+
+            ascii* ptr = (ascii*)askf_alloc( len+1 );
+            COPY( string_base, ptr, len+1 );
+            ptr[len] = '\0';
+
+            askf_compile_threaded_memory( len+1 );
+
+            askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_dispatch_error );
+
+            askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_literal );
+            askf_compile_threaded_memory( (u64)ptr );
+
+            askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_literal );
+            askf_compile_threaded_memory( (u64)len );
         }
             break;
         default:
@@ -1705,8 +1783,6 @@ static void askf_word_then( void ) {
     u64 offset = (u64)lib->curr_compiling.here - previous_offset_ptr->val._64u;
 
     *((u64*)previous_offset_ptr->val._64u) = offset;
-
-    lib->curr_compiling.here = askf_alloc( sizeof(u64) );
 }
 
 static void askf_word_begin( void ) {
@@ -2105,19 +2181,23 @@ void askf_word_see( void ) {
         if ( flag == (u64)vm->dispatch_calls.op_literal ) {
             global_c00->val._64u = *ip;
             askf_print_cell( global_c00 );
+            ip++;
         } 
         else if ( flag == (u64)vm->dispatch_calls.op_native ) {
             ip++;
             AskForth_Word* word = (AskForth_Word*)*ip;
             askf_print( word->name, word->name_len );
+            ip++;
         } 
         else if ( flag == (u64)vm->dispatch_calls.op_threadedword ) {
             ip++;
             AskForth_Word* word = (AskForth_Word*)*ip;
             askf_print( word->name, word->name_len );
+            ip++;
         } 
         else if ( flag == (u64)vm->dispatch_calls.opt_noop ) {
             askf_print( (ascii*)"OPT_NOOP", 8 );
+            ip++;
         }
         else if ( flag == (u64)vm->dispatch_calls.op_skippable ) {
             u64 bytes_toskip = *ip;
@@ -2129,11 +2209,13 @@ void askf_word_see( void ) {
             askf_print_char( '\n' );
         }
         else if ( flag == (u64)vm->dispatch_calls.op_0branch ) {
+            ip++; // skip offset
             askf_print_char( '\n' );
             askf_print( (ascii*)"0BRANCH",  7 );
             askf_print_char( '\n' );
         }
         else if ( flag == (u64)vm->dispatch_calls.op_branch ) {
+            ip++; // skip offset
             askf_print_char( '\n' );
             askf_print( (ascii*)"BRANCH",  6 );
             askf_print_char( '\n' );
@@ -2145,10 +2227,11 @@ void askf_word_see( void ) {
             askf_print_char( '\n' );
             askf_print( (ascii*)"; ", 2);
             break;
+        } else if ( flag == (u64)vm->dispatch_calls.op_dispatch_error ) {
+            askf_print( (ascii*)"OP_DISPATCH_ERROR", 17 );
         }
 
         askf_print( (ascii*)" ", 1 );
-        ip++;
     }
 
     if ( base->is_immediate )
@@ -2635,6 +2718,16 @@ void askf_add_core_words( void ) {
     if ( !added_bits )
         _askf_print_failed_add_word( &scratch_word_name );
 
+    // BITS?
+    scratch_word_name.base            = (ascii*)"BITS?";
+    scratch_word_name.length          = 5;
+
+    boolean added_whatbits = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_whatbits, scratch_word_name );
+
+    if ( !added_whatbits )
+        _askf_print_failed_add_word( &scratch_word_name );
+
     // TYPE
     scratch_word_name.base            = (ascii*)"TYPE";
     scratch_word_name.length          = 4;
@@ -2725,6 +2818,16 @@ void askf_add_core_words( void ) {
         askf_dic_add_word_native( core_dic_name, TRUE, askf_word_store_string , scratch_word_name );
 
     if ( !added_store_string )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // error"
+    scratch_word_name.base            = (ascii*)"error\"";
+    scratch_word_name.length          = 6;
+
+    boolean added_error_with_string = 
+        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_error_with_string , scratch_word_name );
+
+    if ( !added_error_with_string )
         _askf_print_failed_add_word( &scratch_word_name );
 
     // cr
