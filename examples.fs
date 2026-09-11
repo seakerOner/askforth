@@ -195,17 +195,6 @@
     ['] 2drop COMPILE, 
 ; IMMEDIATE 
 
-\ DO/LOOP is a higher-level loop built from the existing control-flow and return-stack primitives.
-\
-\ DO moves the loop limit and index to the return stack, 
-\ then uses BEGIN/WHILE to test whether the loop should continue.
-\
-\ Because DO is IMMEDIATE, it must compile the operations that form 
-\ the loop instead of executing them while the definition is being compiled.
-\
-\ I returns the current loop index from the return stack.
-\
-\ LOOP retrieves the limit and index, increments the index, 
-\ and uses REPEAT to branch back to the beggining of the loop.
-\ When the loop terminates the remaining loop state is removed from the return stack 
-
+: UNLOOP core
+    R> R> 2drop 
+;

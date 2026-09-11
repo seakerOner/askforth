@@ -208,7 +208,9 @@ return_call:
                     vm->outer_state == ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL) {
                 _askf_push_ip_frame( vm, word, (u64)ip, TRUE);
                 return;
-            }
+            } else if ( vm->outer_state == ASKF_VM_OUTER_STATE_BLOCKING_INPUT ) 
+                return;
+
             continue;
         }
         op_dispatch_error: {
@@ -416,11 +418,6 @@ void askf_exec( AskForthVm* vm, AskForthParseType parse_type ) {
                             askf_compile_threaded_memory( (u64)word );
                             break;
                         case ASKF_WORD_THREADED:
-                            if ( _strequal( (ascii*)"EXIT", word->name, 4 ) ) {
-                                askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_endword );
-                                break;
-                            }
-
                             if ( word->is_inline ) {
                                 u64* ip = (u64*)word->source.source.threaded_code_start_addr;
                                 while( *ip != (u64)vm->dispatch_calls.op_endword )

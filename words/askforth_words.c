@@ -1536,9 +1536,39 @@ static void askf_word_colon( void ) {
     vm->interpret_state  = ASKF_COMPILE;
 }
 
-static void askf_word_semicolon( void ) { 
-    vm->interpret_state  = ASKF_INTERPRET;
+static void askf_word_colon_noname( void ) { 
+    if ( ( vm->stack->cell_scale / 8  ) != sizeof( askf_addr_t ) ) {
+        _askf_word_failed( 
+            (ascii *)": -> cell width must match architecture word width", 50 );
+        return;
+    }
+    AskForth_Word* new_word = askf_alloc( sizeof( AskForth_Word ) );
 
+    new_word->prev                      = NULL;
+    new_word->next                      = NULL;
+    new_word->is_immediate              = FALSE;
+
+    new_word->source.type               = ASKF_WORD_THREADED;
+    new_word->source.source.threaded_code_start_addr = (u64)askf_alloc( sizeof(u64) );
+
+    new_word->name_len                  = 0;
+
+    ( (AskForth_Library*)vm->lib )->curr_compiling.word = new_word;
+    ( (AskForth_Library*)vm->lib )->curr_compiling.here = 
+        (u64*)new_word->source.source.threaded_code_start_addr;
+
+    global_c00->val._64u = ( u64 )new_word;
+    askf_stack_push( global_c00, vm->stack );
+
+    vm->interpret_state  = ASKF_COMPILE;
+}
+
+static void askf_word_semicolon( void ) { 
+    askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_endword );
+    vm->interpret_state  = ASKF_INTERPRET;
+}
+
+static void askf_word_exit( void ) {
     askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_endword );
 }
 
@@ -1648,18 +1678,17 @@ static void askf_word_abort( void ) {
     if ( vm->interpret_state == ASKF_COMPILE )
         vm->interpret_state = ASKF_INTERPRET;
 
+    askf_reset_input_buffer( vm, ASKF_MAIN_PARSER );
+    askf_reset_input_buffer( vm, ASKF_X_PARSER );
+    askf_tokenizer_reset( vm->tokenizer );
+    askf_tokenizer_reset( vm->tokenizer_x );
+
+    vm->stack->index         = 0;
+    vm->rstack->index        = 0;
+    vm->cf_stack->index      = 0;
+    vm->tframes_stack->index = 0;
+
     askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_BLOCKING_INPUT );
-
-    askf_reset_input_buffer( vm, vm->parse_type );
-
-    switch ( vm->parse_type ) {
-        case ASKF_MAIN_PARSER:
-            askf_tokenizer_reset( vm->tokenizer );
-            break;
-        case ASKF_X_PARSER:
-            askf_tokenizer_reset( vm->tokenizer_x );
-            break;
-    }
 }
 
 static void askf_word_bye( void ) { 
@@ -1915,14 +1944,15 @@ static void askf_word_execute( void ) {
     AskForth_Cell* addr = global_c00;
 
     askf_stack_pop( addr, vm->stack );
-
     AskForth_Word* word = ( AskForth_Word* )addr->val._64u;
+
 
     switch ( word->source.type ) {
         case ASKF_WORD_NATIVE:
             word->source.source.native_code();
             break;
         case ASKF_WORD_THREADED:
+            askf_stack_push( addr, vm->stack );
             askf_execute_threaded_word();
             break;
         default:
@@ -3112,6 +3142,17 @@ void askf_add_core_words( void ) {
     if ( !added_colon )
         _askf_print_failed_add_word( &scratch_word_name );
 
+    // :NONAME
+    scratch_word_name.base            = (ascii*)":NONAME";
+    scratch_word_name.length          = 7;
+
+    boolean added_colon_noname = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_colon_noname, scratch_word_name );
+
+    if ( !added_colon_noname )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+
     // ;
     scratch_word_name.base            = (ascii*)";";
     scratch_word_name.length          = 1;
@@ -3198,12 +3239,11 @@ void askf_add_core_words( void ) {
         _askf_print_failed_add_word( &scratch_word_name );
 
     // EXIT
-    // special word treated by the VM
     scratch_word_name.base            = (ascii*)"EXIT";
     scratch_word_name.length          = 4;
 
     boolean added_exit = 
-        askf_dic_add_word_native( core_dic_name, FALSE, NULL, scratch_word_name );
+        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_exit, scratch_word_name );
 
     if ( !added_exit )
         _askf_print_failed_add_word( &scratch_word_name );

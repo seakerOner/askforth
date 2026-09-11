@@ -233,5 +233,5 @@ boolean askf_compile_threaded_memory( u64 val ) {
         return FALSE;
     }
 
-    return TRUE;;
+    return TRUE;
 }
