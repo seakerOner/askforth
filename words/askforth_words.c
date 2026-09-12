@@ -19,6 +19,10 @@ AskForth_Cell* global_c01 = NULL;
 AskForth_Cell* global_c02 = NULL;
 AskForth_Cell* global_c03 = NULL;
 
+static boolean _stack_invalid_for_addresses() {
+    return ( vm->stack->cell_scale / 8  ) != sizeof( askf_addr_t );
+}
+
 static void _askf_word_failed( ascii* msg, u64 len ) {
     AskForthError err = {0};
     err.error = ASKF_ERROR_WORD_FAILED;
@@ -97,6 +101,21 @@ static void askf_word_dup ( void ) {
 
     askf_stack_push( global_c00, vm->stack );
     askf_stack_push( global_c00, vm->stack );
+}
+
+static void askf_word_maybe_dup ( void ) {
+    u32 res = askf_stack_pop( global_c00, vm->stack );
+
+    if ( !res ) {
+        _askf_word_failed( ( ascii* )"?dup -> Stack Empty" , 18);
+        return;
+    }
+
+    askf_stack_push( global_c00, vm->stack );
+
+    if ( global_c00->val._64u != 0 )
+        askf_stack_push( global_c00, vm->stack );
+
 }
 
 static void askf_word_2dup ( void ) {
@@ -764,8 +783,7 @@ static void askf_word_load_ptr( void ){
     }
     AskForth_Cell* addr  = global_c00;
 
-    if ( ( vm->stack->cell_scale / 8  ) 
-            != sizeof( askf_addr_t ) ) {
+    if ( _stack_invalid_for_addresses() ) {
         _askf_word_failed( 
                 (ascii *)"@ -> cell width must match architecture word width", 50 );
         return;
@@ -789,8 +807,7 @@ static void askf_word_load_byte_ptr( void ){
 
     askf_stack_pop( addr, vm->stack );
 
-    if ( ( vm->stack->cell_scale / 8  ) 
-            != sizeof( askf_addr_t ) ) {
+    if ( _stack_invalid_for_addresses() ) {
         _askf_word_failed( 
                 (ascii *)"c@ -> cell width must match architecture word width", 51 );
         return;
@@ -807,7 +824,7 @@ static void askf_word_load_byte_ptr( void ){
 static void askf_word_here( void ) {
     AskForth_Cell* addr  = global_c00;
 
-    if ( ( vm->stack->cell_scale / 8  ) != sizeof( askf_addr_t ) ) {
+    if ( _stack_invalid_for_addresses() ) {
         _askf_word_failed( 
                 (ascii *)"HERE -> cell width must match architecture word width", 53 );
         return;
@@ -948,7 +965,7 @@ static void askf_word_print_string( void ) {
             cell->val._addr_t = len;
             askf_stack_push( cell, vm->stack );
 
-            if ( ( vm->stack->cell_scale / 8  ) != sizeof( askf_addr_t ) ) {
+            if ( _stack_invalid_for_addresses() ) {
                 _askf_word_failed( 
                     (ascii *)".\" -> cell width must match architecture word width", 51 );
                 return;
@@ -1076,7 +1093,7 @@ static void askf_word_store_string( void ) {
             return;
     }
 
-    if ( ( vm->stack->cell_scale / 8  ) != sizeof( askf_addr_t ) ) {
+    if ( _stack_invalid_for_addresses() ) {
         _askf_word_failed( 
             (ascii *)".\" -> cell width must match architecture word width", 51 );
         return;
@@ -1361,7 +1378,7 @@ static void askf_word_copy( void ) {
         _askf_word_failed( (ascii*)"MOVE -> Expects ( old_addr new_addr n_bytes - )", 47 );
     }
 
-    if ( ( vm->stack->cell_scale / 8  ) != sizeof( askf_addr_t ) ) {
+    if ( _stack_invalid_for_addresses() ) {
         _askf_word_failed( 
             (ascii *)"COPY -> cell width must match architecture word width", 53 );
         return;
@@ -1481,7 +1498,7 @@ static void askf_word_max_lines( void ) {
 }
 
 static void askf_word_colon( void ) { 
-    if ( ( vm->stack->cell_scale / 8  ) != sizeof( askf_addr_t ) ) {
+    if ( _stack_invalid_for_addresses() ) {
         _askf_word_failed( 
             (ascii *)": -> cell width must match architecture word width", 50 );
         return;
@@ -1537,9 +1554,9 @@ static void askf_word_colon( void ) {
 }
 
 static void askf_word_colon_noname( void ) { 
-    if ( ( vm->stack->cell_scale / 8  ) != sizeof( askf_addr_t ) ) {
+    if ( _stack_invalid_for_addresses() ) {
         _askf_word_failed( 
-            (ascii *)": -> cell width must match architecture word width", 50 );
+            (ascii *)":NONAME -> cell width must match architecture word width", 56 );
         return;
     }
     AskForth_Word* new_word = askf_alloc( sizeof( AskForth_Word ) );
@@ -1606,6 +1623,12 @@ static void askf_word_optimize( void ) {
 static void askf_word_add_line_toblock( void ) {
     if ( vm->stack->index < 1 ) {
         _askf_word_failed( (ascii*)"a -> Expects ( block_addr )", 27 );
+        return;
+    }
+
+    if ( _stack_invalid_for_addresses() ) {
+        _askf_word_failed( 
+            (ascii *)"a -> cell width must match architecture word width", 50 );
         return;
     }
 
@@ -1707,6 +1730,14 @@ static void askf_word_isinterptime( void ) {
     AskForth_Cell* mode  = global_c00;
 
     mode->val._64u       = vm->interpret_state == ASKF_INTERPRET ? -1 : 0 ;
+
+    askf_stack_push( mode, vm->stack );
+}
+
+static void askf_word_state( void ) {
+    AskForth_Cell* mode  = global_c00;
+
+    mode->val._addr_t = ( askf_addr_t )&vm->interpret_state;
 
     askf_stack_push( mode, vm->stack );
 }
@@ -2437,6 +2468,17 @@ void askf_add_core_words( void ) {
 
     if ( !added_dup )
         _askf_print_failed_add_word( &scratch_word_name );
+
+    // ?DUP
+    scratch_word_name.base            = (ascii*)"?dup";
+    scratch_word_name.length          = 4;
+
+    boolean added_maybe_dup = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_maybe_dup, scratch_word_name );
+
+    if ( !added_maybe_dup )
+        _askf_print_failed_add_word( &scratch_word_name );
+
 
     // 2DUP
     scratch_word_name.base            = (ascii*)"2dup";
@@ -3258,8 +3300,8 @@ void askf_add_core_words( void ) {
     if ( !added_bye )
         _askf_print_failed_add_word( &scratch_word_name );
 
-    // COMPTIME?
-    scratch_word_name.base            = (ascii*)"COMPTIME?";
+    // ?COMPTIME
+    scratch_word_name.base            = (ascii*)"?COMPTIME";
     scratch_word_name.length          = 9;
 
     boolean added_iscomptime = 
@@ -3268,14 +3310,24 @@ void askf_add_core_words( void ) {
     if ( !added_iscomptime )
         _askf_print_failed_add_word( &scratch_word_name );
 
-    // INTERPTIME?
-    scratch_word_name.base            = (ascii*)"INTERPTIME?";
+    // ?INTERPTIME
+    scratch_word_name.base            = (ascii*)"?INTERPTIME";
     scratch_word_name.length          = 11;
 
     boolean added_isinterp = 
         askf_dic_add_word_native( core_dic_name, FALSE, askf_word_isinterptime, scratch_word_name );
 
     if ( !added_isinterp )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // STATE
+    scratch_word_name.base            = (ascii*)"STATE";
+    scratch_word_name.length          = 5;
+
+    boolean added_state = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_state, scratch_word_name );
+
+    if ( !added_state )
         _askf_print_failed_add_word( &scratch_word_name );
 
 

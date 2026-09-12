@@ -20,8 +20,8 @@ typedef enum {
 } AskForthVmOuterState;
 
 typedef enum {
-    ASKF_INTERPRET,
-    ASKF_COMPILE
+    ASKF_INTERPRET = 0,
+    ASKF_COMPILE   = -1
 } AskForthVmInterpreterState;
 
 typedef struct {

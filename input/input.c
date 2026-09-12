@@ -94,7 +94,7 @@ void askf_print_char( ascii _char ) {
 
 void askf_print_cell( AskForth_Cell* cell ) {
     #if defined( TARGET_LINUX ) || defined( TARGET_WINDOWS )
-        if (cell->is_signed) {
+        if (*cell->is_signed) {
             fprintf( stdout, "%lld", cell->val._64s );
         }else {
             fprintf( stdout, "%llu", cell->val._64u );
