@@ -362,14 +362,14 @@ static void askf_word_parse_name( void ) {
 static void askf_word_from( void ) {
     if ( _stack_invalid_for_addresses() ) {
         _askf_word_failed( 
-                (ascii *)"FIND -> cell width must match architecture word width", 53 );
+                (ascii *)"[FROM] -> cell width must match architecture word width", 55 );
         return;
     }
 
     askf_word_parse_name();
 
     if ( vm->stack->index < 2 ) {
-        _askf_word_failed( (ascii*)"FROM -> Expected dictionary name", 32 );
+        _askf_word_failed( (ascii*)"[FROM] -> Expected dictionary name", 34 );
         return;
     }
 
@@ -391,13 +391,13 @@ static void askf_word_from( void ) {
 
 static void askf_word_find( void ) {
     if ( vm->stack->index < 1 ) {
-        _askf_word_failed( (ascii*)"FIND -> Expects dictionary address", 34 );
+        _askf_word_failed( (ascii*)"[FIND] -> Expects dictionary address", 36 );
         return;
     }
 
     if ( _stack_invalid_for_addresses() ) {
         _askf_word_failed( 
-                (ascii *)"FIND -> cell width must match architecture word width", 53 );
+                (ascii *)"[FIND] -> cell width must match architecture word width", 55 );
         return;
     }
 
@@ -409,7 +409,7 @@ static void askf_word_find( void ) {
     askf_word_parse_name();
 
     if ( vm->stack->index < 2 ) {
-        _askf_word_failed( (ascii*)"FIND -> Expected word name", 26 );
+        _askf_word_failed( (ascii*)"[FIND] -> Expected word name", 28 );
         return;
     }
 
@@ -428,6 +428,57 @@ static void askf_word_find( void ) {
     global_c03->val._addr_t = ( askf_addr_t )askf_library_find_word_from_dic( dic, &tkn );
 
     askf_stack_push( global_c03, vm->stack );
+}
+
+static void askf_word_forget( void ) {
+    if ( vm->stack->index < 1 ) {
+        _askf_word_failed( (ascii*)"[FORGET] -> Expects dictionary address", 38 );
+        return;
+    }
+
+    if ( _stack_invalid_for_addresses() ) {
+        _askf_word_failed( 
+                (ascii *)"[FORGET] -> cell width must match architecture word width", 57 );
+        return;
+    }
+
+    AskForth_Cell* dic_cell = global_c00;
+    askf_stack_pop( dic_cell, vm->stack );
+
+    AskForth_Dictionary* dic = (AskForth_Dictionary*)dic_cell->val._addr_t;
+
+    askf_word_parse_name();
+
+    if ( vm->stack->index < 2 ) {
+        _askf_word_failed( (ascii*)"[FORGET] -> Expected word name", 30 );
+        return;
+    }
+
+    AskForth_Cell* len   = global_c01;
+    AskForth_Cell* name  = global_c02;
+
+    askf_stack_pop( len, vm->stack );
+    askf_stack_pop( name, vm->stack );
+
+    AskForthToken tkn;
+    tkn.base   = ( ascii* )name->val._addr_t;
+    tkn.length = len->val._addr_t;
+
+    AskForth_Word* word = askf_library_find_word_from_dic( dic, &tkn );
+
+    if ( word->prev && word->next && word->prev->next) {
+        word->prev->next = word->next;
+        word->next->prev = word->prev;
+    } else if ( word->prev && !word->next ) 
+        word->prev->next = NULL;
+
+
+    if ( (askf_addr_t)dic->recent_word == (askf_addr_t)word ) { 
+        dic->recent_word = NULL;
+    }
+    if ( (askf_addr_t)dic->words_base == (askf_addr_t)word ) {  
+        dic->words_base  = NULL;
+    }
 }
 
 static void askf_word_words( void ) {
@@ -460,13 +511,13 @@ static void askf_word_words( void ) {
 
     AskForth_Word* base = dic->words_base;
 
-    if ( !base ) {
-        _askf_word_failed( (ascii*)"words -> empty dictionary" , 25 );
-        return;
-    }
-
     askf_print( dic->name, dic->name_len );
     askf_print( (ascii*)" dictionary words: \n", 20 );
+
+    if ( !base ) {
+        askf_print( (ascii*)"words: -> empty dictionary " , 27 );
+        return;
+    }
 
     while ( base ) {
         askf_print( base->name, base->name_len );
@@ -2744,6 +2795,16 @@ void askf_add_core_words( void ) {
         askf_dic_add_word_native( core_dic_name, TRUE, askf_word_find, scratch_word_name );
 
     if ( !added_find )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // [FORGET]
+    scratch_word_name.base            = (ascii*)"[FORGET]";
+    scratch_word_name.length          = 8;
+
+    boolean added_forget = 
+        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_forget, scratch_word_name );
+
+    if ( !added_forget )
         _askf_print_failed_add_word( &scratch_word_name );
 
 

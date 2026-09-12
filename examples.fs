@@ -21,6 +21,12 @@
 
 : :core core PARSE-NAME s" core" [ swap ] LITERAL LITERAL CREATE-WORD ; 
 
+ADD-DIC vars
+: :vars core PARSE-NAME s" vars" [ swap ] LITERAL LITERAL CREATE-WORD ; 
+
+ADD-DIC tmp
+: :tmp core PARSE-NAME s" tmp"   [ swap ] LITERAL LITERAL CREATE-WORD ; 
+
 \ LIT is a small helper that compiles a literal into
 \ the word currently being compiled.
 
@@ -39,7 +45,9 @@
 :core [:] 
     POSTPONE :
 ;
-
+:core [:vars] 
+    POSTPONE :vars
+;
 \ [;] postpones the execution of ;
 \ 
 \ Together with [:], this allows words to create new
@@ -84,8 +92,8 @@
 \ Notice that CONSTANT does not need a dedicated primitive:
 \ it is simply a new word containing a compiled literal.
 
-:core CONSTANT ( x "name" "dictionary" )
-    [:] LIT [;]
+:core CONSTANT ( x "name" )
+    [:vars] LIT [;]
 ;
 
 \ A constant can also be created directly using the core 
@@ -104,17 +112,17 @@
 \ VARIABLE creates a word which returns the address of 
 \ a newly allocated cell.
 
-:core VARIABLE ( "name" "dictionary" )
+:core VARIABLE ( "name" )
     HERE 1 cells ALLOT
-    [:] LIT [;]
+    [:vars] LIT [;]
 ;
 
 \ BUFFER allocates u cells of memory and creates a word 
 \ which returns the address of that memory.
 
-:core BUFFER ( u "name" "dictionary" )
+:core BUFFER ( u "name" )
     HERE swap cells ALLOT 
-    [:] LIT [;]
+    [:vars] LIT [;]
 ;
 
 
@@ -128,7 +136,7 @@
 \ with CREATE and , you can easily create data-structures
 \
 \ Example:
-\   CREATE table core 10 , 20 , 30 ,
+\   CREATE table 10 , 20 , 30 ,
 \   table 0 FIELD @ .
 \   table 1 FIELD @ .
 \   table 2 FIELD @ .
@@ -139,7 +147,7 @@
     and we want the most recent HERE AFTER the 
     new word compilation )
     HERE dup 1 cells ALLOT 
-    [:] LIT ['] @ COMPILE, [;]
+    [:vars] LIT ['] @ COMPILE, [;]
     HERE swap !
 ;
 
@@ -197,16 +205,16 @@
 \ 
 \ In case of duplicate words or you simply want to specify the dictionary the word must come from 
 \ you can do the following:
-
-:core DO ( limit index - )
-    POSTPONE BEGIN 
-        [FROM] core [FIND] 2dup LITERAL COMPILE, 
-        [FROM] core [FIND] swap LITERAL COMPILE, 
-        [FROM] core [FIND] >R   LITERAL COMPILE, 
-        [FROM] core [FIND] >R   LITERAL COMPILE, 
-        [FROM] core [FIND] >    LITERAL COMPILE, 
-    POSTPONE WHILE
-; IMMEDIATE
+\
+\ :core DO ( limit index - )
+\     POSTPONE BEGIN 
+\         [FROM] core [FIND] 2dup LITERAL COMPILE, 
+\         [FROM] core [FIND] swap LITERAL COMPILE, 
+\         [FROM] core [FIND] >R   LITERAL COMPILE, 
+\         [FROM] core [FIND] >R   LITERAL COMPILE, 
+\         [FROM] core [FIND] >    LITERAL COMPILE, 
+\     POSTPONE WHILE
+\ ; IMMEDIATE
 
 
 :core I 
@@ -229,18 +237,83 @@
     R> R> 2drop 
 ;
 
-\ after an 'error"' is good practice to add recovery code after it
-\ in case the user decides to 'continue' execution after the error
-\ for this example we just abort execution!
+
+\ Example:
+\ :core ensure{.s}
+\   [FROM] core [DEFINED] .s IF 
+\   ." .s is defined!"
+\   THEN
+\ ;
 
 :core [DEFINED]
-    depth 0= IF error" [DEFINED] -> Expects Dictionary address" ( fallback ) ABORT ELSE
-    ?dup  0= IF error" [DEFINED] -> NULL address of Dictionary" ( fallback ) ABORT THEN
+    depth 0= IF error" [DEFINED] -> Expects Dictionary address" ( recovery ) ABORT ELSE
+    ?dup  0= IF error" [DEFINED] -> NULL address of Dictionary" ( recovery ) ABORT THEN
     POSTPONE [FIND] 0<>
 ; IMMEDIATE
 
+\ After 'error"' its good practice to add recovery code ,
+\ in the case the user decides to continue execution after the error.
+\ For this example we just abort execution!
+
 :core [UNDEFINED]
-    depth 0= IF error" [UNDEFINED] -> Expects Dictionary address" ( fallback ) ABORT ELSE
-    ?dup  0= IF error" [UNDEFINED] -> NULL address of Dictionary" ( fallback ) ABORT THEN
+    depth 0= IF error" [UNDEFINED] -> Expects Dictionary address" ( recovery ) ABORT ELSE
+    ?dup  0= IF error" [UNDEFINED] -> NULL address of Dictionary" ( recovery ) ABORT THEN
     POSTPONE [FIND] 0=
 ; IMMEDIATE
+
+\ words to concat strings together
+\
+\ DO-CONCAT uses the current HERE as the destination buffer.
+\ The programmer must not allocate or compile into that region 
+\ until END-CONCAT has completed
+\
+\ Example:
+\
+\  DO-CONCAT
+\       s" Hello "  CONCAT 
+\       s" World! " CONCAT
+\       s" This is a test! Goodbye :D" 
+\  END-CONCAT TYPE
+\
+
+:core store ! ; INLINE
+:core view  @ ; INLINE
+
+CREATE concatTbl 0 , 0 , 0 ,
+
+:tmp items  0 FIELD ;
+:tmp idx    1 FIELD ;
+:tmp offset 2 FIELD ;
+
+:core DO-CONCAT 
+    HERE concatTbl items store
+       0 concatTbl   idx store
+;
+
+
+:core CONCAT ( str2_addr str2_len - )
+    concatTbl items   view 
+    concatTbl idx     view + >R                         \ end of base string where to append
+    dup concatTbl idx view + concatTbl idx store        \ update the base index
+    R> swap
+    \ str2_addr str1_addr_end str2_len copy
+    COPY
+    concatTbl offset view 1 + concatTbl offset store
+;
+
+:core END-CONCAT
+    depth 1 > IF CONCAT THEN  
+
+    concatTbl idx     view dup 
+    concatTbl items   view + 0 swap store
+    concatTbl offset  view - 
+    concatTbl idx    store
+
+    [ concatTbl items ] LITERAL view
+    [ concatTbl idx   ] LITERAL view
+;
+
+[FROM] vars [FORGET] concatTbl
+[FROM] tmp  [FORGET] items  
+[FROM] tmp  [FORGET] idx   
+[FROM] tmp  [FORGET] offset 
