@@ -1572,6 +1572,54 @@ static void askf_word_max_lines( void ) {
 
 }
 
+static void askf_word_create_word( void ) {
+    if ( vm->stack->index < 4 ) {
+        _askf_word_failed( (ascii*)"CREATE-WORD -> Expects 'str_word_addr len str_dic_name len' ", 60 );
+        return;
+    }
+
+    AskForth_Cell* cell = global_c00;
+
+    AskForthToken dic_name = {0};
+
+    askf_stack_pop( cell, vm->stack );
+    dic_name.length = cell->val._64u;
+    askf_stack_pop( cell, vm->stack );
+    dic_name.base   = (ascii*)cell->val._64u;
+
+    AskForthToken word_name = {0};
+
+    askf_stack_pop( cell, vm->stack );
+    word_name.length = cell->val._64u;
+    askf_stack_pop( cell, vm->stack );
+    word_name.base   = (ascii*)cell->val._64u;
+
+    if ( word_name.length > ASKF_MAX_NAME_LEN ) {
+        _askf_word_failed( (ascii*)"CREATE-WORD -> word name > 28: ", 31 );
+        _askf_word_failed( word_name.base , word_name.length );
+        return;
+    }
+
+    AskForth_Dictionary* dic = askf_library_find_dic( vm, &dic_name );
+
+    if ( !dic ) {
+        _askf_word_failed( (ascii*)"CREATE-WORD -> Dictionary not found", 35 );
+
+        AskForthError err = {0};
+        err.error = ASKF_ERROR_UNKNOWN_DIC;
+        err.zone  = ASKF_ERROR_ZONE_INNER;
+        err.opt_message = askf_alloc_new_opt_message( dic_name.base, dic_name.length );
+        askf_throw_error(err);
+        return;
+    }
+
+
+    askf_dic_add_word_threaded( dic, word_name );
+
+    vm->interpret_state  = ASKF_COMPILE;
+
+}
+
 static void askf_word_colon( void ) { 
     if ( _stack_invalid_for_addresses() ) {
         _askf_word_failed( 
@@ -2695,7 +2743,7 @@ void askf_add_core_words( void ) {
     scratch_word_name.length          = 10;
 
     boolean added_parse_name = 
-        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_parse_name, scratch_word_name );
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_parse_name, scratch_word_name );
 
     if ( !added_parse_name )
         _askf_print_failed_add_word( &scratch_word_name );
@@ -3268,6 +3316,16 @@ void askf_add_core_words( void ) {
         askf_dic_add_word_native( core_dic_name, FALSE, askf_word_max_lines, scratch_word_name );
 
     if ( !added_max_lines )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // CREATE-WORD
+    scratch_word_name.base            = (ascii*)"CREATE-WORD";
+    scratch_word_name.length          = 11;
+
+    boolean added_create_word = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_create_word, scratch_word_name );
+
+    if ( !added_create_word )
         _askf_print_failed_add_word( &scratch_word_name );
 
     // :

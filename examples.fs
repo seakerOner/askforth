@@ -11,19 +11,32 @@
 \
 \ ============================================================
 
+\ if you want a global dictionary-like sintax to define your words like in a traditional Forth 
+\ do the following:
+ 
+ s" :" s" core" CREATE-WORD PARSE-NAME s" core" [ swap ] LITERAL LITERAL CREATE-WORD ;
+
+\ for the following of this documente I will use the word :core as a nicety
+\ this is a hint on how to use the dictionaries
+
+: :core core PARSE-NAME s" core" [ swap ] LITERAL LITERAL CREATE-WORD ; 
+
 \ LIT is a small helper that compiles a literal into
 \ the word currently being compiled.
 
-: LIT core
+:core LIT
     POSTPONE LITERAL
 ;
+
+\
+\ Now the sintax for ':' is " : word_name {body} ; "
 
 \ [:] postpones the execution of : 
 \
 \ This allows a word to start compiling another word
 \ while it is itself being executed
 
-: [:] core 
+:core [:] 
     POSTPONE :
 ;
 
@@ -32,14 +45,14 @@
 \ Together with [:], this allows words to create new
 \ word definitions programmatically
 
-: [;] core
+:core [;]
     POSTPONE ;
 ;
 
 \ ['] compiles the execution token of the following word
 \ as a literal.
 
-: ['] core  ( "name" - )
+:core ['] ( "name" - )
     POSTPONE '
     LIT
 ; IMMEDIATE
@@ -47,7 +60,7 @@
 \ EXEC, compiles the word EXECUTE into the current definition
 \ It a small convenience word built from ['] and COMPILE,
 
-: EXEC, core
+:core EXEC,
    ['] EXECUTE COMPILE,
 ;
 
@@ -62,7 +75,7 @@
 \   ALIAS: .s print core
 \   print
 
-: ALIAS: core ( "source" "name" "dictionary" )
+:core ALIAS: ( "source" "name" "dictionary" )
     POSTPONE ' [:] LIT EXEC, [;]
 ;
 
@@ -71,7 +84,7 @@
 \ Notice that CONSTANT does not need a dedicated primitive:
 \ it is simply a new word containing a compiled literal.
 
-: CONSTANT core ( x "name" "dictionary" )
+:core CONSTANT ( x "name" "dictionary" )
     [:] LIT [;]
 ;
 
@@ -91,7 +104,7 @@
 \ VARIABLE creates a word which returns the address of 
 \ a newly allocated cell.
 
-: VARIABLE core ( "name" "dictionary" )
+:core VARIABLE ( "name" "dictionary" )
     HERE 1 cells ALLOT
     [:] LIT [;]
 ;
@@ -99,7 +112,7 @@
 \ BUFFER allocates u cells of memory and creates a word 
 \ which returns the address of that memory.
 
-: BUFFER core ( u "name" "dictionary" )
+:core BUFFER ( u "name" "dictionary" )
     HERE swap cells ALLOT 
     [:] LIT [;]
 ;
@@ -108,7 +121,7 @@
 \ FIELD converts a cell offset into an address relative to 
 \ a base address
 
-: FIELD core ( addr u - addr )
+:core FIELD ( addr u - addr )
     cells +
 ;
 
@@ -120,7 +133,7 @@
 \   table 1 FIELD @ .
 \   table 2 FIELD @ .
 
-: CREATE core ( "name" "dictionary" )
+:core CREATE ( "name" "dictionary" )
     ( we do backpatching on HERE because HERE 
     is used to compile the current compilation 
     and we want the most recent HERE AFTER the 
@@ -130,7 +143,7 @@
     HERE swap !
 ;
 
-: , core ( u - )
+:core , ( u - )
     HERE !
     1 cells ALLOT
 ;
@@ -169,7 +182,7 @@
 \
 \ 10 0 COUNT-UP
 
-: DO core ( limit index - )
+:core DO ( limit index - )
     POSTPONE BEGIN 
         ['] 2dup COMPILE, 
         ['] swap COMPILE, 
@@ -185,7 +198,7 @@
 \ In case of duplicate words or you simply want to specify the dictionary the word must come from 
 \ you can do the following:
 
-: DO core ( limit index - )
+:core DO ( limit index - )
     POSTPONE BEGIN 
         FROM core FIND 2dup LITERAL COMPILE, 
         FROM core FIND swap LITERAL COMPILE, 
@@ -196,11 +209,11 @@
 ; IMMEDIATE
 
 
-: I core 
+:core I 
     R@
 ; INLINE
 
-: LOOP core 
+:core LOOP 
     ['] R>    COMPILE, 
     ['] R>    COMPILE, 
     ['] swap  COMPILE, 
@@ -212,6 +225,6 @@
     ['] 2drop COMPILE, 
 ; IMMEDIATE 
 
-: UNLOOP core
+:core UNLOOP
     R> R> 2drop 
 ;
