@@ -320,6 +320,8 @@ static void askf_word_lib( void ) {
     }
 }
 
+
+
 static void askf_word_parse_name( void ) {
     AskForthTokenizer* tokenizer = NULL;
 
@@ -355,6 +357,79 @@ static void askf_word_parse_name( void ) {
     askf_stack_push( cell, vm->stack );
     cell->val._addr_t = tokenizer->tokens[idx].length;
     askf_stack_push( cell, vm->stack );
+}
+
+static void askf_word_from( void ) {
+    AskForth_Library* lib       = (AskForth_Library*)vm->lib;
+
+    if ( _stack_invalid_for_addresses() ) {
+        _askf_word_failed( 
+                (ascii *)"FIND -> cell width must match architecture word width", 53 );
+        return;
+    }
+
+    askf_word_parse_name();
+
+    if ( vm->stack->index < 2 ) {
+        _askf_word_failed( (ascii*)"FROM -> Expected dictionary name", 32 );
+        return;
+    }
+
+    AskForth_Cell* len   = global_c00;
+    AskForth_Cell* name  = global_c01;
+
+    askf_stack_pop( len, vm->stack );
+    askf_stack_pop( name, vm->stack );
+
+    AskForthToken tkn;
+    tkn.base   = ( ascii* )name->val._addr_t;
+    tkn.length = len->val._addr_t;
+    
+    AskForth_Dictionary* dic = askf_library_find_dic( vm, &tkn );
+
+    global_c03->val._addr_t = ( askf_addr_t )dic;
+    askf_stack_push( global_c03, vm->stack );
+}
+
+static void askf_word_find( void ) {
+    if ( vm->stack->index < 1 ) {
+        _askf_word_failed( (ascii*)"FIND -> Expects dictionary address", 34 );
+        return;
+    }
+
+    if ( _stack_invalid_for_addresses() ) {
+        _askf_word_failed( 
+                (ascii *)"FIND -> cell width must match architecture word width", 53 );
+        return;
+    }
+
+    AskForth_Cell* dic_cell = global_c00;
+    askf_stack_pop( dic_cell, vm->stack );
+
+    AskForth_Dictionary* dic = (AskForth_Dictionary*)dic_cell->val._addr_t;
+
+    askf_word_parse_name();
+
+    if ( vm->stack->index < 2 ) {
+        _askf_word_failed( (ascii*)"FIND -> Expected word name", 26 );
+        return;
+    }
+
+    AskForth_Cell* len   = global_c01;
+    AskForth_Cell* name  = global_c02;
+
+    askf_stack_pop( len, vm->stack );
+    askf_stack_pop( name, vm->stack );
+
+    AskForthToken tkn;
+    tkn.base   = ( ascii* )name->val._addr_t;
+    tkn.length = len->val._addr_t;
+
+    // find word from dic
+
+    global_c03->val._addr_t = ( askf_addr_t )askf_library_find_word_from_dic( dic, &tkn );
+
+    askf_stack_push( global_c03, vm->stack );
 }
 
 static void askf_word_words( void ) {
@@ -2593,6 +2668,27 @@ void askf_add_core_words( void ) {
 
     if ( !added_lib )
         _askf_print_failed_add_word( &scratch_word_name );
+
+    // FROM
+    scratch_word_name.base            = (ascii*)"FROM";
+    scratch_word_name.length          = 4;
+
+    boolean added_from = 
+        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_from, scratch_word_name );
+
+    if ( !added_from )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // FIND
+    scratch_word_name.base            = (ascii*)"FIND";
+    scratch_word_name.length          = 4;
+
+    boolean added_find = 
+        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_find, scratch_word_name );
+
+    if ( !added_find )
+        _askf_print_failed_add_word( &scratch_word_name );
+
 
     // PARSE-NAME
     scratch_word_name.base            = (ascii*)"PARSE-NAME";

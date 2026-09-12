@@ -179,6 +179,23 @@
     POSTPONE WHILE
 ; IMMEDIATE
 
+\ At the moment of writing this the search order for words on AskForth is oldest_dictionary->newest_dictionary 
+\ And on each dictionary the search order is newest_word->oldest_word
+\ 
+\ In case of duplicate words or you simply want to specify the dictionary the word must come from 
+\ you can do the following:
+
+: DO core ( limit index - )
+    POSTPONE BEGIN 
+        FROM core FIND 2dup LITERAL COMPILE, 
+        FROM core FIND swap LITERAL COMPILE, 
+        FROM core FIND >R   LITERAL COMPILE, 
+        FROM core FIND >R   LITERAL COMPILE, 
+        FROM core FIND >    LITERAL COMPILE, 
+    POSTPONE WHILE
+; IMMEDIATE
+
+
 : I core 
     R@
 ; INLINE

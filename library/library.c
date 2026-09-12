@@ -129,6 +129,26 @@ AskForth_Word* askf_library_find_word( AskForthVm* vm, AskForthToken* token ) {
     return NULL;
 }
 
+AskForth_Word* askf_library_find_word_from_dic( AskForth_Dictionary* dic, AskForthToken* token ) {
+    AskForth_Word* base_word = dic->recent_word;
+
+    while ( base_word != NULL ) {
+        if ( token->length != base_word->name_len )
+            goto skip_word;
+
+        for (u64 x = 0; x < token->length; x++) 
+            if ( token->base[x] != base_word->name[x] )
+                goto skip_word;
+
+        return base_word;
+
+        skip_word:
+        base_word = base_word->prev;
+    }
+
+    return NULL;
+}
+
 boolean askf_dic_add_word_native( 
         AskForthToken dic_name, 
         boolean is_immediate,
