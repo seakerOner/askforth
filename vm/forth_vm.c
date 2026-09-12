@@ -220,8 +220,9 @@ return_call:
             vm_c01->val._addr_t = *ip;
             _askf_word_failed( (ascii*)vm_c00->val._addr_t, vm_c01->val._addr_t );
 
-            //_askf_push_ip_frame( vm, word, (u64)(ip + 1), TRUE); // next op
-            break;
+            _askf_push_ip_frame( vm, word, (u64)(ip + 1), TRUE); // next op
+            return;
+            //break;
         }
         op_endword:{
             break;

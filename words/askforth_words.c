@@ -360,8 +360,6 @@ static void askf_word_parse_name( void ) {
 }
 
 static void askf_word_from( void ) {
-    AskForth_Library* lib       = (AskForth_Library*)vm->lib;
-
     if ( _stack_invalid_for_addresses() ) {
         _askf_word_failed( 
                 (ascii *)"FIND -> cell width must match architecture word width", 53 );
@@ -559,7 +557,7 @@ static void askf_word_equals( void ) {
     askf_stack_pop( top_stack, vm->stack );
     askf_stack_pop( below_top__stack, vm->stack );
 
-    u64 val = below_top__stack->val._64u == top_stack->val._64u;
+    u64 val = below_top__stack->val._64u == top_stack->val._64u ? -1 : 0;
 
     top_stack->val._64u = val;
     askf_stack_push( top_stack, vm->stack );
@@ -574,7 +572,7 @@ static void askf_word_equals_zero( void ) {
     AskForth_Cell* top_stack = global_c00;
     askf_stack_pop( top_stack, vm->stack );
 
-    u64 val = 0 == top_stack->val._64u;
+    u64 val = 0 == top_stack->val._64u ? -1 : 0;
 
     top_stack->val._64u = val;
     askf_stack_push( top_stack, vm->stack );
@@ -593,9 +591,9 @@ static void askf_word_less_than( void ) {
 
     u64 val = 0;
     if ( vm->stack->is_signed ) 
-        val = below_top__stack->val._64s < top_stack->val._64s;
+        val = below_top__stack->val._64s < top_stack->val._64s ? -1 : 0;
     else
-        val = below_top__stack->val._64u < top_stack->val._64u;
+        val = below_top__stack->val._64u < top_stack->val._64u ? -1 : 0;
 
     top_stack->val._64u = val;
     askf_stack_push( top_stack, vm->stack );
@@ -615,9 +613,9 @@ static void askf_word_less_than_or_equal( void ) {
 
     u64 val = 0;
     if ( vm->stack->is_signed ) 
-        val = below_top__stack->val._64s <= top_stack->val._64s;
+        val = below_top__stack->val._64s <= top_stack->val._64s ? -1 : 0;
     else
-        val = below_top__stack->val._64u <= top_stack->val._64u;
+        val = below_top__stack->val._64u <= top_stack->val._64u ? -1 : 0;
 
     top_stack->val._64u = val;
     askf_stack_push( top_stack, vm->stack );
@@ -634,9 +632,9 @@ static void askf_word_less_than_zero( void ) {
 
     u64 val = 0;
     if ( vm->stack->is_signed )
-        val = 0 < top_stack->val._64s;
+        val = 0 < top_stack->val._64s ? -1 : 0;
     else
-        val = 0 < top_stack->val._64u;
+        val = 0 < top_stack->val._64u ? -1 : 0;
 
     top_stack->val._64u = val;
     askf_stack_push( top_stack, vm->stack );
@@ -657,9 +655,9 @@ static void askf_word_more_than( void ) {
     u64 val = 0;
     
     if ( vm->stack->is_signed )
-        val = below_top__stack->val._64s > top_stack->val._64s;
+        val = below_top__stack->val._64s > top_stack->val._64s ? -1 : 0;
     else
-        val = below_top__stack->val._64u > top_stack->val._64u;
+        val = below_top__stack->val._64u > top_stack->val._64u ? -1 : 0;
 
     top_stack->val._64u = val;
     askf_stack_push( top_stack, vm->stack );
@@ -680,9 +678,9 @@ static void askf_word_more_than_or_equal( void ) {
     u64 val = 0;
     
     if ( vm->stack->is_signed )
-        val = below_top__stack->val._64s >= top_stack->val._64s;
+        val = below_top__stack->val._64s >= top_stack->val._64s ? -1 : 0;
     else
-        val = below_top__stack->val._64u >= top_stack->val._64u;
+        val = below_top__stack->val._64u >= top_stack->val._64u ? -1 : 0;
 
     top_stack->val._64u = val;
     askf_stack_push( top_stack, vm->stack );
@@ -700,9 +698,9 @@ static void askf_word_more_than_zero( void ) {
     u64 val = 0;
 
     if ( vm->stack->is_signed )
-         val = 0 > top_stack->val._64s;
+         val = 0 > top_stack->val._64s ? -1 : 0;
     else
-         val = 0 > top_stack->val._64u;
+         val = 0 > top_stack->val._64u ? -1 : 0;
 
     top_stack->val._64u = val;
     askf_stack_push( top_stack, vm->stack );
@@ -720,7 +718,7 @@ static void askf_word_not_equal( void ) {
     askf_stack_pop( top_stack, vm->stack );
     askf_stack_pop( below_top__stack, vm->stack );
 
-    u64 val = below_top__stack->val._64u != top_stack->val._64u;
+    u64 val = below_top__stack->val._64u != top_stack->val._64u ? -1 : 0;
 
     top_stack->val._64u = val;
     askf_stack_push( top_stack, vm->stack );
@@ -735,7 +733,7 @@ static void  askf_word_not_equal_zero( void ) {
     AskForth_Cell* top_stack = global_c00;
     askf_stack_pop( global_c00, vm->stack );
 
-    u64 val = 0 != top_stack->val._64u;
+    u64 val = 0 != top_stack->val._64u ? -1 : 0;
 
     top_stack->val._64u = val;
     askf_stack_push( top_stack, vm->stack );
@@ -1824,6 +1822,8 @@ static void askf_word_abort( void ) {
     if ( vm->interpret_state == ASKF_COMPILE )
         vm->interpret_state = ASKF_INTERPRET;
 
+    askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_BLOCKING_INPUT );
+
     askf_reset_input_buffer( vm, ASKF_MAIN_PARSER );
     askf_reset_input_buffer( vm, ASKF_X_PARSER );
     askf_tokenizer_reset( vm->tokenizer );
@@ -1834,7 +1834,6 @@ static void askf_word_abort( void ) {
     vm->cf_stack->index      = 0;
     vm->tframes_stack->index = 0;
 
-    askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_BLOCKING_INPUT );
 }
 
 static void askf_word_bye( void ) { 
@@ -2261,8 +2260,18 @@ void askf_word_peek_rstack( void ) {
     askf_stack_push( val, vm->stack );
 }
 
+void askf_word_defined( void ) {
+    if ( _stack_invalid_for_addresses() ) {
+        _askf_word_failed( 
+            (ascii *)"[defined] -> cell width must match architecture word width", 58 );
+        return;
+    }
+
+
+}
+
 void askf_word_see( void ) {
-    if ( ( vm->stack->cell_scale / 8  ) != sizeof( askf_addr_t ) ) {
+    if ( _stack_invalid_for_addresses() ) {
         _askf_word_failed( 
             (ascii *)"see -> cell width must match architecture word width", 52 );
         return;
@@ -2717,9 +2726,9 @@ void askf_add_core_words( void ) {
     if ( !added_lib )
         _askf_print_failed_add_word( &scratch_word_name );
 
-    // FROM
-    scratch_word_name.base            = (ascii*)"FROM";
-    scratch_word_name.length          = 4;
+    // [FROM]
+    scratch_word_name.base            = (ascii*)"[FROM]";
+    scratch_word_name.length          = 6;
 
     boolean added_from = 
         askf_dic_add_word_native( core_dic_name, TRUE, askf_word_from, scratch_word_name );
@@ -2727,9 +2736,9 @@ void askf_add_core_words( void ) {
     if ( !added_from )
         _askf_print_failed_add_word( &scratch_word_name );
 
-    // FIND
-    scratch_word_name.base            = (ascii*)"FIND";
-    scratch_word_name.length          = 4;
+    // [FIND]
+    scratch_word_name.base            = (ascii*)"[FIND]";
+    scratch_word_name.length          = 6;
 
     boolean added_find = 
         askf_dic_add_word_native( core_dic_name, TRUE, askf_word_find, scratch_word_name );
@@ -3687,5 +3696,4 @@ void askf_add_core_words( void ) {
 
     if ( !added_see )
         _askf_print_failed_add_word( &scratch_word_name );
-
 }

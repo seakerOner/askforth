@@ -200,11 +200,11 @@
 
 :core DO ( limit index - )
     POSTPONE BEGIN 
-        FROM core FIND 2dup LITERAL COMPILE, 
-        FROM core FIND swap LITERAL COMPILE, 
-        FROM core FIND >R   LITERAL COMPILE, 
-        FROM core FIND >R   LITERAL COMPILE, 
-        FROM core FIND >    LITERAL COMPILE, 
+        [FROM] core [FIND] 2dup LITERAL COMPILE, 
+        [FROM] core [FIND] swap LITERAL COMPILE, 
+        [FROM] core [FIND] >R   LITERAL COMPILE, 
+        [FROM] core [FIND] >R   LITERAL COMPILE, 
+        [FROM] core [FIND] >    LITERAL COMPILE, 
     POSTPONE WHILE
 ; IMMEDIATE
 
@@ -228,3 +228,15 @@
 :core UNLOOP
     R> R> 2drop 
 ;
+
+:core [DEFINED]
+    depth 0= IF error" [DEFINED] -> Expects Dictionary address" ( fallback ) ABORT ELSE
+    ?dup  0= IF error" [DEFINED] -> NULL address of Dictionary" ( fallback ) ABORT THEN
+    POSTPONE [FIND] 0<>
+; IMMEDIATE
+
+:core [UNDEFINED]
+    depth 0= IF error" [UNDEFINED] -> Expects Dictionary address" ( fallback ) ABORT ELSE
+    ?dup  0= IF error" [UNDEFINED] -> NULL address of Dictionary" ( fallback ) ABORT THEN
+    POSTPONE [FIND] 0=
+; IMMEDIATE
