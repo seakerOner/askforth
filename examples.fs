@@ -229,6 +229,10 @@
     R> R> 2drop 
 ;
 
+\ after an 'error"' is good practice to add recovery code after it
+\ in case the user decides to 'continue' execution after the error
+\ for this example we just abort execution!
+
 :core [DEFINED]
     depth 0= IF error" [DEFINED] -> Expects Dictionary address" ( fallback ) ABORT ELSE
     ?dup  0= IF error" [DEFINED] -> NULL address of Dictionary" ( fallback ) ABORT THEN
