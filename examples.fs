@@ -13,8 +13,8 @@
 
 \ if you want a global dictionary-like sintax to define your words like in a traditional Forth 
 \ do the following:
- 
- s" :" s" core" CREATE-WORD PARSE-NAME s" core" [ swap ] LITERAL LITERAL CREATE-WORD ;
+\
+\ s" :" s" core" CREATE-WORD PARSE-NAME s" core" [ swap ] LITERAL LITERAL CREATE-WORD ;
 
 \ for the following of this documente I will use the word :core as a nicety
 \ this is a hint on how to use the dictionaries
