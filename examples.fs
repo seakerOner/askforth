@@ -293,7 +293,7 @@ CREATE concatTbl 0 , 0 , 0 ,
 
 :core CONCAT ( str2_addr str2_len - )
     concatTbl items   view 
-    concatTbl idx     view + >R                         \ end of base string where to append
+    concatTbl idx     view + >R                         \ end of base string to append
     dup concatTbl idx view + concatTbl idx store        \ update the base index
     R> swap
     \ str2_addr str1_addr_end str2_len copy
