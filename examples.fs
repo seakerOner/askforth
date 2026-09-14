@@ -251,10 +251,10 @@ ADD-DIC tmp
 \
 \ :core testnumber ( n - )
 \   SIGNED CASE 
-\       10 >    EXP-OF ." more than 10!" ENDOF
-\       10      OF     ." magic number!" ENDOF
-\       9       OF     ." is 9!"         ENDOF
-\       9 < I 1 >= and EXP-OF ." between 8 and 1!" ENDOF
+\       10 >    ?OF ." more than 10!" ENDOF
+\       10      OF  ." magic number!" ENDOF
+\       9       OF  ." is 9!"         ENDOF
+\       9 < I 1 >= and ?OF ." between 8 and 1!" ENDOF
 \       ( default )
 \       . ." below 0!"
 \   ENDCASE UNSIGNED
@@ -272,7 +272,7 @@ ADD-DIC tmp
 ; IMMEDIATE
 
 \ for expressions, must leave a boolean flag on top the stack
-:core EXP-OF
+:core ?OF
     POSTPONE IF
 ; IMMEDIATE
 
