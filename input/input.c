@@ -93,11 +93,30 @@ void askf_print_char( ascii _char ) {
 }
 
 void askf_print_cell( AskForth_Cell* cell ) {
+    u8 radix          = askf_get_global_vm()->num_base;
+    ascii* flag       = NULL;
+    boolean is_signed = *cell->is_signed;
+    
+    switch ( radix ) {
+        case ASKF_OCTAL:
+            flag = (ascii*)"%llo";
+            break;
+        default:
+        case ASKF_DECIMAL:
+            if ( is_signed ) 
+                flag = (ascii*)"%lld";
+            else
+                flag = (ascii*)"%llu";
+            break;
+        case ASKF_HEXADECIMAL:
+            flag = (ascii*)"%llx";
+            break;
+    }
     #if defined( TARGET_LINUX ) || defined( TARGET_WINDOWS )
-        if (*cell->is_signed) {
-            fprintf( stdout, "%lld", cell->val._64s );
+        if ( is_signed ) {
+            fprintf( stdout, (const char*)flag, cell->val._64s );
         }else {
-            fprintf( stdout, "%llu", cell->val._64u );
+            fprintf( stdout, (const char*)flag, cell->val._64u );
         }
     #endif
 }

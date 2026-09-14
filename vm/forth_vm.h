@@ -32,8 +32,9 @@ typedef struct {
 
 typedef enum {
     ASKF_BINARY     = 2,
+    ASKF_OCTAL      = 8,
     ASKF_DECIMAL    = 10,
-    ASF_HEXADECIMAL = 16
+    ASKF_HEXADECIMAL = 16
 } AskForthNumBase;
 
 typedef enum {

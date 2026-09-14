@@ -15,9 +15,13 @@
 \ do the following:
 \
 \ s" :" s" core" CREATE-WORD PARSE-NAME s" core" [ swap ] LITERAL LITERAL CREATE-WORD ;
+\
+\ Now the sintax for ':' is " : word_name {body} ; "
 
 \ for the following of this documente I will use the word :core as a nicety
 \ this is a hint on how to use the dictionaries
+
+DECIMAL 64 BITS UNSIGNED
 
 : :core core PARSE-NAME s" core" [ swap ] LITERAL LITERAL CREATE-WORD ; 
 
@@ -34,8 +38,6 @@ ADD-DIC tmp
     POSTPONE LITERAL
 ;
 
-\
-\ Now the sintax for ':' is " : word_name {body} ; "
 
 \ [:] postpones the execution of : 
 \

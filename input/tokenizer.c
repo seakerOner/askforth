@@ -43,28 +43,56 @@ void askf_tokenizer_add( AskForthTokenizer* tokenizer, AskForthToken new_token )
     tokenizer->index++;
 }
 
+static boolean _char_to_digit( u8 radix, ascii character, u64* digit ) {
+    if ( radix < 11 )
+        if ( character < '0' || character > ( radix - 1 + '0' ) ) 
+            return FALSE;
+
+    if ( radix < 36 )
+        if ( character < '0' || 
+                ( character > '9' &&  character < 'A' ) ||
+                ( character > ( radix - 1 + '@' ) && character < 'a' )  || character > ( radix - 1 + '`' ))
+            return FALSE;
+
+    if ( character >= '0' && character <= '9' ) {
+        *digit = character - '0';
+        return TRUE;
+    }
+    else if ( character >= 'A' && character <= 'Z' ) {
+        *digit = character - 'A' + 10;
+        return TRUE;
+    }
+    else if ( character >= 'a' && character <= 'z' ) {
+        *digit = character - 'a' + 10;
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
 // TODO: add number transformation by number base ( binary, decimal, hexadecimal )
 boolean askf_parse_token_to_num( AskForthToken* token, AskForth_Cell* out_cell ) {
     u64 result              = 0;
     boolean make_negative   = FALSE;
+    u8 radix                = askf_get_global_vm()->num_base;
 
-    if ( token->base[0] == '-' ) {
-        make_negative = TRUE;
-    }
-    if ( make_negative && token->length == 1 ) {
-        // TODO: throw error
+    if ( radix < 2 || radix > 36 ) 
         return FALSE;
-    }
+
+    if ( token->base[0] == '-' ) 
+        make_negative = TRUE;
+
+    if ( make_negative && token->length == 1 ) 
+        return FALSE;
 
     for ( u64 x = make_negative; x < token->length; x++ ) {
         ascii character = token->base[x];
 
-        if ( character < '0' || character > '9' ) {
-            // TODO: throw error
+        u64 digit;
+        if ( !_char_to_digit( radix, character, &digit ) )
             return FALSE;
-        }
 
-        result = result * 10 + ( character - '0' );
+        result = result * radix + digit;
     }
 
     if ( make_negative )

@@ -52,6 +52,23 @@ static void askf_word_stack_depth( void ) {
     askf_stack_push( global_c00, vm->stack );
 }
 
+static void askf_word_base( void ) {
+    global_c00->val._addr_t = ( askf_addr_t )&vm->num_base;
+    askf_stack_push( global_c00, vm->stack );
+}
+
+static void askf_word_decimal( void ) {
+    vm->num_base = ASKF_DECIMAL;
+}
+
+static void askf_word_hexadecimal( void ) {
+    vm->num_base = ASKF_HEXADECIMAL;
+}
+
+static void askf_word_octal( void ) {
+    vm->num_base = ASKF_OCTAL;
+}
+
 static void askf_word_dot_stack ( void ) {
     global_c00->val._64u = (u8)vm->stack->cell_scale;
     askf_print_cell( global_c00 );
@@ -2632,10 +2649,51 @@ void askf_add_core_words( void ) {
     if ( !added_stack_depth )
         _askf_print_failed_add_word( &scratch_word_name );
 
+    // BASE
+    scratch_word_name.base            = (ascii*)"BASE";
+    scratch_word_name.length          = 4;
+
+    boolean added_base = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_base, scratch_word_name );
+
+    if ( !added_base )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // DECIMAL
+    scratch_word_name.base            = (ascii*)"DECIMAL";
+    scratch_word_name.length          = 7;
+
+    boolean added_decimal = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_decimal, scratch_word_name );
+
+    if ( !added_decimal )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // HEX
+    scratch_word_name.base            = (ascii*)"HEX";
+    scratch_word_name.length          = 3;
+
+    boolean added_hex = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_hexadecimal, scratch_word_name );
+
+    if ( !added_hex )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // OCTAL
+    scratch_word_name.base            = (ascii*)"OCTAL";
+    scratch_word_name.length          = 5;
+
+    boolean added_octal = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_octal, scratch_word_name );
+
+    if ( !added_octal )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+
+    // DOT STACK 
     scratch_word_name.base            = (ascii*)".s";
     scratch_word_name.length          = 2;
 
-    // DOT STACK 
     boolean added_dot_stack = 
         askf_dic_add_word_native( core_dic_name, FALSE, askf_word_dot_stack, scratch_word_name );
 
