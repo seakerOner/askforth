@@ -323,45 +323,68 @@ ADD-DIC tmp
 \       s" World! " CONCAT
 \       s" This is a test! Goodbye :D" 
 \  END-CONCAT TYPE
-\
 
-:core store ! ; INLINE
+
 :core view  @ ; INLINE
 
-CREATE concatTbl 0 , 0 , 0 ,
+:core TO 
+    [FROM] vars LITERAL \ the dictionary we will search for words (could also be the 'tmp' dictionary)
 
-:tmp items  0 FIELD ;
-:tmp idx    1 FIELD ;
-:tmp offset 2 FIELD ;
+    TRUE CASE 
+        ?COMPTIME OF
+            POSTPONE [FIND] 
+            ?dup 0= IF 
+                error" TO -> Unknown VARIABLE." ABORT 
+            THEN COMPILE,
+            ['] ! COMPILE,
+        ENDOF
+
+        ?INTERPTIME OF
+            POSTPONE [FIND] 
+            ?dup 0= IF 
+                error" TO -> Unknown VARIABLE." ABORT 
+            THEN
+            EXECUTE !
+        ENDOF
+    ENDCASE
+; IMMEDIATE
+
+VARIABLE concat@items 
+VARIABLE concat@idx
+VARIABLE concat@offset
+
+0 TO concat@items
+0 TO concat@idx
+0 TO concat@offset
 
 :core DO-CONCAT 
-    HERE concatTbl items store
-       0 concatTbl   idx store
+    HERE TO concat@items 
+       0 TO concat@idx 
 ;
 
 :core CONCAT ( str2_addr str2_len - )
-    concatTbl items   view 
-    concatTbl idx     view + >R                         \ end of base string to append
-    dup concatTbl idx view + concatTbl idx store        \ update the base index
+    concat@items view concat@idx view + >R      \ end of base string to append
+    dup concat@idx view + TO concat@idx         \ update the base index
     R> swap
     \ str2_addr str1_addr_end str2_len copy
     COPY
-    concatTbl offset view 1 + concatTbl offset store
+    concat@offset view 1 + TO concat@offset
 ;
 
 :core END-CONCAT
     depth 1 > IF CONCAT THEN  
+    
+    0
+    concat@idx    view 
+    concat@items  view + !     \ store string null terminator
 
-    concatTbl idx     view dup 
-    concatTbl items   view + 0 swap store
-    concatTbl offset  view - 
-    concatTbl idx    store
+    concat@idx    view 
+    concat@offset view - TO concat@idx
 
-    [ concatTbl items ] LITERAL view
-    [ concatTbl idx   ] LITERAL view
+    [ concat@items ] LITERAL view
+    [ concat@idx   ] LITERAL view
 ;
 
-[FROM] vars [FORGET] concatTbl
-[FROM] tmp  [FORGET] items  
-[FROM] tmp  [FORGET] idx   
-[FROM] tmp  [FORGET] offset 
+[FROM] vars [FORGET] concat@items
+[FROM] vars [FORGET] concat@idx
+[FROM] vars [FORGET] concat@offset
