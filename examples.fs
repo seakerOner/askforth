@@ -239,6 +239,53 @@ ADD-DIC tmp
     R> R> 2drop 
 ;
 
+\ Example:  BEGIN ... UNTIL
+
+:core UNTIL 
+    ['] invert COMPILE,
+    POSTPONE WHILE 
+    POSTPONE REPEAT
+; IMMEDIATE
+
+\ Example:
+\
+\ :core testnumber ( n - )
+\   SIGNED CASE 
+\       10 >    EXP-OF ." more than 10!" ENDOF
+\       10      OF     ." magic number!" ENDOF
+\       9       OF     ." is 9!"         ENDOF
+\       9 < I 1 >= and EXP-OF ." between 8 and 1!" ENDOF
+\       ( default )
+\       . ." below 0!"
+\   ENDCASE UNSIGNED
+\ ;
+
+:core CASE
+    ['] dup COMPILE, 
+    ['] >R  COMPILE,
+    0 >R
+; IMMEDIATE
+
+:core OF      
+    ['] = COMPILE, 
+    POSTPONE IF   
+; IMMEDIATE
+
+\ for expressions, must leave a boolean flag on top the stack
+:core EXP-OF
+    POSTPONE IF
+; IMMEDIATE
+
+:core ENDOF   
+    POSTPONE ELSE 
+    R> 1 + >R
+    ['] R@ COMPILE,
+; IMMEDIATE
+
+:core ENDCASE 
+    R> 0 DO POSTPONE THEN LOOP 
+; IMMEDIATE
+
 
 \ Example:
 \ :core ensure{.s}
@@ -291,7 +338,6 @@ CREATE concatTbl 0 , 0 , 0 ,
     HERE concatTbl items store
        0 concatTbl   idx store
 ;
-
 
 :core CONCAT ( str2_addr str2_len - )
     concatTbl items   view 
