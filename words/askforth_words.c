@@ -5,9 +5,9 @@
 #include "../stack/stack.h"
 #include "../memory/blocks.h"
 #include "../optimizer/optimizer.h"
-#include "../fallback_loop/fallback.h"
 
 #if defined( TARGET_LINUX ) || defined( TARGET_WINDOWS )
+    #include "../ffi/load_extern_library.h"
     #include <stdio.h>
 #endif
 
@@ -18,6 +18,7 @@ AskForth_Cell* global_c00 = NULL;
 AskForth_Cell* global_c01 = NULL;
 AskForth_Cell* global_c02 = NULL;
 AskForth_Cell* global_c03 = NULL;
+AskForthForeignFuncSig* global_ffi_sig = NULL;
 
 static boolean _stack_invalid_for_addresses() {
     return ( vm->stack->cell_scale / 8  ) != sizeof( askf_addr_t );
@@ -355,7 +356,7 @@ static void askf_word_parse_name( void ) {
     }
 
     if ( tokenizer->ctx.idx + 1 >= tokenizer->index ) {
-        _askf_word_failed( (ascii*)"PARSE-NAME -> No token found", 28 );
+        _askf_word_failed( (ascii*)"PARSE-NAME -> No token found ", 28 );
         return;
     }
 
@@ -483,7 +484,7 @@ static void askf_word_forget( void ) {
 
     AskForth_Word* word = askf_library_find_word_from_dic( dic, &tkn );
 
-    if ( word->prev && word->next && word->prev->next) {
+    if ( word->prev && word->next ) {
         word->prev->next = word->next;
         word->next->prev = word->prev;
     } else if ( word->prev && !word->next ) 
@@ -2505,6 +2506,267 @@ void askf_word_see( void ) {
 }
 
 #if defined( TARGET_LINUX ) || defined( TARGET_WINDOWS )
+static void askf_word_foreign( void ) {
+    if ( _stack_invalid_for_addresses() ) {
+        _askf_word_failed( 
+                (ascii *)"FOREIGN -> cell width must match architecture word width", 56 );
+        return;
+    }
+    askf_word_parse_name();
+
+    if ( vm->stack->index < 2 ) {
+        _askf_word_failed( (ascii*)"FOREIGN -> Expects token", 24 );
+        return;
+    }
+
+    AskForth_Cell* len  = global_c00;
+    AskForth_Cell* addr = global_c01;
+
+    askf_stack_pop( len, vm->stack );
+    askf_stack_pop( addr, vm->stack );
+
+    if ( !askf_load_foreign_object( (const ascii*)addr->val._addr_t, len->val._64u ) ) 
+        _askf_word_failed( (ascii*)"FOREIGN -> Could not load foreign object (shared library)", 57 );
+}
+
+static void askf_word_freeforeign( void ) {
+    if ( _stack_invalid_for_addresses() ) {
+        _askf_word_failed( 
+                (ascii *)"FREEFOREIGN -> cell width must match architecture word width", 60 );
+        return;
+    }
+    askf_word_parse_name();
+
+    if ( vm->stack->index < 2 ) {
+        _askf_word_failed( (ascii*)"FREEFOREIGN -> Expects token", 28 );
+        return;
+    }
+
+    AskForth_Cell* len  = global_c00;
+    AskForth_Cell* addr = global_c01;
+
+    askf_stack_pop( len, vm->stack );
+    askf_stack_pop( addr, vm->stack );
+
+    if ( !askf_free_foreign_object( (const ascii*)addr->val._addr_t, len->val._64u ) ) 
+        _askf_word_failed( (ascii*)"FREEFOREIGN -> Foreign object (shared library) not found", 56 );
+}
+
+void askf_word_dot_foreign( void ) {
+    AskForthForeignObject* base = vm->foreign_manager->objects;
+
+    askf_print( (ascii*)"Foreign objects (shared libraries): ", 36 );
+    while ( base ) {
+        askf_print( base->name, base->name_len );
+        askf_print( (ascii*)" ", 1 );
+        base = base->next;
+    }
+}
+
+
+static boolean _strequal( ascii* str, ascii* to_compare, u64 len ) {
+    for ( u64 x = 0; x < len; x++ )
+        if ( str[x] != to_compare[x] )
+            return FALSE;
+
+    return TRUE;
+}
+
+boolean _askf_interp_ffi_params_and_result_to_global_sig( void ) {
+    AskForthTokenizer* tokenizer = NULL;
+
+    switch ( vm->parse_type ) {
+        case ASKF_MAIN_PARSER:
+            tokenizer = vm->tokenizer;
+            break;
+        case ASKF_X_PARSER:
+            tokenizer = vm->tokenizer_x;
+            break;
+        default:
+            return FALSE;
+    }
+
+    u64 ctx_idx = tokenizer->ctx.idx;
+
+    boolean got_terminator  = FALSE;
+
+    boolean got_params      = FALSE;
+    boolean got_result      = FALSE;
+
+    while ( ctx_idx < tokenizer->index ) {
+        AskForthToken* tkn = &tokenizer->tokens[ctx_idx];
+
+        if ( tkn->length == 3 ) { 
+            if ( _strequal( tkn->base, (ascii*)"u64", 3 ) ) {
+                if ( !got_params ) {
+                    global_ffi_sig->args[global_ffi_sig->count++] = ASKF_ARG_U64;
+                } else {
+                    if ( got_result ) {
+                        _askf_word_failed( (ascii*)"FUNCTION: -> result must only contain one return type ", 54 );
+                        return FALSE;
+                    }
+                    global_ffi_sig->ret_type = ASKF_ARG_U64;
+                    got_result = TRUE;
+                }
+            }
+            if ( _strequal( tkn->base, (ascii*)"i64", 3 ) )  {
+                if ( !got_params ) {
+                    global_ffi_sig->args[global_ffi_sig->count++] = ASKF_ARG_I64;
+                } else {
+                    if ( got_result ) {
+                        _askf_word_failed( (ascii*)"FUNCTION: -> result must only contain one return type ", 54 );
+                        return FALSE;
+                    }
+                    global_ffi_sig->ret_type = ASKF_ARG_U64;
+                    got_result = TRUE;
+                }
+            }
+            if ( _strequal( tkn->base, (ascii*)"ptr", 3 ) ) {
+                if ( !got_params ) {
+                    global_ffi_sig->args[global_ffi_sig->count++] = ASKF_ARG_PTR;
+                } else {
+                    if ( got_result ) {
+                        _askf_word_failed( (ascii*)"FUNCTION: -> result must only contain one return type ", 54 );
+                        return FALSE;
+                    }
+                    global_ffi_sig->ret_type = ASKF_ARG_U64;
+                    got_result = TRUE;
+                }
+            }
+        } else if ( tkn->length == 4 ) {
+            if ( _strequal( tkn->base, (ascii*)"void", 4 ) ) {
+                if ( !got_params ) {
+                    if ( global_ffi_sig->count > 0 ) {
+                        _askf_word_failed( (ascii*)"FUNCTION: -> when using 'void' it must be the only param", 56 );
+                        return FALSE;
+                    }
+                    global_ffi_sig->args[global_ffi_sig->count++] = ASKF_ARG_PTR;
+                } else {
+                    if ( got_result ) {
+                        _askf_word_failed( (ascii*)"FUNCTION: -> result must only contain one return type ", 54 );
+                        return FALSE;
+                    }
+                    global_ffi_sig->ret_type = ASKF_ARG_U64;
+                    got_result = TRUE;
+                }
+            }
+        }
+        else if ( tkn->length == 2 ) 
+        {
+            if ( _strequal( tkn->base, (ascii*)"--", 2 ) ) {
+                if ( global_ffi_sig->count > 0 ) {
+                    got_params = TRUE;
+                } else {
+                    _askf_word_failed( (ascii*)"FUNCTION: -> no params found before '--' ", 41 );
+                    return FALSE;
+                }
+            }
+
+        }
+
+        if ( tkn->base[tkn->length - 1] == ')' ) {
+            got_terminator = TRUE;
+            if ( !got_params && global_ffi_sig->count > 0 ) {
+                _askf_word_failed( (ascii*)"FUNCTION: -> params found but '--' was not found ", 49 );
+                tokenizer->ctx.idx = ctx_idx;
+                return FALSE;
+            } else if ( got_params && !got_result ) {
+                _askf_word_failed( (ascii*)"FUNCTION: -> no return type found after '--' ", 45 );
+                tokenizer->ctx.idx = ctx_idx;
+                return FALSE;
+            }
+            break;
+        } 
+
+        ctx_idx++;
+    }
+
+    tokenizer->ctx.idx = ctx_idx;
+
+    if ( !got_terminator ) {
+        _askf_word_failed( (ascii*)"FUNCTION: -> Terminator ')' not found on input buffer", 53 );
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+#endif
+
+void askf_word_function( void ) {
+    if ( _stack_invalid_for_addresses() ) {
+        _askf_word_failed( 
+                (ascii *)"FUNCTION: -> cell width must match architecture word width", 58 );
+        return;
+    }
+    askf_word_parse_name();
+
+    if ( vm->stack->index < 2 ) {
+        _askf_word_failed( (ascii*)"FUNCTION: -> Expects function name", 34 );
+        return;
+    }
+
+    AskForth_Cell* len_name  = global_c00;
+    AskForth_Cell* addr_name = global_c01;
+
+    askf_stack_pop( len_name, vm->stack );
+    askf_stack_pop( addr_name, vm->stack );
+
+    AskForthToken function_name;
+    function_name.base   = (ascii*)addr_name->val._addr_t;
+    function_name.length = len_name->val._64u;
+    function_name.line_end = FALSE;
+
+    askf_word_parse_name();
+
+    if ( vm->stack->index < 2 ) {
+        _askf_word_failed( (ascii*)"FUNCTION: -> Expects '(' for stack effects ", 43 );
+        return;
+    }
+
+    AskForth_Cell* len_paren  = global_c02;
+    AskForth_Cell* addr_paren = global_c03;
+
+    askf_stack_pop( len_paren, vm->stack );
+    askf_stack_pop( addr_paren, vm->stack );
+
+    if ( ((ascii*)addr_paren->val._addr_t)[0] != '(' && len_paren->val._addr_t != 1 ) {
+        _askf_word_failed( (ascii*)"FUNCTION: -> No ' ( params -- result ) ' found", 46 );
+        return;
+    }
+
+    // create foreign function signature
+    global_ffi_sig->count = 0;
+    if ( !_askf_interp_ffi_params_and_result_to_global_sig() )
+        return;
+
+
+    askf_word_parse_name();
+
+    if ( vm->stack->index < 2 ) {
+        _askf_word_failed( (ascii*)"FUNCTION: -> Expects dictionary name", 36 );
+        return;
+    }
+
+    AskForth_Cell* len_dic  = global_c00;
+    AskForth_Cell* addr_dic = global_c01;
+
+    askf_stack_pop( len_dic, vm->stack );
+    askf_stack_pop( addr_dic, vm->stack );
+
+    AskForthToken dic_name;
+    dic_name.base     = (ascii*)addr_dic->val._addr_t;
+    dic_name.length   = len_dic->val._64u;
+    dic_name.line_end = FALSE;
+
+
+    if ( !askf_bind_function( function_name.base, function_name.length, global_ffi_sig ) ) 
+        _askf_word_failed( (ascii*)"FUNCTION: -> Could not bind to the C function", 45 );
+
+    askf_dic_add_word_foreign_native( dic_name, global_ffi_sig, function_name );
+}
+
+#if defined( TARGET_LINUX ) || defined( TARGET_WINDOWS )
 static u64 _askf_custom_fgets( ascii* buff, u64 cap, FILE* stream, int* is_eof ) {
     if ( cap == 0 || buff == NULL || stream == NULL )  {
         *is_eof = 0;
@@ -2614,6 +2876,9 @@ void askf_add_core_words( void ) {
     global_c01 = askf_alloc( sizeof(AskForth_Cell) );
     global_c02 = askf_alloc( sizeof(AskForth_Cell) );
     global_c03 = askf_alloc( sizeof(AskForth_Cell) );
+
+    global_ffi_sig = askf_alloc( sizeof(AskForthForeignFuncSig) );
+    global_ffi_sig->count = 0;
 
     COPY( &cell, global_c00, sizeof(AskForth_Cell) );
     COPY( &cell, global_c01, sizeof(AskForth_Cell) );
@@ -3815,4 +4080,53 @@ void askf_add_core_words( void ) {
 
     if ( !added_see )
         _askf_print_failed_add_word( &scratch_word_name );
+
+    #if defined( TARGET_LINUX ) || defined( TARGET_WINDOWS )
+
+    // FOREIGN
+    scratch_word_name.base            = (ascii*)"FOREIGN";
+    scratch_word_name.length          = 7;
+
+    boolean added_foreign = 
+        askf_dic_add_word_native( 
+                core_dic_name, FALSE, askf_word_foreign, scratch_word_name );
+
+    if ( !added_foreign )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // .FOREIGN
+    scratch_word_name.base            = (ascii*)".FOREIGN";
+    scratch_word_name.length          = 8;
+
+    boolean added_dot_foreign = 
+        askf_dic_add_word_native( 
+                core_dic_name, FALSE, askf_word_dot_foreign, scratch_word_name );
+
+    if ( !added_dot_foreign )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+
+    // FREEFOREIGN
+    scratch_word_name.base            = (ascii*)"FREEFOREIGN";
+    scratch_word_name.length          = 11;
+
+    boolean added_freeforeign = 
+        askf_dic_add_word_native( 
+                core_dic_name, FALSE, askf_word_freeforeign, scratch_word_name );
+
+    if ( !added_freeforeign )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // FUNCTION:
+    scratch_word_name.base            = (ascii*)"FUNCTION:";
+    scratch_word_name.length          = 9;
+
+    boolean added_function = 
+        askf_dic_add_word_native( 
+                core_dic_name, TRUE, askf_word_function, scratch_word_name );
+
+    if ( !added_function )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    #endif
 }

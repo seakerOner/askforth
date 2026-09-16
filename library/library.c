@@ -197,6 +197,50 @@ boolean askf_dic_add_word_native(
     return TRUE;
 }
 
+boolean askf_dic_add_word_foreign_native( 
+        AskForthToken dic_name, 
+        AskForthForeignFuncSig* signature,
+        AskForthToken word_name ) {
+
+    AskForthVm* vm = askf_get_global_vm();
+    
+    if ( word_name.length > ASKF_MAX_NAME_LEN ) {
+        return FALSE;
+    }
+
+    AskForth_Dictionary* dic =  askf_library_find_dic( vm, &dic_name );
+
+    if ( !dic )
+        return FALSE;
+
+    AskForth_Word* new_word = askf_alloc( sizeof( AskForth_Word ) );
+
+    if ( !dic->words_base ) {
+        dic->words_base = new_word;
+    }
+    if ( dic->recent_word ) 
+        dic->recent_word->next          = new_word;
+
+    new_word->prev                      = dic->recent_word;
+    dic->recent_word                    = new_word;
+
+    new_word->next                      = NULL;
+    new_word->is_immediate              = FALSE;
+
+    new_word->source.type               = ASKF_WORD_NATIVE_FOREIGN;
+
+    new_word->source.source.foreign_sig = askf_alloc( sizeof( AskForthForeignFuncSig ) );
+    COPY( signature, new_word->source.source.foreign_sig, sizeof( AskForthForeignFuncSig ) );
+
+    new_word->name_len                  = word_name.length;
+    COPY(word_name.base, new_word->name, word_name.length);
+
+
+    return TRUE;
+
+}
+
+
 boolean askf_dic_add_word_threaded( AskForth_Dictionary* dic, AskForthToken word_name ) {
     AskForthVm* vm = askf_get_global_vm();
     

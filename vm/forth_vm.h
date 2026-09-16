@@ -5,6 +5,7 @@
 #include "../stack/stack.h"
 #include "../errors/error_thrower.h"
 #include "../input/tokenizer.h"
+#include "../ffi/load_extern_library.h"
 
 #include "../memory/blocks.h"
 
@@ -58,6 +59,7 @@ typedef struct {
 typedef struct {
     void* op_literal;
     void* op_native;
+    void* op_native_foreign;
     void* op_threadedword;
     void* op_0branch;
     void* op_branch;
@@ -94,6 +96,7 @@ typedef struct AskForthVm_t {
     AskForthTokenizer*                      tokenizer_x;
     AskForthTokenizer*                      fallback_tokenizer;
     AskForthNumBase                         num_base;
+    AskForthForeignManager*                 foreign_manager;
 
     AskForthDispatchOps                     dispatch_calls;
 } AskForthVm;

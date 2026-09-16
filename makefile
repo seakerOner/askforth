@@ -5,7 +5,8 @@ BUILD 		= ./build
 
 # native C compilation arquitecture 
 # this controls GCC's -march and is independent from the Forth 
-ARQ   		?= x86-64
+ARQ   		      ?= x86-64
+FOREIGN_OBJS_FLAG = 
 
 # AskForth data-stack cell-width
 # must match the arquitecture bits
@@ -20,19 +21,22 @@ FLAGS = -Wall -Wextra -x c -O2
 FLAGS += -march=$(ARQ)
 FLAGS += $(TARGET)
 FLAGS += -DARQBITS$(CELL-BITS)
+FLAGS +=  $(FOREIGN_OBJS_FLAG)
 
-OBJECTS = 				\
-	main.o 				\
-	stack.o 			\
-	mem_backend_blob.o 	\
-	vm.o input.o 		\
-	library.o 			\
-	errors.o 			\
-	tokenizer.o 		\
-	core_words.o 		\
-	blocks.o 			\
-	fallback_loop.o		\
-	optimizer.o			\
+OBJECTS = 					\
+	main.o 					\
+	stack.o 				\
+	mem_backend_blob.o 		\
+	vm.o input.o 			\
+	library.o 				\
+	errors.o 				\
+	tokenizer.o 			\
+	core_words.o 			\
+	blocks.o 				\
+	fallback_loop.o			\
+	optimizer.o				\
+	load_extern_library.o 	\
+
 
 $(BUILD):
 	mkdir -p $(BUILD)
@@ -76,6 +80,9 @@ fallback_loop.o: ./fallback_loop/fallback.h
 optimizer.o: ./optimizer/optimizer.h
 	$(CC) $(FLAGS)	-c ./optimizer/optimizer.c -o $(BUILD)/optimizer.o
 
+load_extern_library.o: ./ffi/load_extern_library.h
+	$(CC) $(FLAGS)	-c ./ffi/load_extern_library.c -o $(BUILD)/load_extern_library.o
+
 clean:
 	rm -f $(BUILD)/*.o
 	rm -f $(BUILD)/$(EXECUTABLE_NAME)
@@ -83,7 +90,7 @@ clean:
 	@echo "Cleaned Build Files..."
 
 x86-64-linux:
-	$(MAKE) ARQ=x86-64 BUILD=./build/x86-64-linux CELL-BITS=64 TARGET=-DTARGET_LINUX askforth 
+	$(MAKE) FOREIGN_OBJS_FLAG=-ldl  ARQ=x86-64 BUILD=./build/x86-64-linux CELL-BITS=64 TARGET=-DTARGET_LINUX askforth 
 
 x86-64-windows:
-	$(MAKE) ARQ=x86-64 BUILD=./build/x86-64-windows CELL-BITS=64 TARGET=-DTARGET_WINDOWS EXECUTABLE_EXT=.exe askforth 
+	$(MAKE) FOREIGN_OBJS_FLAG=-ldl ARQ=x86-64 BUILD=./build/x86-64-windows CELL-BITS=64 TARGET=-DTARGET_WINDOWS EXECUTABLE_EXT=.exe askforth 

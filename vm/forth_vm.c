@@ -128,6 +128,7 @@ void _askf_execute_threaded_frames( void ) {
         vm->dispatch_calls.op_0branch        = &&op_0branch;
         vm->dispatch_calls.op_branch         = &&op_branch;
         vm->dispatch_calls.op_native         = &&op_native;
+        vm->dispatch_calls.op_native_foreign = &&op_native_foreign;
         vm->dispatch_calls.op_skippable      = &&op_skippable;
         vm->dispatch_calls.op_dispatch_error = &&op_dispatch_error;
         vm->dispatch_calls.op_endword        = &&op_endword;
@@ -212,6 +213,27 @@ return_call:
                 return;
 
             continue;
+        }
+        op_native_foreign:{
+            AskForth_Word* word = (AskForth_Word*)*ip;
+            NEXT();
+
+            if ( !askf_trampoline( word->source.source.foreign_sig ) ){
+                AskForthError err = {0};
+                err.error = ASKF_ERROR_WORD_FOREIGN_FAILED;
+                err.zone  = ASKF_ERROR_ZONE_INNER;
+
+                ascii tmp = word->name[word->name_len];
+                word->name[word->name_len] = '0';
+                AskForthErrorMessage* opt_msg = 
+                askf_alloc_new_opt_message( word->name, word->name_len );
+                word->name[word->name_len] = tmp;
+                err.opt_message = opt_msg;
+                askf_throw_error( err );
+
+                _askf_push_ip_frame( vm, word, (u64)ip, TRUE);
+                return;
+            }
         }
         op_dispatch_error: {
             NEXT(); // skip literal flag
@@ -389,6 +411,22 @@ void askf_exec( AskForthVm* vm, AskForthParseType parse_type ) {
                     case ASKF_WORD_NATIVE:
                         word->source.source.native_code();
                         break;
+                    case ASKF_WORD_NATIVE_FOREIGN:
+                        if ( !askf_trampoline( word->source.source.foreign_sig ) ){
+                            AskForthError err = {0};
+                            err.error = ASKF_ERROR_WORD_FOREIGN_FAILED;
+                            err.zone  = ASKF_ERROR_ZONE_INNER;
+
+                            ascii tmp = word->name[word->name_len];
+                            word->name[word->name_len] = '0';
+                            AskForthErrorMessage* opt_msg = 
+                            askf_alloc_new_opt_message( word->name, word->name_len );
+                            word->name[word->name_len] = tmp;
+                            err.opt_message = opt_msg;
+                            askf_throw_error( err );
+                            return;
+                        }
+                        break;
                     case ASKF_WORD_THREADED:
                         _askf_push_ip_frame( vm, 
                             word, 
@@ -404,6 +442,22 @@ void askf_exec( AskForthVm* vm, AskForthParseType parse_type ) {
                        case ASKF_WORD_NATIVE:
                            word->source.source.native_code();
                            break;
+                       case ASKF_WORD_NATIVE_FOREIGN:
+                            if ( !askf_trampoline( word->source.source.foreign_sig ) ){
+                                AskForthError err = {0};
+                                err.error = ASKF_ERROR_WORD_FOREIGN_FAILED;
+                                err.zone  = ASKF_ERROR_ZONE_INNER;
+
+                                ascii tmp = word->name[word->name_len];
+                                word->name[word->name_len] = '0';
+                                AskForthErrorMessage* opt_msg = 
+                                askf_alloc_new_opt_message( word->name, word->name_len );
+                                word->name[word->name_len] = tmp;
+                                err.opt_message = opt_msg;
+                                askf_throw_error( err );
+                                return;
+                            }
+                           break;
                        case ASKF_WORD_THREADED:
                             _askf_push_ip_frame( vm, 
                                 word, 
@@ -416,6 +470,10 @@ void askf_exec( AskForthVm* vm, AskForthParseType parse_type ) {
                         case ASKF_WORD_NATIVE:
                             askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_native );
                             askf_compile_threaded_memory( (u64)word->source.source.native_code );
+                            askf_compile_threaded_memory( (u64)word );
+                            break;
+                       case ASKF_WORD_NATIVE_FOREIGN:
+                            askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_native_foreign );
                             askf_compile_threaded_memory( (u64)word );
                             break;
                         case ASKF_WORD_THREADED:

@@ -9,11 +9,12 @@
     #define ASKF_MAX_DICS     10 
     #define ASKF_MAX_NAME_LEN 28
 #endif
-
+ 
 typedef struct AskForth_Word_t AskForth_Word;
 
 typedef enum {
     ASKF_WORD_NATIVE,
+    ASKF_WORD_NATIVE_FOREIGN,
     ASKF_WORD_THREADED
 } AskForth_WordType;
 
@@ -22,6 +23,7 @@ typedef struct {
     union {
         void (*native_code)(void);
         u64  threaded_code_start_addr;
+        AskForthForeignFuncSig* foreign_sig;
     } source;
 } AskForth_WordSource;
 
@@ -73,6 +75,11 @@ boolean askf_dic_add_word_native(
         AskForthToken dic_name, 
         boolean is_immediate,
         void(*native_subroutine)(void), 
+        AskForthToken word_name );
+
+boolean askf_dic_add_word_foreign_native( 
+        AskForthToken dic_name, 
+        AskForthForeignFuncSig* signature,
         AskForthToken word_name );
 
 boolean askf_dic_add_word_threaded( AskForth_Dictionary* dic, AskForthToken word_name );

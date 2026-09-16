@@ -13,7 +13,8 @@ typedef enum {
     ASKF_ERROR_WORD_NAME_OVERFLOW       = 4,
     ASKF_ERROR_UNKNOWN_DIC              = 5,
 
-    ASKF_ERROR_WORD_FAILED              = 6
+    ASKF_ERROR_WORD_FAILED              = 6,
+    ASKF_ERROR_WORD_FOREIGN_FAILED      = 7
 } AskForthErrorType;
 
 typedef struct {

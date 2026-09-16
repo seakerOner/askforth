@@ -55,14 +55,14 @@ ADD-DIC tmp
 \ Together with [:], this allows words to create new
 \ word definitions programmatically
 
-:core [;]
+:core [;] 
     POSTPONE ;
 ;
 
 \ ['] compiles the execution token of the following word
 \ as a literal.
 
-:core ['] ( "name" - )
+:core ['] 
     POSTPONE '
     LIT
 ; IMMEDIATE
@@ -85,7 +85,7 @@ ADD-DIC tmp
 \   ALIAS: .s print core
 \   print
 
-:core ALIAS: ( "source" "name" "dictionary" )
+:core ALIAS: ( "source" "name" "dictionary" -- )
     POSTPONE ' [:] LIT EXEC, [;]
 ;
 
@@ -94,7 +94,7 @@ ADD-DIC tmp
 \ Notice that CONSTANT does not need a dedicated primitive:
 \ it is simply a new word containing a compiled literal.
 
-:core CONSTANT ( x "name" )
+:core CONSTANT ( w "name" -- )
     [:vars] LIT [;]
 ;
 
@@ -114,7 +114,7 @@ ADD-DIC tmp
 \ VARIABLE creates a word which returns the address of 
 \ a newly allocated cell.
 
-:core VARIABLE ( "name" )
+:core VARIABLE ( "name"  -- )
     HERE 1 cells ALLOT
     [:vars] LIT [;]
 ;
@@ -122,7 +122,7 @@ ADD-DIC tmp
 \ BUFFER allocates u cells of memory and creates a word 
 \ which returns the address of that memory.
 
-:core BUFFER ( u "name" )
+:core BUFFER ( u "name" -- )
     HERE swap cells ALLOT 
     [:vars] LIT [;]
 ;
@@ -131,7 +131,7 @@ ADD-DIC tmp
 \ FIELD converts a cell offset into an address relative to 
 \ a base address
 
-:core FIELD ( addr u - addr )
+:core FIELD ( addr u -- addr )
     cells +
 ;
 
@@ -143,7 +143,7 @@ ADD-DIC tmp
 \   table 1 FIELD @ .
 \   table 2 FIELD @ .
 
-:core CREATE ( "name" "dictionary" )
+:core CREATE ( "name" "dictionary" -- )
     ( we do backpatching on HERE because HERE 
     is used to compile the current compilation 
     and we want the most recent HERE AFTER the 
@@ -153,7 +153,7 @@ ADD-DIC tmp
     HERE swap !
 ;
 
-:core , ( u - )
+:core , ( d -- )
     HERE !
     1 cells ALLOT
 ;
@@ -192,7 +192,7 @@ ADD-DIC tmp
 \
 \ 10 0 COUNT-UP
 
-:core DO ( limit index - )
+:core DO ( limit index -- )
     POSTPONE BEGIN 
         ['] 2dup COMPILE, 
         ['] swap COMPILE, 
@@ -362,7 +362,7 @@ VARIABLE concat@offset
        0 TO concat@idx 
 ;
 
-:core CONCAT ( str2_addr str2_len - )
+:core CONCAT ( addr u -- )
     concat@items view concat@idx view + >R      \ end of base string to append
     dup concat@idx view + TO concat@idx         \ update the base index
     R> swap

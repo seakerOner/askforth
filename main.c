@@ -130,6 +130,15 @@ int main( void ) {
     askf_tokenizer_new( &tokenizer_x, ( ASKFORTH_INPUT_BUFFER_MAX_CHARS / 2 ));
     askf_tokenizer_new( &fallback_tokenizer, ( ASKFORTH_INPUT_BUFFER_MAX_CHARS / 4 ));
 
+    vm.foreign_manager              = ( AskForthForeignManager* )askf_alloc( sizeof(AskForthForeignManager) );
+    vm.foreign_manager->objects                   = NULL;
+    vm.foreign_manager->recent_obj                = NULL;
+    vm.foreign_manager->ctxs.main_ctx.rsp         = NULL;
+    vm.foreign_manager->ctxs.main_ctx.stack       = NULL;
+    vm.foreign_manager->ctxs.trampoline_ctx.rsp   = NULL;
+    vm.foreign_manager->ctxs.trampoline_ctx.stack = NULL;
+    vm.foreign_manager->ctxs.state                = ASKF_CTX_MAIN;
+
     askf_add_core_words();
 
     askf_print( ( ascii* )"Welcome to the Agnostic Seaker's Forth :D", 41 );
