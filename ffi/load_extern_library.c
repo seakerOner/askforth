@@ -154,14 +154,14 @@ void __attribute__((naked)) trampoline_forth_ctx_x86_64_winv( AskForthForeignFun
             "pushq %r13\n"
             "pushq %r14\n"
             "pushq %r15\n"
-            "movq  %rdi, %rsi\n" // move 'signature' from 1st argument to 2nd argument
-            "movq  %rsp, %rdi\n" // stack pointer to 1st argument
+            "movq  %rcx, %rdx\n" // move 'signature' from 1st argument to 2nd argument
+            "movq  %rsp, %rcx\n" // stack pointer to 1st argument
             "jmp switch_context");
 }
 
 void __attribute__((naked)) remake_forth_ctx_x86_64_winv( void* rsp ) {
     __asm__ __volatile__(
-            "movq %rdi, %rsp \n"   // set stack pointer from saved context
+            "movq %rcx, %rsp \n"   // set stack pointer from saved context
             "popq %r15\n"
             "popq %r14\n"
             "popq %r13\n"
@@ -182,7 +182,7 @@ void __attribute__((naked)) remake_forth_ctx_x86_64_winv( void* rsp ) {
 
 void __attribute__((naked)) enter_foreign_ctx_x86_64_winv( void* rsp, u64 arg_count ) {
     __asm__ __volatile__(
-            "movq %rdi, %rsp \n"   // set stack pointer from saved context
+            "movq %rcx, %rsp \n"   // set stack pointer from saved context
             // skip padding if flag true
             "popq %rax\n"
             "testq %rax, %rax\n"
@@ -190,7 +190,7 @@ void __attribute__((naked)) enter_foreign_ctx_x86_64_winv( void* rsp, u64 arg_co
             "addq $8, %rsp\n"
 
             ".no_padding:\n"
-            "movq %rsi, %rax \n"   // set argument count to RAX
+            "movq %rdx, %rax \n"   // set argument count to RAX
                                   
             "popq %r15\n"
             "popq %r14\n"
@@ -214,7 +214,7 @@ void __attribute__((naked)) enter_foreign_ctx_x86_64_winv( void* rsp, u64 arg_co
 
  void __attribute__((naked)) switch_to_forth_ctx_x86_64_winv( void ) {
     __asm__ __volatile__(
-            "movq %rax, %rdi\n"
+            "movq %rax, %rcx\n"
             "jmp switch_to_forth_ctx_C\n");
  }
 
