@@ -202,8 +202,8 @@ void __attribute__((naked)) enter_foreign_ctx_x86_64_winv( void* rsp, u64 arg_co
             "popq %rbp\n"
 
             // decrease RAX until its 0 and store stack->correspondent registers in order
-            POP_TO_REG( rdx )
             POP_TO_REG( rcx )
+            POP_TO_REG( rdx )
             POP_TO_REG( r8  )
             POP_TO_REG( r9  )
             // 5th argument and above are stored on the stack already so no need to pop it
@@ -233,6 +233,12 @@ void set_foreign_call_for_trampoline_ctx_x86_64_winv
         }
         vm->stack->index -= (u8)extraparams_to_remove;
     }
+
+    // shadow space: 32 bytes
+    *(--rsp) = 0;
+    *(--rsp) = 0;
+    *(--rsp) = 0;
+    *(--rsp) = 0;
 
     // always aligned
     *(--rsp) = switch_to_forth_ctx_x86_64_winv;    // ret after function
