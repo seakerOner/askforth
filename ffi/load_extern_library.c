@@ -180,7 +180,7 @@ void __attribute__((naked)) remake_forth_ctx_x86_64_winv( void* rsp ) {
             "popq %" #reg "\n"  \
 
 
-void __attribute__((naked)) enter_foreign_ctx_x86_64_sysv( void* rsp, u64 arg_count ) {
+void __attribute__((naked)) enter_foreign_ctx_x86_64_winv( void* rsp, u64 arg_count ) {
     __asm__ __volatile__(
             "movq %rdi, %rsp \n"   // set stack pointer from saved context
             // skip padding if flag true
