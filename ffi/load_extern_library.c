@@ -64,7 +64,7 @@ boolean askf_bind_function( const ascii* func_name, u64 func_name_len, AskForthF
 
     ascii* saved_string = malloc( sizeof(ascii) * func_name_len+1 );
     COPY( func_name, saved_string, func_name_len );
-    saved_string[func_name_len+1] = '\0';
+    saved_string[func_name_len] = '\0';
 
     AskForthForeignObject* base = manager->recent_obj;
 
@@ -170,6 +170,13 @@ void __attribute__((naked)) remake_forth_ctx_x86_64_sysv( void* rsp ) {
 void __attribute__((naked)) enter_foreign_ctx_x86_64_sysv( void* rsp, u64 arg_count ) {
     __asm__ __volatile__(
             "movq %rdi, %rsp \n"   // set stack pointer from saved context
+            // skip padding if flag true
+            "popq %rax\n"
+            "testq %rax, %rax\n"
+            "jz .no_padding\n"
+            "addq $8, %rsp\n"
+
+            ".no_padding:\n"
             "movq %rsi, %rax \n"   // set argument count to RAX
                                   
             "popq %r15\n"
@@ -186,7 +193,8 @@ void __attribute__((naked)) enter_foreign_ctx_x86_64_sysv( void* rsp, u64 arg_co
             POP_TO_REG( rcx )
             POP_TO_REG( r8  )
             POP_TO_REG( r9  )
-            // TODO: allow more parameters
+            // OS kernel system calls (syscalls) take max 6 arguments from registers
+            // 7th argument and above are stored on the stack already so no need to pop it
 
             ".no_args:\n"
             "ret\n");
@@ -211,8 +219,20 @@ void set_foreign_call_for_trampoline_ctx_x86_64_sysv
     AskForthVm* vm = askf_get_global_vm();
     void** rsp = manager->trampoline_ctx.rsp;
 
+    // stack args (7th+ args) have to be placed AFTER the foreign function's return address 
+    // since we are building backwords, we do them first 
+    u64 extraparams_to_remove = 0;
+    if ( signature->count > 6  ) {
+        for ( u64 x = signature->count; x > 6; x-- ) {
+            *(--rsp) = (void*)vm->stack->cells.space_64[vm->stack->index - 1 - x];
+            extraparams_to_remove++;
+        }
+        vm->stack->index -= (u8)extraparams_to_remove;
+    }
+
+    // always aligned
     *(--rsp) = switch_to_forth_ctx_x86_64_sysv;    // ret after function
-    *(--rsp) = handle;            // foreign func to 'ret'
+    *(--rsp) = handle;                             // foreign func to 'ret'
 
     if ( signature->args[0] == ASKF_ARG_VOID )  {
         *(--rsp) = 0; // rbp
@@ -221,19 +241,31 @@ void set_foreign_call_for_trampoline_ctx_x86_64_sysv
         *(--rsp) = 0; // r13
         *(--rsp) = 0; // r14
         *(--rsp) = 0; // r15
+        *(--rsp) = 0; // no padding flag
     } else {
-        // foreign function arguments
         u64 count = signature->count;
-        for ( u64 x = 0; x < signature->count; x++ ) {
-            *(--rsp) = (void*)vm->stack->cells.space_64[vm->stack->index-1-(count--)];
-        }
-        vm->stack->index -= (u8)signature->count;
+
+        for ( u64 x = 0; x < signature->count - extraparams_to_remove; x++ ) 
+            *(--rsp) = (void*)vm->stack->cells.space_64[vm->stack->index-1-x];
+
+        // 16-byte SysV alignment   
+        // add 8-byte padding when the number of register arguments is odd
+        u64 padding_if_odd = ( signature->count - extraparams_to_remove ) & 1;
+
+        vm->stack->index -= (u8)(signature->count - extraparams_to_remove);
         *(--rsp) = 0; // rbp
         *(--rsp) = 0; // rbx
         *(--rsp) = 0; // r12
         *(--rsp) = 0; // r13
         *(--rsp) = 0; // r14
         *(--rsp) = 0; // r15
+                      
+        if ( padding_if_odd ) {
+            *(--rsp) = 0;
+            *(--rsp) = (void*)1;
+        } else {
+            *(--rsp) = 0;
+        }
     }
 
     manager->trampoline_ctx.rsp = rsp;
@@ -263,9 +295,9 @@ void switch_context( void* rsp, AskForthForeignFuncSig* signature ) {
             #if defined( ARQBITS64 )
                 #if defined( TARGET_LINUX ) 
                     set_foreign_call_for_trampoline_ctx_x86_64_sysv( &manager->ctxs, signature->handle, signature );
-                    u64 arg_count = signature->args[0] == ASKF_ARG_VOID ? 0 : signature->count;
+                    u64 arg_count = signature->args[0] == ASKF_ARG_VOID ? 0 : ( signature->count > 6 ? 6 : signature->count );
 
-                    enter_foreign_ctx_x86_64_sysv(manager->ctxs.trampoline_ctx.rsp, signature->count );
+                    enter_foreign_ctx_x86_64_sysv(manager->ctxs.trampoline_ctx.rsp, arg_count );
                 #elif defined( TARGET_WINDOWS ) 
                 #endif
             #endif

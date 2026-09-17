@@ -2609,7 +2609,7 @@ boolean _askf_interp_ffi_params_and_result_to_global_sig( void ) {
                     got_result = TRUE;
                 }
             }
-            if ( _strequal( tkn->base, (ascii*)"i64", 3 ) )  {
+            if ( _strequal( tkn->base, (ascii*)"d64", 3 ) )  {
                 if ( !got_params ) {
                     global_ffi_sig->args[global_ffi_sig->count++] = ASKF_ARG_I64;
                 } else {
@@ -2621,7 +2621,8 @@ boolean _askf_interp_ffi_params_and_result_to_global_sig( void ) {
                     got_result = TRUE;
                 }
             }
-            if ( _strequal( tkn->base, (ascii*)"ptr", 3 ) ) {
+        } else if ( tkn->length == 4 ) {
+            if ( _strequal( tkn->base, (ascii*)"addr", 4 ) ) {
                 if ( !got_params ) {
                     global_ffi_sig->args[global_ffi_sig->count++] = ASKF_ARG_PTR;
                 } else {
@@ -2632,8 +2633,7 @@ boolean _askf_interp_ffi_params_and_result_to_global_sig( void ) {
                     global_ffi_sig->ret_type = ASKF_ARG_U64;
                     got_result = TRUE;
                 }
-            }
-        } else if ( tkn->length == 4 ) {
+            } else
             if ( _strequal( tkn->base, (ascii*)"void", 4 ) ) {
                 if ( !got_params ) {
                     if ( global_ffi_sig->count > 0 ) {
