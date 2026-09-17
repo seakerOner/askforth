@@ -2,9 +2,7 @@
 #define ASKF_LOAD_EXTERN_LIBRARY_H
 
 #include "../inttype.h"
-    #include <dlfcn.h>
 
-//#define TARGET_LINUX
 #if defined( TARGET_LINUX )
     #include <dlfcn.h>
 #elif defined( TARGET_WINDOWS )
