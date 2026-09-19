@@ -1,14 +1,17 @@
 #include "askforth_words.h"
+
 #include "../library/library.h"
 
 #include "../input/input.h"
 #include "../stack/stack.h"
+#include "../stack/input_stack.h"
 #include "../memory/blocks.h"
 #include "../optimizer/optimizer.h"
 
 #if defined( TARGET_LINUX ) || defined( TARGET_WINDOWS )
     #include "../ffi/load_extern_library.h"
     #include <stdio.h>
+    #include <stdlib.h>"
 #endif
 
 AskForthVm* vm            = NULL;
@@ -46,6 +49,47 @@ static void askf_word_dot( void ) {
 
     askf_print_cell( global_c00 );
     askf_print( (ascii*)" ", 1 );
+}
+
+static void askf_word_input_source( void ) {
+    if ( _stack_invalid_for_addresses() ) {
+        _askf_word_failed( 
+                (ascii *)"SOURCE -> cell width must match architecture word width", 55 );
+        return;
+    }
+    global_c00->val._addr_t = ( askf_addr_t )vm->istack->sources[vm->istack->index-1].base;
+    global_c01->val._addr_t = ( askf_addr_t )vm->istack->sources[vm->istack->index-1].byte_cap;
+
+    askf_stack_push( global_c00, vm->stack );
+    askf_stack_push( global_c01, vm->stack );
+}
+
+static void askf_word_input_source_id( void ) {
+    global_c00->val._addr_t = ( askf_addr_t )vm->istack->sources[vm->istack->index-1].source_id;
+
+    askf_stack_push( global_c00, vm->stack );
+}
+
+static void askf_word_input_source_in( void ) {
+    if ( _stack_invalid_for_addresses() ) {
+        _askf_word_failed( 
+                (ascii *)">IN -> cell width must match architecture word width", 52 );
+        return;
+    }
+    global_c00->val._addr_t = ( askf_addr_t )&vm->istack->sources[vm->istack->index-1].in;
+
+    askf_stack_push( global_c00, vm->stack );
+}
+
+static void askf_word_input_source_blk( void ) {
+    if ( _stack_invalid_for_addresses() ) {
+        _askf_word_failed( 
+                (ascii *)">IN -> cell width must match architecture word width", 52 );
+        return;
+    }
+    global_c00->val._addr_t = ( askf_addr_t )&vm->istack->sources[vm->istack->index-1].blk;
+
+    askf_stack_push( global_c00, vm->stack );
 }
 
 static void askf_word_stack_depth( void ) {
@@ -341,21 +385,11 @@ static void askf_word_lib( void ) {
 
 
 static void askf_word_parse_name( void ) {
-    AskForthTokenizer* tokenizer = NULL;
+    AskForth_InputSource* source = askf_istack_peek( vm->istack );
 
-    switch ( vm->parse_type ) {
-        case ASKF_MAIN_PARSER:
-            tokenizer = vm->tokenizer;
-            break;
-        case ASKF_X_PARSER:
-            tokenizer = vm->tokenizer_x;
-            break;
-        default:
-            return;
-            break;
-    }
+    AskForthToken token = askf_next_token( source );
 
-    if ( tokenizer->ctx.idx + 1 >= tokenizer->index ) {
+    if ( token.length == 0 && token.base == NULL ) {
         _askf_word_failed( (ascii*)"PARSE-NAME -> No token found ", 28 );
         return;
     }
@@ -366,14 +400,11 @@ static void askf_word_parse_name( void ) {
         return;
     }
 
-    tokenizer->ctx.idx += 1;
-    u64 idx = tokenizer->ctx.idx;
-
     AskForth_Cell* cell      = global_c00;
 
-    cell->val._addr_t = (askf_addr_t)tokenizer->tokens[idx].base;
+    cell->val._addr_t = (askf_addr_t)token.base;
     askf_stack_push( cell, vm->stack );
-    cell->val._addr_t = tokenizer->tokens[idx].length;
+    cell->val._addr_t = (askf_addr_t)token.length;
     askf_stack_push( cell, vm->stack );
 }
 
@@ -1059,40 +1090,26 @@ static void askf_word_char_add( void ) {
 }
 
 static void askf_word_print_string( void ) {
-    AskForthTokenizer* tokenizer = NULL;
+    AskForth_InputSource* source = askf_istack_peek(vm->istack);
+    AskForthToken token = {0};
 
-    switch ( vm->parse_type ) {
-        case ASKF_MAIN_PARSER:
-            tokenizer = vm->tokenizer;
-            break;
-        case ASKF_X_PARSER:
-            tokenizer = vm->tokenizer_x;
-            break;
-        default:
-            return;
-    }
-
-    u64 ctx_idx = tokenizer->ctx.idx;
-
-    ctx_idx++;
-    ascii*  string_base     = tokenizer->tokens[ctx_idx].base;
+    ascii*  string_base     = &source->base[source->in];
     askf_addr_t len         = 0;
     boolean got_terminator  = FALSE;
 
-    while ( ctx_idx < tokenizer->index ) {
-        AskForthToken* tkn = &tokenizer->tokens[ctx_idx];
-        if ( tkn->base[tkn->length - 1] == '"' ) {
+    while ( TRUE ) {
+        token = askf_next_token( source );
+        if ( token.length == 0 && token.base == NULL ) 
+            break;
+
+        if ( token.base[token.length - 1] == '"' ) {
             got_terminator = TRUE;
-            len = (askf_addr_t)( tkn->base + tkn->length ) - (askf_addr_t)string_base;
-            tkn->base[tkn->length - 1] = '\0';
+            len = (askf_addr_t)( token.base + token.length ) - (askf_addr_t)string_base;
+            token.base[token.length - 1] = '\0';
             len -= 1;
             break;
         } 
-
-        ctx_idx++;
     }
-
-    tokenizer->ctx.idx = ctx_idx;
 
     if ( !got_terminator ) {
         _askf_word_failed( (ascii*)".\" -> Terminator not found on input buffer", 42 );
@@ -1149,41 +1166,29 @@ static void askf_word_print_string( void ) {
 }
 
 static void askf_word_error_with_string( void ) {
-    AskForthTokenizer* tokenizer = NULL;
-
-    switch ( vm->parse_type ) {
-        case ASKF_MAIN_PARSER:
-            tokenizer = vm->tokenizer;
-            break;
-        case ASKF_X_PARSER:
-            tokenizer = vm->tokenizer_x;
-            break;
-        default:
-            return;
-    }
-
-    u64 ctx_idx = tokenizer->ctx.idx;
-
-    ctx_idx++;
-    ascii*  string_base     = tokenizer->tokens[ctx_idx].base;
+    AskForth_InputSource* source = askf_istack_peek(vm->istack);
+    AskForthToken token = {0};
+    
+    ascii*  string_base     = &source->base[source->in];
     askf_addr_t len         = 0;
     boolean got_terminator  = FALSE;
 
-    while ( ctx_idx < tokenizer->index ) {
-        AskForthToken* tkn = &tokenizer->tokens[ctx_idx];
-        if ( tkn->base[tkn->length - 1] == '"' ) {
+    while ( TRUE ) {
+        token = askf_next_token( source );
+        if ( token.length == 0 && token.base == NULL ) 
+            break;
+
+        if ( token.base[token.length - 1] == '"' ) {
             got_terminator = TRUE;
-            len = (askf_addr_t)( tkn->base + tkn->length ) - (askf_addr_t)string_base;
+            len = (askf_addr_t)( token.base + token.length ) - (askf_addr_t)string_base;
+            token.base[token.length - 1] = '\0';
+            len -= 1;
             break;
         } 
-
-        ctx_idx++;
     }
 
-    tokenizer->ctx.idx = ctx_idx;
-
     if ( !got_terminator ) {
-        _askf_word_failed( (ascii*)"error\" -> Terminator not found on input buffer", 42 );
+        _askf_word_failed( (ascii*)"error\" -> Terminator not found on input buffer", 46 );
         return;
     }
 
@@ -1222,49 +1227,35 @@ static void askf_word_error_with_string( void ) {
 }
 
 static void askf_word_store_string( void ) {
-    AskForthTokenizer* tokenizer = NULL;
-
-    switch ( vm->parse_type ) {
-        case ASKF_MAIN_PARSER:
-            tokenizer = vm->tokenizer;
-            break;
-        case ASKF_X_PARSER:
-            tokenizer = vm->tokenizer_x;
-            break;
-        default:
-            return;
-    }
-
     if ( _stack_invalid_for_addresses() ) {
         _askf_word_failed( 
             (ascii *)".\" -> cell width must match architecture word width", 51 );
         return;
     }
 
-    u64 ctx_idx = tokenizer->ctx.idx;
-
-    ctx_idx++;
-    ascii*  string_base     = tokenizer->tokens[ctx_idx].base;
+    AskForth_InputSource* source = askf_istack_peek(vm->istack);
+    AskForthToken token = {0};
+    
+    ascii*  string_base     = &source->base[source->in];
     askf_addr_t len         = 0;
     boolean got_terminator  = FALSE;
 
-    while ( ctx_idx < tokenizer->index ) {
-        AskForthToken* tkn = &tokenizer->tokens[ctx_idx];
-        if ( tkn->base[tkn->length - 1] == '"' ) {
+    while ( TRUE ) {
+        token = askf_next_token( source );
+        if ( token.length == 0 && token.base == NULL ) 
+            break;
+
+        if ( token.base[token.length - 1] == '"' ) {
             got_terminator = TRUE;
-            len = (askf_addr_t)( tkn->base + tkn->length ) - (askf_addr_t)string_base;
-            tkn->base[tkn->length - 1] = '\0';
+            len = (askf_addr_t)( token.base + token.length ) - (askf_addr_t)string_base;
+            token.base[token.length - 1] = '\0';
             len -= 1;
             break;
         } 
-
-        ctx_idx++;
     }
 
-    tokenizer->ctx.idx = ctx_idx;
-
     if ( !got_terminator ) {
-        _askf_word_failed( (ascii*)".\" -> Terminator not found on input buffer", 42 );
+        _askf_word_failed( (ascii*)"s\" -> Terminator not found on input buffer", 42 );
         return;
     }
 
@@ -1290,71 +1281,39 @@ static void askf_word_store_string( void ) {
 }
 
 static void askf_word_comment_parenteshis( void ) {
-    AskForthTokenizer* tokenizer = NULL;
+    AskForth_InputSource* source = askf_istack_peek(vm->istack);
+    AskForthToken token = {0};
 
-    switch ( vm->parse_type ) {
-        case ASKF_MAIN_PARSER:
-            tokenizer = vm->tokenizer;
+    while ( TRUE ) {
+        token = askf_next_token( source );
+        if ( token.length == 0 && token.base == NULL ) {
             break;
-        case ASKF_X_PARSER:
-            tokenizer = vm->tokenizer_x;
-            break;
-        default:
-            return;
-    }
-
-    u64 ctx_idx = tokenizer->ctx.idx;
-
-    // if ( tokenizer->comment_state == ASKF_COMMENT_STATE_NONE )
-    //      ctx_idx++;
-
-    while ( ctx_idx < tokenizer->index ) {
-        AskForthToken* tkn = &tokenizer->tokens[ctx_idx];
-        if ( tkn->base[tkn->length - 1] == ')' ) {
-            tokenizer->ctx.idx       = ctx_idx + 1;
-            tokenizer->comment_state = ASKF_COMMENT_STATE_NONE;
+        }
+        if ( token.base[token.length - 1] == ')' ) {
+            vm->comment_state    = ASKF_COMMENT_STATE_NONE;
             return;
         } 
-
-        ctx_idx++;
     }
 
-    tokenizer->ctx.idx          = tokenizer->index;
-    tokenizer->comment_state    = ASKF_COMMENT_STATE_PAREN;
+    vm->comment_state    = ASKF_COMMENT_STATE_PAREN;
 }
 
 static void askf_word_comment_slash( void ) {
-    AskForthTokenizer* tokenizer = NULL;
+    AskForth_InputSource* source = askf_istack_peek(vm->istack);
+    AskForthToken token = {0};
 
-    switch ( vm->parse_type ) {
-        case ASKF_MAIN_PARSER:
-            tokenizer = vm->tokenizer;
+    while ( TRUE ) {
+        token = askf_next_token( source );
+        if ( token.length == 0 && token.base == NULL ) {
             break;
-        case ASKF_X_PARSER:
-            tokenizer = vm->tokenizer_x;
-            break;
-        default:
-            return;
-    }
-
-    u64 ctx_idx = tokenizer->ctx.idx;
-
-    // if ( tokenizer->comment_state == ASKF_COMMENT_STATE_NONE )
-    //      ctx_idx++;
-
-    while ( ctx_idx < tokenizer->index ) {
-        AskForthToken* tkn = &tokenizer->tokens[ctx_idx];
-        if ( tkn->line_end == TRUE )  {
-            tokenizer->ctx.idx          = ctx_idx + 1;
-            tokenizer->comment_state    = ASKF_COMMENT_STATE_NONE;
+        }
+        if ( token.line_end == TRUE )  {
+            vm->comment_state    = ASKF_COMMENT_STATE_NONE;
             return;
         }
-
-        ctx_idx++;
     }
 
-    tokenizer->ctx.idx          = tokenizer->index;
-    tokenizer->comment_state    = ASKF_COMMENT_STATE_SLASH;
+    vm->comment_state    = ASKF_COMMENT_STATE_SLASH;
 }
 
 void askf_continue_comment_paren( void ) {
@@ -1553,8 +1512,17 @@ static void askf_word_list( void ) {
     AskForth_Cell* block_id = global_c00;
     askf_stack_pop( block_id, vm->stack );
 
+    if ( block_id->val._64u > vm->blocks->capacity ) {
+        _askf_word_failed( (ascii*)"LOAD -> OOB BLOCK", 17 );
+        return;
+    }
+    if ( block_id->val._64u == 0 ) {
+        _askf_word_failed( (ascii*)"LOAD -> 0 is not a BLOCK", 24 );
+        return;
+    }
+
     ascii* start_block = (ascii*)
-        ( vm->blocks->start_blocks + ( vm->blocks->block_size * block_id->val._64u ));
+         vm->blocks->start_blocks +  vm->blocks->block_size * (block_id->val._64u -1 );
 
     u64 max_lines      = 16;
     u64 max_line_chars = vm->blocks->block_size / max_lines;
@@ -1592,11 +1560,19 @@ static void askf_word_block( void ) {
     askf_stack_pop( cell, vm->stack );
 
     if ( cell->val._64u > vm->blocks->capacity ) {
+        _askf_word_failed( (ascii*)"LOAD -> OOB BLOCK", 17 );
+        return;
+    }
+    if ( cell->val._64u == 0 ) {
+        _askf_word_failed( (ascii*)"LOAD -> 0 is not a BLOCK", 24 );
+        return;
+    }
+    if ( cell->val._64u > vm->blocks->capacity ) {
         _askf_word_failed( (ascii*)"BLOCK -> OOB BLOCK", 18 );
         return;
     }
 
-    ascii* block_start = vm->blocks->start_blocks + ( vm->blocks->block_size * cell->val._64u );
+    ascii* block_start = vm->blocks->start_blocks + ( vm->blocks->block_size * ( cell->val._64u - 1 ) );
 
     cell->val._64u = ( u64 )block_start;
 
@@ -1849,14 +1825,16 @@ static void askf_word_load( void ) {
         _askf_word_failed( (ascii*)"LOAD -> OOB BLOCK", 17 );
         return;
     }
+    if ( addr->val._64u == 0 ) {
+        _askf_word_failed( (ascii*)"LOAD -> 0 is not a BLOCK", 24 );
+        return;
+    }
 
-    ascii* block = vm->blocks->start_blocks + vm->blocks->block_size * addr->val._64u;
+    ascii* block = vm->blocks->start_blocks + vm->blocks->block_size * ( addr->val._64u - 1 );
 
-    // TODO: choose how to execute
-    COPY( block, vm->input_buffer_x->base, vm->blocks->block_size );
-    vm->input_buffer_x->index = vm->blocks->block_size;
+    askf_istack_push( vm->istack, block, vm->blocks->block_size, 0, addr->val._64u );
 
-    askf_exec( vm, ASKF_X_PARSER );
+    askf_exec( vm );
 }
 
 static void askf_word_add_dic( void ) { 
@@ -1893,16 +1871,17 @@ static void askf_word_abort( void ) {
 
     askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_BLOCKING_INPUT );
 
-    askf_reset_input_buffer( vm, ASKF_MAIN_PARSER );
-    askf_reset_input_buffer( vm, ASKF_X_PARSER );
-    askf_tokenizer_reset( vm->tokenizer );
-    askf_tokenizer_reset( vm->tokenizer_x );
+    vm->input_buffer->index       = 0;
+    vm->istack->sources[0].in_max = 0;
+    // go back to keyboard input
+    vm->istack->index = 1;
+    FILL( vm->input_buffer->base, 0, vm->input_buffer->capacity );
+
 
     vm->stack->index         = 0;
     vm->rstack->index        = 0;
     vm->cf_stack->index      = 0;
     vm->tframes_stack->index = 0;
-
 }
 
 static void askf_word_bye( void ) { 
@@ -1929,6 +1908,46 @@ static void askf_word_state( void ) {
     AskForth_Cell* mode  = global_c00;
 
     mode->val._addr_t = ( askf_addr_t )&vm->interpret_state;
+
+    askf_stack_push( mode, vm->stack );
+}
+
+static void askf_word_is_sys_windows( void ) { 
+    AskForth_Cell* mode  = global_c00;
+
+    #if defined( TARGET_WINDOWS )
+         mode->val._64u       = -1;
+    #else
+         mode->val._64u       = 0;
+    #endif
+
+    askf_stack_push( mode, vm->stack );
+}
+
+static void askf_word_is_sys_linux( void ) { 
+    AskForth_Cell* mode  = global_c00;
+
+    #if defined( TARGET_LINUX )
+         mode->val._64u       = -1;
+    #else
+         mode->val._64u       = 0;
+    #endif
+
+    askf_stack_push( mode, vm->stack );
+}
+
+static void askf_word_what_arq_bits( void ) { 
+    AskForth_Cell* mode  = global_c00;
+
+    #if   defined( ARQBITS64 )
+        mode->val._64u       = 64;
+    #elif defined( ARQBITS32 )
+        mode->val._64u       = 32;
+    #elif defined( ARQBITS16 )
+        mode->val._64u       = 16;
+    #elif defined( ARQBITS8  )
+        mode->val._64u       = 8;
+    #endif
 
     askf_stack_push( mode, vm->stack );
 }
@@ -2291,6 +2310,10 @@ static void askf_word_postpone( void ) {
             askf_compile_threaded_memory( (u64)word->source.source.threaded_code_start_addr);
             askf_compile_threaded_memory( (u64)word );
             break;
+        case ASKF_WORD_NATIVE_FOREIGN:
+            askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_native_foreign );
+            askf_compile_threaded_memory( (u64)word );
+            break;
     }
 }
 
@@ -2573,31 +2596,21 @@ static boolean _strequal( ascii* str, ascii* to_compare, u64 len ) {
 }
 
 boolean _askf_interp_ffi_params_and_result_to_global_sig( void ) {
-    AskForthTokenizer* tokenizer = NULL;
-
-    switch ( vm->parse_type ) {
-        case ASKF_MAIN_PARSER:
-            tokenizer = vm->tokenizer;
-            break;
-        case ASKF_X_PARSER:
-            tokenizer = vm->tokenizer_x;
-            break;
-        default:
-            return FALSE;
-    }
-
-    u64 ctx_idx = tokenizer->ctx.idx;
+    AskForth_InputSource* source = askf_istack_peek( vm->istack );
+    AskForthToken tkn = {0};
 
     boolean got_terminator  = FALSE;
 
     boolean got_params      = FALSE;
     boolean got_result      = FALSE;
 
-    while ( ctx_idx < tokenizer->index ) {
-        AskForthToken* tkn = &tokenizer->tokens[ctx_idx];
+    while ( TRUE ) {
+        tkn = askf_next_token( source );
+        if ( tkn.base == NULL && tkn.length == 0 ) 
+            break;
 
-        if ( tkn->length == 3 ) { 
-            if ( _strequal( tkn->base, (ascii*)"u64", 3 ) ) {
+        if ( tkn.length == 3 ) { 
+            if ( _strequal( tkn.base, (ascii*)"u64", 3 ) ) {
                 if ( !got_params ) {
                     global_ffi_sig->args[global_ffi_sig->count++] = ASKF_ARG_U64;
                 } else {
@@ -2609,7 +2622,7 @@ boolean _askf_interp_ffi_params_and_result_to_global_sig( void ) {
                     got_result = TRUE;
                 }
             }
-            if ( _strequal( tkn->base, (ascii*)"d64", 3 ) )  {
+            if ( _strequal( tkn.base, (ascii*)"d64", 3 ) )  {
                 if ( !got_params ) {
                     global_ffi_sig->args[global_ffi_sig->count++] = ASKF_ARG_I64;
                 } else {
@@ -2621,8 +2634,8 @@ boolean _askf_interp_ffi_params_and_result_to_global_sig( void ) {
                     got_result = TRUE;
                 }
             }
-        } else if ( tkn->length == 4 ) {
-            if ( _strequal( tkn->base, (ascii*)"addr", 4 ) ) {
+        } else if ( tkn.length == 4 ) {
+            if ( _strequal( tkn.base, (ascii*)"addr", 4 ) ) {
                 if ( !got_params ) {
                     global_ffi_sig->args[global_ffi_sig->count++] = ASKF_ARG_PTR;
                 } else {
@@ -2634,7 +2647,7 @@ boolean _askf_interp_ffi_params_and_result_to_global_sig( void ) {
                     got_result = TRUE;
                 }
             } else
-            if ( _strequal( tkn->base, (ascii*)"void", 4 ) ) {
+            if ( _strequal( tkn.base, (ascii*)"void", 4 ) ) {
                 if ( !got_params ) {
                     if ( global_ffi_sig->count > 0 ) {
                         _askf_word_failed( (ascii*)"FUNCTION: -> when using 'void' it must be the only param", 56 );
@@ -2651,9 +2664,9 @@ boolean _askf_interp_ffi_params_and_result_to_global_sig( void ) {
                 }
             }
         }
-        else if ( tkn->length == 2 ) 
+        else if ( tkn.length == 2 ) 
         {
-            if ( _strequal( tkn->base, (ascii*)"--", 2 ) ) {
+            if ( _strequal( tkn.base, (ascii*)"--", 2 ) ) {
                 if ( global_ffi_sig->count > 0 ) {
                     got_params = TRUE;
                 } else {
@@ -2664,24 +2677,19 @@ boolean _askf_interp_ffi_params_and_result_to_global_sig( void ) {
 
         }
 
-        if ( tkn->base[tkn->length - 1] == ')' ) {
+        if ( tkn.base[tkn.length - 1] == ')' ) {
             got_terminator = TRUE;
             if ( !got_params && global_ffi_sig->count > 0 ) {
                 _askf_word_failed( (ascii*)"FUNCTION: -> params found but '--' was not found ", 49 );
-                tokenizer->ctx.idx = ctx_idx;
                 return FALSE;
             } else if ( got_params && !got_result ) {
                 _askf_word_failed( (ascii*)"FUNCTION: -> no return type found after '--' ", 45 );
-                tokenizer->ctx.idx = ctx_idx;
                 return FALSE;
             }
             break;
         } 
 
-        ctx_idx++;
     }
-
-    tokenizer->ctx.idx = ctx_idx;
 
     if ( !got_terminator ) {
         _askf_word_failed( (ascii*)"FUNCTION: -> Terminator ')' not found on input buffer", 53 );
@@ -2838,15 +2846,25 @@ static u64 _askf_custom_fgets( ascii* buff, u64 cap, FILE* stream, int* is_eof )
 
         int is_eof;
 
+        ascii* base = malloc( KB(4) );
+        u64    base_idx = 0;
+        u64    baselen  = KB(4);
+
+        int fileid = fileno(f);
+        AskForth_InputSource* source = NULL; 
+
         while ( vm->outer_state == ASKF_VM_OUTER_STATE_EXECUTE )   { 
-            u64 read = _askf_custom_fgets( vm->input_buffer_x->base, 
-                    vm->input_buffer_x->capacity - 1, f, &is_eof );
+            u64 read = _askf_custom_fgets( base,
+                    baselen - 1, f, &is_eof );
 
             if ( read > 0 ) {
-                vm->input_buffer_x->index = read;
-                vm->input_buffer_x->base[vm->input_buffer_x->index] = '\0';
+                base_idx = read;
+                base[base_idx] = '\0';
+                askf_istack_push( vm->istack, base, baselen, fileid, 0 );
+                source = askf_istack_peek( vm->istack );
+                source->in_max = base_idx;
 
-                askf_exec( vm, ASKF_X_PARSER );
+                askf_exec( vm );
 
                if ( vm->outer_state == ASKF_VM_OUTER_STATE_FAILED_CRITICAL ||
                     vm->outer_state == ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL ) {
@@ -2858,6 +2876,7 @@ static u64 _askf_custom_fgets( ascii* buff, u64 cap, FILE* stream, int* is_eof )
                 break;
         }
 
+        free( base );
         fclose( f );
     }
 #endif
@@ -2893,8 +2912,49 @@ void askf_add_core_words( void ) {
     core_dic_name.base          = (ascii*)"core";
     core_dic_name.length        = 4;
 
-    // DOT 
     AskForthToken scratch_word_name = {0};
+
+    // SOURCE
+    scratch_word_name.base            = (ascii*)"SOURCE";
+    scratch_word_name.length          = 6;
+
+    boolean added_stack_input_source = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_input_source, scratch_word_name );
+
+    if ( !added_stack_input_source )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // SOURCE-ID
+    scratch_word_name.base            = (ascii*)"SOURCE-ID";
+    scratch_word_name.length          = 9;
+
+    boolean added_stack_input_source_id = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_input_source_id, scratch_word_name );
+
+    if ( !added_stack_input_source_id )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // >IN
+    scratch_word_name.base            = (ascii*)">IN";
+    scratch_word_name.length          = 3;
+
+    boolean added_stack_input_source_in = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_input_source_in, scratch_word_name );
+
+    if ( !added_stack_input_source_in )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // blk
+    scratch_word_name.base            = (ascii*)"blk";
+    scratch_word_name.length          = 3;
+
+    boolean added_stack_input_source_blk = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_input_source_blk, scratch_word_name );
+
+    if ( !added_stack_input_source_blk )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // DOT 
     scratch_word_name.base          = (ascii*)".";
     scratch_word_name.length        = 1;
 
@@ -3327,8 +3387,8 @@ void askf_add_core_words( void ) {
     if ( !added_bits )
         _askf_print_failed_add_word( &scratch_word_name );
 
-    // BITS?
-    scratch_word_name.base            = (ascii*)"BITS?";
+    // ?BITS
+    scratch_word_name.base            = (ascii*)"?BITS";
     scratch_word_name.length          = 5;
 
     boolean added_whatbits = 
@@ -3876,6 +3936,37 @@ void askf_add_core_words( void ) {
 
     if ( !added_state )
         _askf_print_failed_add_word( &scratch_word_name );
+
+    // ?SYSTEM-WINDOWS
+    scratch_word_name.base            = (ascii*)"?SYSTEM-WINDOWS";
+    scratch_word_name.length          = 15;
+
+    boolean added_is_sys_windows  = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_is_sys_windows, scratch_word_name );
+
+    if ( !added_is_sys_windows )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // ?SYSTEM-LINUX
+    scratch_word_name.base            = (ascii*)"?SYSTEM-LINUX";
+    scratch_word_name.length          = 13;
+
+    boolean added_is_sys_linux  = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_is_sys_linux, scratch_word_name );
+
+    if ( !added_is_sys_linux )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // ?ARQ-BITS
+    scratch_word_name.base            = (ascii*)"?ARQ-BITS";
+    scratch_word_name.length          = 9;
+
+    boolean added_what_arq_bits  = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_what_arq_bits, scratch_word_name );
+
+    if ( !added_what_arq_bits )
+        _askf_print_failed_add_word( &scratch_word_name );
+
 
 
     // INFO: totally valid words to include on the core dic BUT im not sure if i want so

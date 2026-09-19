@@ -1,7 +1,6 @@
 #include "forth_vm.h"
 #include "../input/input.h"
 #include "../library/library.h"
-
 #include "../words/askforth_words.h"
 
 AskForthVm* global_vm = NULL;
@@ -21,57 +20,6 @@ void askf_vm_to_global_state( AskForthVm* vm ) {
 
 AskForthVm* askf_get_global_vm( void ) {
     return global_vm;
-}
-
-static void _askf_parse_input_buffer( AskForthVm* forth_vm, AskForthParseType parse_type ) {
-    AskForthInputBuffer* ib     = NULL;
-    AskForthTokenizer* tknzr    = NULL;
-    switch ( parse_type ) {
-        case ASKF_MAIN_PARSER:
-            ib       = forth_vm->input_buffer;
-            tknzr    = forth_vm->tokenizer;
-            break;
-        case ASKF_X_PARSER:
-            ib       = forth_vm->input_buffer_x;
-            tknzr    = forth_vm->tokenizer_x;
-            break;
-        default:
-            return;
-    }
-
-    if (ib->index == 0)
-        return;
-
-    askf_tokenizer_reset( tknzr );
-
-    ascii*  base_token  = ib->base;
-    u64     length      = 0;
-    
-    for ( u64 x = 0; x < ib->index; x++ ) {
-        if ( ib->base[x] == '\r' )
-            ib->base[x] = ' ';
-        if ( ib->base[x] == ' ' || ib->base[x] == '\n' || ib->base[x] == '\0' ) {
-            if ( length > 0 ) {
-                AskForthToken new_token = {0};
-                new_token.base          = base_token;
-                new_token.length        = length;
-
-                if ( ib->base[x] == '\n' || ib->base[x] == '\0' )
-                    new_token.line_end      = TRUE;
-
-                askf_tokenizer_add( tknzr, new_token );
-
-                length = 0;
-
-            } 
-
-            if ( x + 1 < ib->index )
-                base_token  = &ib->base[x + 1];
-        } else  {
-            length++;
-        }
-    }
-
 }
 
 static void _askf_word_failed( ascii* msg, u64 len ) {
@@ -299,47 +247,20 @@ static boolean _strequal( ascii* str, ascii* to_compare, u64 len ) {
     return TRUE;
 }
 
-void askf_exec( AskForthVm* vm, AskForthParseType parse_type ) {
-    // only used by Forth words inside execution ( ex: PARSE-NAME )
-    vm->parse_type = parse_type;
+void askf_exec( AskForthVm* vm ) {
 
-    AskForthTokenizer* tokenizer = NULL;
-    AskForthInputBuffer* ib      = NULL;
-
-    switch ( parse_type ) {
-        case ASKF_MAIN_PARSER:
-            ib        = vm->input_buffer;
-            tokenizer = vm->tokenizer;
-            break;
-        case ASKF_X_PARSER:
-            ib          = vm->input_buffer_x;
-            tokenizer   = vm->tokenizer_x;
-            break;
-        default:
-            return;
-    }
-
-    UNUSED( ib );
-
-    if ( vm->outer_state == ASKF_VM_OUTER_STATE_EXECUTE ) 
-        _askf_parse_input_buffer( vm, parse_type );
-
-    u64 start_idx = 0;
-
-    switch ( tokenizer->comment_state ) {
+    switch ( vm->comment_state ) {
         case ASKF_COMMENT_STATE_SLASH:
             askf_continue_comment_slash();
-            if ( tokenizer->comment_state == ASKF_COMMENT_STATE_SLASH )
-                goto parse_done;
+            if ( vm->comment_state == ASKF_COMMENT_STATE_SLASH ) 
+                goto end_exec;
 
-            start_idx = tokenizer->ctx.idx;
             break;
         case ASKF_COMMENT_STATE_PAREN:
             askf_continue_comment_paren();
-            if ( tokenizer->comment_state == ASKF_COMMENT_STATE_PAREN )
-                goto parse_done;
+            if ( vm->comment_state == ASKF_COMMENT_STATE_PAREN ) 
+                goto end_exec;
 
-           start_idx = tokenizer->ctx.idx;
             break;
         case ASKF_COMMENT_STATE_NONE:
             break;
@@ -348,7 +269,6 @@ void askf_exec( AskForthVm* vm, AskForthParseType parse_type ) {
     }
 
     if ( vm->outer_state == ASKF_VM_OUTER_STATE_EXECUTE_CONTINUE ) { 
-        start_idx       = tokenizer->ctx.idx;
         vm->outer_state = ASKF_VM_OUTER_STATE_EXECUTE;
 
         // having a ASKF_VM_OUTER_STATE_EXECUTE_CONTINUE flag means we continuing 
@@ -366,14 +286,21 @@ void askf_exec( AskForthVm* vm, AskForthParseType parse_type ) {
         }
     }
 
-    for (u64 x = start_idx; x < tokenizer->index; x++) {
-        AskForth_Word* word =  askf_library_find_word( vm, &tokenizer->tokens[x] );
+    AskForthToken token = {0};
+
+    while ( TRUE ) {
+        AskForth_InputSource* source = askf_istack_peek( vm->istack );
+        token = askf_next_token( source );
+        if ( token.length == 0 && token.base == NULL )
+            break;
+
+        AskForth_Word* word =  askf_library_find_word( vm, &token );
 
         if ( word == NULL ) {
-            boolean is_number = askf_parse_token_to_num( &tokenizer->tokens[x] , vm_c00 );
+            boolean is_number = askf_parse_token_to_num( &token , vm_c00 );
 
             if ( !is_number ) {
-                AskForthErrorMessage* failed_token = ( AskForthErrorMessage* ) &tokenizer->tokens[x];
+                AskForthErrorMessage* failed_token = ( AskForthErrorMessage* ) &token;
                 failed_token->message[failed_token->length] = '\0';
 
                 AskForthError err = 
@@ -381,10 +308,6 @@ void askf_exec( AskForthVm* vm, AskForthParseType parse_type ) {
                     .error = ASKF_ERROR_UNKNOWN_WORD,
                     .opt_message = failed_token
                 };
-
-                // register where the failed token is on the tokenizer
-                tokenizer->ctx.token = &tokenizer->tokens[x];
-                tokenizer->ctx.idx   = x;
 
                 askf_throw_error( err );
                 return;
@@ -401,9 +324,6 @@ void askf_exec( AskForthVm* vm, AskForthParseType parse_type ) {
                 continue;
             }
         }
-
-        tokenizer->ctx.idx = x;
-        tokenizer->ctx.token = &tokenizer->tokens[x];
 
         switch ( vm->interpret_state ) {
             case ASKF_INTERPRET:
@@ -494,24 +414,24 @@ void askf_exec( AskForthVm* vm, AskForthParseType parse_type ) {
         }
 
 
-        if ( tokenizer->ctx.idx > x ) 
-            x = tokenizer->ctx.idx;
-
         if ( vm->outer_state != ASKF_VM_OUTER_STATE_EXECUTE )
             return;
     }
 
-    parse_done:
-    askf_tokenizer_reset( tokenizer );
-    askf_reset_input_buffer( vm, parse_type );
-
-    if ( vm->outer_state == ASKF_VM_OUTER_STATE_EXECUTE && parse_type == ASKF_MAIN_PARSER ) {
+    AskForth_InputSource* source = askf_istack_peek( vm->istack );
+    if ( vm->outer_state == ASKF_VM_OUTER_STATE_EXECUTE && source->source_id == 0 && source->blk == 0 ) {
+        vm->input_buffer->index = 0;
+        source->in_max          = 0;
+        FILL( vm->input_buffer->base, 0, vm->input_buffer->capacity );
         if ( vm->interpret_state == ASKF_INTERPRET ) 
             askf_print( ( ascii* )"ok.\n", 4 );
         else if ( vm->interpret_state == ASKF_COMPILE ) 
             askf_print( ( ascii* )"compiling.\n", 11 );
-    }
+    } 
 
+    end_exec:
+    // this will not pop the stack if we are in the main input buffer
+     askf_istack_pop( vm->istack );
 }
 
 void askf_vm_change_cell_scale( AskForth_CellSize new_cell_size ) {

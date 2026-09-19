@@ -18,6 +18,7 @@
 #include "./memory/backend_blob.h"
 #include "./memory/blocks.h"
 #include "./stack/stack.h"
+#include "./stack/input_stack.h"
 #include "./library/library.h"
 #include "./input/input.h"
 #include "./input/tokenizer.h"
@@ -38,8 +39,8 @@ int main( void ) {
     AskForth_Stack      stack                       = {0};
     AskForth_Stack      cf_stack                    = {0};
     AskForth_Stack      r_stack                     = {0};
+    AskForth_InputStack i_stack                     = {0};
     AskForthInputBuffer input_buffer                = {0};
-    AskForthInputBuffer input_buffer_x              = {0};
     AskForthInputBuffer fallback_input_buffer       = {0};
 
     #if   defined( ARQBITS64 )
@@ -53,8 +54,6 @@ int main( void ) {
     #endif
 
     AskForthErrorTrace  tracer                      = {0};
-    AskForthTokenizer   tokenizer                   = {0};
-    AskForthTokenizer   tokenizer_x                 = {0};
     AskForthTokenizer   fallback_tokenizer          = {0};
     AskForthBlocks      blocks                      = {0};
     AskForthThreadedFramesStack tframe_stack        = {0};
@@ -63,11 +62,6 @@ int main( void ) {
     input_buffer.base                               = scratch;
     input_buffer.capacity                           = ASKFORTH_INPUT_BUFFER_MAX_CHARS;
     input_buffer.index                              = 0;
-
-    ascii scratch_x[ASKFORTH_INPUT_BUFFER_MAX_CHARS]  = {0};
-    input_buffer_x.base                               = scratch_x;
-    input_buffer_x.capacity                           = ASKFORTH_INPUT_BUFFER_MAX_CHARS;
-    input_buffer_x.index                              = 0;
 
     ascii scratch_fallback[ASKFORTH_INPUT_BUFFER_MAX_CHARS / 2]  = {0};
     fallback_input_buffer.base                        = scratch_fallback;
@@ -95,6 +89,7 @@ int main( void ) {
     askf_start_stack( initial_cell_base_scale, &stack );
     askf_start_stack( initial_cell_base_scale, &cf_stack );
     askf_start_stack( initial_cell_base_scale, &r_stack );
+    askf_start_istack( &i_stack, input_buffer.base, input_buffer.capacity );
 
     tframe_stack.index      = 0;
     tframe_stack.capacity   = ASKF_THREADEDFRAMES_STACK_CAPACITY;
@@ -105,20 +100,17 @@ int main( void ) {
     vm.stack                = &stack;
     vm.cf_stack             = &cf_stack;
     vm.rstack               = &r_stack;
+    vm.istack               = &i_stack;
     vm.tframes_stack        = &tframe_stack;
     vm.input_buffer         = &input_buffer;
-    vm.input_buffer_x       = &input_buffer_x;
     vm.fallback_input       = &fallback_input_buffer;
     vm.blocks               = &blocks;
     vm.outer_state          = ASKF_VM_OUTER_STATE_BLOCKING_INPUT;
     vm.interpret_state      = ASKF_INTERPRET;
     vm.num_base             = ASKF_DECIMAL;
     vm.error_tracer         = &tracer;
-    vm.tokenizer            = &tokenizer;
-    vm.tokenizer_x          = &tokenizer_x;
     vm.fallback_tokenizer   = &fallback_tokenizer;
-
-    vm.parse_type        = ASKF_MAIN_PARSER;
+    vm.comment_state        = ASKF_COMMENT_STATE_NONE;
 
     vm.lib              = ( void* )askf_create_library( &vm );
 
@@ -126,8 +118,6 @@ int main( void ) {
 
     askf_blocks_start( ASKFORTH_BLOCKS_MAX , ASKFORTH_BLOCKS_SIZE );
 
-    askf_tokenizer_new( &tokenizer, ( ASKFORTH_INPUT_BUFFER_MAX_CHARS / 2 ));
-    askf_tokenizer_new( &tokenizer_x, ( ASKFORTH_INPUT_BUFFER_MAX_CHARS / 2 ));
     askf_tokenizer_new( &fallback_tokenizer, ( ASKFORTH_INPUT_BUFFER_MAX_CHARS / 4 ));
 
     vm.foreign_manager              = ( AskForthForeignManager* )askf_alloc( sizeof(AskForthForeignManager) );
@@ -154,12 +144,8 @@ int main( void ) {
                 askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_EXECUTE );
                 break;
             case ASKF_VM_OUTER_STATE_EXECUTE_CONTINUE:
-                askf_exec( &vm, vm.parse_type );
-                if ( vm.outer_state == ASKF_VM_OUTER_STATE_EXECUTE )
-                    askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_BLOCKING_INPUT );
-                break;
             case ASKF_VM_OUTER_STATE_EXECUTE:
-                askf_exec( &vm, ASKF_MAIN_PARSER );
+                askf_exec( &vm );
                 if ( vm.outer_state == ASKF_VM_OUTER_STATE_EXECUTE )
                     askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_BLOCKING_INPUT );
                 break;

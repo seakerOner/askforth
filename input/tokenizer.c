@@ -70,7 +70,6 @@ static boolean _char_to_digit( u8 radix, ascii character, u64* digit ) {
     return FALSE;
 }
 
-// TODO: add number transformation by number base ( binary, decimal, hexadecimal )
 boolean askf_parse_token_to_num( AskForthToken* token, AskForth_Cell* out_cell ) {
     u64 result              = 0;
     boolean make_negative   = FALSE;

@@ -36,6 +36,7 @@ OBJECTS = 					\
 	fallback_loop.o			\
 	optimizer.o				\
 	load_extern_library.o 	\
+	istack.o				\
 
 
 $(BUILD):
@@ -50,10 +51,13 @@ main.o: ./main.c
 stack.o: ./stack/stack.c
 	$(CC) $(FLAGS)	-c ./stack/stack.c -o $(BUILD)/stack.o
 
+istack.o: ./stack/input_stack.c
+	$(CC) $(FLAGS)	-c ./stack/input_stack.c -o $(BUILD)/istack.o
+
 mem_backend_blob.o: ./memory/backend_blob.c
 	$(CC) $(FLAGS)	-c ./memory/backend_blob.c -o $(BUILD)/mem_backend_blob.o
 
-vm.o: ./vm/forth_vm.c 
+vm.o: ./vm/forth_vm.c
 	$(CC) $(FLAGS)	-c ./vm/forth_vm.c -o $(BUILD)/vm.o
 
 input.o: ./input/input.c
@@ -74,13 +78,13 @@ errors.o: ./errors/error_thrower.c
 blocks.o: ./memory/blocks.c
 	$(CC) $(FLAGS)	-c ./memory/blocks.c -o $(BUILD)/blocks.o
 
-fallback_loop.o: ./fallback_loop/fallback.h
+fallback_loop.o: ./fallback_loop/fallback.c
 	$(CC) $(FLAGS)	-c ./fallback_loop/fallback.c -o $(BUILD)/fallback_loop.o
 
-optimizer.o: ./optimizer/optimizer.h
+optimizer.o: ./optimizer/optimizer.c
 	$(CC) $(FLAGS)	-c ./optimizer/optimizer.c -o $(BUILD)/optimizer.o
 
-load_extern_library.o: ./ffi/load_extern_library.h
+load_extern_library.o: ./ffi/load_extern_library.c
 	$(CC) $(FLAGS)	-c ./ffi/load_extern_library.c -o $(BUILD)/load_extern_library.o
 
 clean:

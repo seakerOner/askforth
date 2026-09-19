@@ -75,18 +75,22 @@ static void _askf_fallback_cmd_status( AskForthVm* vm ) {
     askf_print_char( (ascii)'\n' );
 
 
-    askf_print( (ascii*)"Parse type: ", 12 );
-    switch ( vm->parse_type ) {
-        case ASKF_MAIN_PARSER:
-            askf_print( (ascii*)"ASKF_MAIN_PARSER", 16 );
-            break;
-        case ASKF_X_PARSER:
-            askf_print( (ascii*)"ASKF_X_PARSER", 13 );
-            break;
-        default: 
-            askf_print( (ascii*)"?", 1 );
-            break;
-    }
+    askf_print( (ascii*)"Source: ", 8 );
+    askf_print_char( (ascii)'\n' );
+    AskForth_InputSource* source = askf_istack_peek( askf_get_global_vm()->istack );
+
+    askf_print( (ascii*)"    blk: ", 9 );
+    AskForth_Cell cell = askf_new_cell_payload( askf_get_global_vm()->stack );
+    cell.val._64u = source->blk;
+    askf_print_cell( &cell );
+    askf_print_char( (ascii)'\n' );
+
+    askf_print( (ascii*)"    source id: ", 15 );
+    cell.val._64u = source->source_id;
+    askf_print_cell( &cell );
+    askf_print_char( (ascii)'\n' );
+
+    
     askf_print_char( (ascii)'\n' );
 }
 
@@ -357,91 +361,78 @@ static void _askf_fallback_cmd_cfstack( AskForthVm* vm ) {
 
 }
 
-static void __print_which_failed_token_is( u64 offset, AskForthTokenizer* tknizer ) {
-    for (u64 x = 0; x < offset; x++) {
+static void __print_which_failed_token_is( u64 offset, AskForth_InputSource* source ) {
+    u64    failed_word_offset  = 0;
+    boolean got_word        = FALSE;
+
+    i64 current = source->in;
+
+    if ( current >= source->in_max )
+        current = (i64)source->in_max - 1;
+
+    while ( current >= 0 && ( source->base[current] == ' ' || source->base[current] == '\n' ) ) {
+        current--;
+        if ( offset > 0 ) offset--;
+    }
+
+    if ( current < 0 ) return;
+
+    u64 word_end = (u64)current;
+
+    while ( current >= 0 && ( source->base[current] != ' ' && source->base[current] != '\n' ) )
+        current--;
+
+    i64 word_start = current;
+
+    u64 len = word_end - (u64)word_start;
+
+    u64 start_offset = offset - len;
+
+    for (u64 x = 0; x < start_offset; x++) {
         askf_print_char( (ascii)' ' );
     }
 
-    for ( u64 x = 0; x < tknizer->tokens[tknizer->ctx.idx].length; x++ ) {
+    for ( u64 x = 0; x < len ; x++ ) {
         askf_print_char( (ascii)'^' );
     }
+
     askf_print( (ascii*)" Failed here.", 13 );
     askf_print_char( (ascii)'\n' );
 
 }
 
 static void _askf_fallback_cmd_input( AskForthVm* vm ) {
-    AskForthTokenizer* tknizer = NULL;
+    AskForth_InputSource* source = askf_istack_peek( vm->istack );
 
-    askf_print( (ascii*)"Parse type: ", 12 );
-    switch ( vm->parse_type ) {
-        case ASKF_MAIN_PARSER:
-            askf_print( (ascii*)"ASKF_MAIN_PARSER", 16 );
-            tknizer = vm->tokenizer;
-            break;
-        case ASKF_X_PARSER:
-            askf_print( (ascii*)"ASKF_X_PARSER", 13 );
-            tknizer = vm->tokenizer_x;
-            break;
-        default: 
-            askf_print( (ascii*)"Unknown parser type", 19);
-            askf_print_char( (ascii)'\n' );
-            return;
-    }
-    askf_print_char( (ascii)'\n' );
     askf_print( (ascii*)"Input: ", 7 );
     askf_print_char( (ascii)'\n' );
 
     u64 line_len                = 1024 / 16;
-    u64 wrote                   = 0;
     u64 line_offset             = 0;
+
     boolean reached_failed_word = FALSE;
-    for (u64 x = 0; x < tknizer->index; x++) {
-        if ( x == tknizer->ctx.idx )  {
-            reached_failed_word = TRUE;
-            line_offset = wrote;
-        }
 
-        if ( wrote + tknizer->tokens[x].length > line_len ) {
+    for (u64 x = 0; x < source->in_max; x++) {
+        if ( source->base[x] == '\r' )
+            source->base[x] = ' ';
+        
+        askf_print_char(source->base[x]);
+        line_offset++;
+
+        if ( x == source->in ) {
             askf_print_char( (ascii)'\n' );
-            if ( reached_failed_word ) {
-                __print_which_failed_token_is( line_offset, tknizer );
-                reached_failed_word = FALSE;
-            }
+            __print_which_failed_token_is( line_offset, source );
 
-            wrote = 0;
+            line_offset = 0;
         } 
+        if ( source->base[x] == '\n' )
+            line_offset = 0;
 
-
-        ascii tmp = tknizer->tokens[x].base[tknizer->tokens[x].length];
-        tknizer->tokens[x].base[tknizer->tokens[x].length] = '\0';
-        askf_print( tknizer->tokens[x].base, tknizer->tokens[x].length );
-        tknizer->tokens[x].base[tknizer->tokens[x].length] = tmp;
-
-        wrote += tknizer->tokens[x].length;
-        askf_print_char( (ascii)' ' );
-        wrote += 1;
-
-        if ( x + 1 >= tknizer->index && reached_failed_word ) {
-            askf_print_char( (ascii)'\n' );
-            __print_which_failed_token_is( line_offset, tknizer );
-        }
     }
     askf_print_char( (ascii)'\n' );
 }
 
 static void _askf_fallback_cmd_continue( AskForthVm* vm ) {
-    // skip the failed word
-    switch ( vm->parse_type ) {
-        case ASKF_MAIN_PARSER:
-            vm->tokenizer->ctx.idx++;
-            break;
-        case ASKF_X_PARSER:
-            vm->tokenizer_x->ctx.idx++;
-            break;
-        default: 
-            break;
-    }
     // reset tracer
     vm->error_tracer->head = 0;
     askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_EXECUTE_CONTINUE );
@@ -453,10 +444,12 @@ static void _askf_fallback_cmd_quit( AskForthVm* vm ) {
 }
 
 static void _askf_fallback_cmd_abort( AskForthVm* vm ) {
-    askf_tokenizer_reset( vm->tokenizer );
-    askf_tokenizer_reset( vm->tokenizer_x );
-    askf_reset_input_buffer( vm, ASKF_MAIN_PARSER );
-    askf_reset_input_buffer( vm, ASKF_X_PARSER );
+    vm->input_buffer->index       = 0;
+    vm->istack->sources[0].in_max = 0;
+    // go back to keyboard input
+    vm->istack->index = 1;
+    FILL( vm->input_buffer->base, 0, vm->input_buffer->capacity );
+
     askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_BLOCKING_INPUT );
     vm->interpret_state = ASKF_INTERPRET;
 

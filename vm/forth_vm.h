@@ -6,6 +6,7 @@
 #include "../errors/error_thrower.h"
 #include "../input/tokenizer.h"
 #include "../ffi/load_extern_library.h"
+#include "../stack/input_stack.h"
 
 #include "../memory/blocks.h"
 
@@ -78,10 +79,11 @@ typedef struct AskForthVm_t {
     AskForth_Stack*                         stack;
     AskForth_Stack*                         cf_stack;
     AskForth_Stack*                         rstack;
+    AskForth_InputStack*                    istack;
     AskForthThreadedFramesStack*            tframes_stack;
     AskForth_Ram*                           ram;
     AskForthInputBuffer*                    input_buffer;
-    AskForthInputBuffer*                    input_buffer_x;
+    AskForthCommentState                    comment_state;
 
     AskForthInputBuffer*                    fallback_input;
     AskForthBlocks*                         blocks;
@@ -89,11 +91,8 @@ typedef struct AskForthVm_t {
     void*                                   lib;
     volatile AskForthVmOuterState           outer_state;
     volatile AskForthVmInterpreterState     interpret_state;
-    volatile AskForthParseType              parse_type;
     AskForthErrorTrace*                     error_tracer;
 
-    AskForthTokenizer*                      tokenizer;
-    AskForthTokenizer*                      tokenizer_x;
     AskForthTokenizer*                      fallback_tokenizer;
     AskForthNumBase                         num_base;
     AskForthForeignManager*                 foreign_manager;
@@ -104,7 +103,7 @@ typedef struct AskForthVm_t {
 void askf_vm_to_global_state( AskForthVm* vm );
 AskForthVm* askf_get_global_vm( void );
 
-void askf_exec( AskForthVm* vm, AskForthParseType parse_type );
+void askf_exec( AskForthVm* vm );
 
 void askf_exec_token( AskForthVm* vm, AskForthToken* token, u64 tokenizer_idx );
 
