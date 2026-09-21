@@ -1270,14 +1270,21 @@ static void askf_word_store_string( void ) {
     COPY( string_base, new_base, len );
     new_base[len+1] = '\0';
 
-    AskForth_Cell* cell_addr = global_c00;
-    AskForth_Cell* cell_len  = global_c01;
+    if ( vm->interpret_state == ASKF_COMPILE ) {
+        askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_literal );
+        askf_compile_threaded_memory( (u64)new_base );
+        askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_literal );
+        askf_compile_threaded_memory( (u64)len );
+    } else {
+        AskForth_Cell* cell_addr = global_c00;
+        AskForth_Cell* cell_len  = global_c01;
 
-    cell_addr->val._addr_t = (askf_addr_t) new_base;
-    cell_len->val._addr_t  = len;
+        cell_addr->val._addr_t = (askf_addr_t) new_base;
+        cell_len->val._addr_t  = len;
 
-    askf_stack_push( cell_addr, vm->stack );
-    askf_stack_push( cell_len, vm->stack );
+        askf_stack_push( cell_addr, vm->stack );
+        askf_stack_push( cell_len, vm->stack );
+    }
 }
 
 static void askf_word_comment_parenteshis( void ) {
@@ -1476,7 +1483,7 @@ static void askf_word_fill( void ) {
 
 static void askf_word_copy( void ) {
     if ( vm->stack->index < 3 ) {
-        _askf_word_failed( (ascii*)"MOVE -> Expects ( old_addr new_addr n_bytes - )", 47 );
+        _askf_word_failed( (ascii*)"COPY -> Expects ( old_addr new_addr n_bytes - )", 47 );
     }
 
     if ( _stack_invalid_for_addresses() ) {
@@ -2772,6 +2779,19 @@ void askf_word_function( void ) {
         _askf_word_failed( (ascii*)"FUNCTION: -> Could not bind to the C function", 45 );
 
     askf_dic_add_word_foreign_native( dic_name, global_ffi_sig, function_name );
+}
+
+static void askf_word_evaluate( void ) {
+    if ( vm->stack->index < 2 ) {
+        _askf_word_failed( (ascii*)"EVALUATE -> Expects ( addr u -- ) ", 34 );
+        return;
+    }
+
+    askf_stack_pop( global_c00, vm->stack );
+    askf_stack_pop( global_c01, vm->stack );
+
+    askf_istack_push( vm->istack, (ascii*)global_c01->val._addr_t, global_c00->val._64u+1, -1, 0 );
+    askf_exec( vm );
 }
 
 #if defined( TARGET_LINUX ) || defined( TARGET_WINDOWS )
@@ -4105,6 +4125,18 @@ void askf_add_core_words( void ) {
 
     if ( !added_postpone )
         _askf_print_failed_add_word( &scratch_word_name );
+
+    // EVALUATE
+    scratch_word_name.base            = (ascii*)"EVALUATE";
+    scratch_word_name.length          = 8;
+
+    boolean added_evaluate = 
+        askf_dic_add_word_native( 
+                core_dic_name, FALSE, askf_word_evaluate, scratch_word_name );
+
+    if ( !added_evaluate )
+        _askf_print_failed_add_word( &scratch_word_name );
+
 
     // EXECUTE
     scratch_word_name.base            = (ascii*)"EXECUTE";
