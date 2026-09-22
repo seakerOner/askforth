@@ -9,6 +9,9 @@
 \ Read these as examples of what can be built on top of
 \ the core, rather than as a standard library
 \
+\ Due to development of the language some  of the examples may not work/ be incomplete.
+\ You will find the most up to date words on the './EXTENSIONS/' folder.
+\
 \ ============================================================
 
 \ if you want a global dictionary-like sintax to define your words like in a traditional Forth 
@@ -23,13 +26,13 @@
 
 DECIMAL 64 BITS UNSIGNED
 
-: :core core PARSE-NAME s" core" [ swap ] LITERAL LITERAL CREATE-WORD ; 
+: :core core PARSE-NAME s" core" CREATE-WORD ; 
 
 ADD-DIC vars
-: :vars core PARSE-NAME s" vars" [ swap ] LITERAL LITERAL CREATE-WORD ; 
+: :vars core PARSE-NAME s" vars" CREATE-WORD ; 
 
 ADD-DIC tmp
-: :tmp core PARSE-NAME s" tmp"   [ swap ] LITERAL LITERAL CREATE-WORD ; 
+: :tmp core PARSE-NAME s" tmp"   CREATE-WORD ; 
 
 \ LIT is a small helper that compiles a literal into
 \ the word currently being compiled.

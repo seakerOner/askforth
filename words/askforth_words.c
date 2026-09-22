@@ -389,11 +389,6 @@ static void askf_word_parse_name( void ) {
 
     AskForthToken token = askf_next_token( source );
 
-    if ( token.length == 0 && token.base == NULL ) {
-        _askf_word_failed( (ascii*)"PARSE-NAME -> No token found ", 28 );
-        return;
-    }
-
     if ( ( vm->stack->cell_scale / 8 ) != sizeof( askf_addr_t ) ) {
         _askf_word_failed( 
                 (ascii *)"PARSE-NAME -> cell width must match architecture word width", 59 );
@@ -467,6 +462,39 @@ static void askf_word_find( void ) {
 
     askf_stack_pop( len, vm->stack );
     askf_stack_pop( name, vm->stack );
+
+    AskForthToken tkn;
+    tkn.base   = ( ascii* )name->val._addr_t;
+    tkn.length = len->val._addr_t;
+
+    // find word from dic
+
+    global_c03->val._addr_t = ( askf_addr_t )askf_library_find_word_from_dic( dic, &tkn );
+
+    askf_stack_push( global_c03, vm->stack );
+}
+
+static void askf_word_sfind( void ) {
+    if ( vm->stack->index < 3 ) {
+        _askf_word_failed( (ascii*)"FIND -> ( dict_xt addr u -- ) ", 30 );
+        return;
+    }
+
+    if ( _stack_invalid_for_addresses() ) {
+        _askf_word_failed( 
+                (ascii *)"FIND -> cell width must match architecture word width", 53 );
+        return;
+    }
+
+    AskForth_Cell* dic_cell = global_c00;
+    AskForth_Cell* len      = global_c01;
+    AskForth_Cell* name     = global_c02;
+
+    askf_stack_pop( len, vm->stack );
+    askf_stack_pop( name, vm->stack );
+    askf_stack_pop( dic_cell, vm->stack );
+
+    AskForth_Dictionary* dic = (AskForth_Dictionary*)dic_cell->val._addr_t;
 
     AskForthToken tkn;
     tkn.base   = ( ascii* )name->val._addr_t;
@@ -3198,6 +3226,16 @@ void askf_add_core_words( void ) {
         askf_dic_add_word_native( core_dic_name, TRUE, askf_word_find, scratch_word_name );
 
     if ( !added_find )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // FIND
+    scratch_word_name.base            = (ascii*)"FIND";
+    scratch_word_name.length          = 4;
+
+    boolean added_sfind = 
+        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_sfind, scratch_word_name );
+
+    if ( !added_sfind )
         _askf_print_failed_add_word( &scratch_word_name );
 
     // [FORGET]
