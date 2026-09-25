@@ -270,6 +270,7 @@ static void askf_word_nip ( void ) {
 
     askf_stack_pop( b, vm->stack );
     volatile u32 dummy = askf_stack_pop( a, vm->stack );
+    UNUSED(dummy);
 
     askf_stack_push( b, vm->stack );
 }
@@ -309,6 +310,7 @@ static void askf_word_2drop( void ) {
 
     dummy = askf_stack_pop( global_c00, vm->stack );
     dummy = askf_stack_pop( global_c00, vm->stack );
+    UNUSED(dummy);
 }
 
 static void askf_word_over( void ) {
@@ -1877,12 +1879,6 @@ static void askf_word_load( void ) {
     askf_istack_push( vm->istack, block, vm->blocks->block_size, 0, addr->val._64u );
 
     askf_exec( vm );
-
-     if ( vm->outer_state == ASKF_VM_OUTER_STATE_FAILED_CRITICAL ||
-                    vm->outer_state == ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL ) {
-        return;
-    }
-
 }
 
 static void askf_word_add_dic( void ) { 
@@ -2398,16 +2394,6 @@ void askf_word_peek_rstack( void ) {
     val->val._64u = vm->rstack->cells.space_64[vm->rstack->index-1];
 
     askf_stack_push( val, vm->stack );
-}
-
-void askf_word_defined( void ) {
-    if ( _stack_invalid_for_addresses() ) {
-        _askf_word_failed( 
-            (ascii *)"[defined] -> cell width must match architecture word width", 58 );
-        return;
-    }
-
-
 }
 
 void askf_word_see( void ) {

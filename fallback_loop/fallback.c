@@ -362,12 +362,12 @@ static void _askf_fallback_cmd_cfstack( AskForthVm* vm ) {
 }
 
 static void __print_which_failed_token_is( u64 offset, AskForth_InputSource* source ) {
-    u64    failed_word_offset  = 0;
-    boolean got_word        = FALSE;
+    //u64    failed_word_offset  = 0;
+    //boolean got_word        = FALSE;
 
     i64 current = source->in;
 
-    if ( current >= source->in_max )
+    if ( (u64)current >= source->in_max )
         current = (i64)source->in_max - 1;
 
     while ( current >= 0 && ( source->base[current] == ' ' || source->base[current] == '\n' ) ) {
@@ -407,10 +407,10 @@ static void _askf_fallback_cmd_input( AskForthVm* vm ) {
     askf_print( (ascii*)"Input: ", 7 );
     askf_print_char( (ascii)'\n' );
 
-    u64 line_len                = 1024 / 16;
+    //u64 line_len                = 1024 / 16;
     u64 line_offset             = 0;
 
-    boolean reached_failed_word = FALSE;
+    //boolean reached_failed_word = FALSE;
 
     for (u64 x = 0; x < source->in_max; x++) {
         if ( source->base[x] == '\r' )

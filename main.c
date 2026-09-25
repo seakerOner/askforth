@@ -154,10 +154,11 @@ int main( void ) {
                 break;
             case ASKF_VM_OUTER_STATE_SHUTDOWN_REQUEST:
             default:
-                break;
+                goto forth_end;
         }
     };
 
+    forth_end:
     // TODO: shutdown protocol and memory conservation
     askf_blocks_close();
 

@@ -108,8 +108,6 @@ static void askf_redraw_buffer( AskForth_TerminalBuffer* buf ) {
 
     printf( ASKF_ANSI_ESCAPE ASKF_ANSI_ERASE_CURSOR_TILL_END );
 
-
-    u64 lines_read = 0;
     for ( u64 c = 0; c < buf->index; c++) {
         if ( c != 0 && c % term_width == 0 ) {
             printf("\r\n");
@@ -226,8 +224,10 @@ static void askf_read_linux( void ) {
     char c;
     ascii sequence[2];
 
+    int res;
+    UNUSED(res);
     while ( TRUE ) {
-        read( STDIN_FILENO, &c, 1);
+        res = read( STDIN_FILENO, &c, 1);
 
         switch ( c ) {
             case '\r':
@@ -238,8 +238,8 @@ static void askf_read_linux( void ) {
                 askf_terminal_remove_char( &askf_linux_terminalbuf, (ascii)c );
                 break;
             case ASKF_ASCII_ESC:
-                read( STDIN_FILENO, (char*)&sequence[0], 1);
-                read( STDIN_FILENO, (char*)&sequence[1], 1);
+                res = read( STDIN_FILENO, (char*)&sequence[0], 1);
+                res = read( STDIN_FILENO, (char*)&sequence[1], 1);
 
                 if ( sequence[0] == '[' && sequence[1] == ASKF_ANSI_MOVE_CURSOR_LEFT_CHAR )
                     askf_move_cursor_left( &askf_linux_terminalbuf );

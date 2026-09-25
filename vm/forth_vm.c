@@ -239,14 +239,6 @@ void askf_execute_threaded_word( void ) {
     _askf_execute_threaded_frames();
 }
 
-static boolean _strequal( ascii* str, ascii* to_compare, u64 len ) {
-    for ( u64 x = 0; x < len; x++ )
-        if ( str[x] != to_compare[x] )
-            return FALSE;
-
-    return TRUE;
-}
-
 void askf_exec( AskForthVm* vm ) {
 
     switch ( vm->comment_state ) {

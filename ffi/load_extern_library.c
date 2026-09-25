@@ -288,6 +288,7 @@ void set_foreign_call_for_trampoline_ctx_x86_64_winv
 #if defined( ARQBITS64 ) && defined( TARGET_LINUX )
 
 void __attribute__((naked)) trampoline_forth_ctx_x86_64_sysv( AskForthForeignFuncSig* signature ) {
+    UNUSED( signature );
     __asm__ __volatile__(
             "pushq %rbp\n"  // save context registers on stack ( calle )
             "pushq %rbx\n"
@@ -301,6 +302,7 @@ void __attribute__((naked)) trampoline_forth_ctx_x86_64_sysv( AskForthForeignFun
 }
 
 void __attribute__((naked)) remake_forth_ctx_x86_64_sysv( void* rsp ) {
+    UNUSED( rsp );
     __asm__ __volatile__(
             "movq %rdi, %rsp \n"   // set stack pointer from saved context
             "popq %r15\n"
@@ -320,6 +322,9 @@ void __attribute__((naked)) remake_forth_ctx_x86_64_sysv( void* rsp ) {
 
 
 void __attribute__((naked)) enter_foreign_ctx_x86_64_sysv( void* rsp, u64 arg_count ) {
+    UNUSED( rsp );
+    UNUSED( arg_count );
+
     __asm__ __volatile__(
             "movq %rdi, %rsp \n"   // set stack pointer from saved context
             // skip padding if flag true
