@@ -5,6 +5,8 @@
 
 > How to build AskForth: [GUIDE](./BUILD.md)
 
+> AskForth optional word sets: [EXTENSIONS](./EXTENSIONS/)
+
 AskForth is the third Forth implementation I've developed.
 
 AskForth is currently under active development.

@@ -138,7 +138,6 @@ int main( void ) {
 
         switch ( vm.outer_state ) {
             case ASKF_VM_OUTER_STATE_BLOCKING_INPUT:
-                askf_print( (ascii*)">", 1 );
                 askf_read_input_blocking( &vm );
 
                 askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_EXECUTE );

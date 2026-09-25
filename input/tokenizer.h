@@ -1,6 +1,10 @@
 #ifndef ASKF_TOKENIZER_H
 #define ASKF_TOKENIZER_H
 
+// Tokenizer is being abandoned, prefiring using an input stack with SOURCE and >IN
+//
+// The debugger still relies on it's tokenizer and the VM uses `askf_parse_token_to_num` for input
+
 #include "../inttype.h"
 #include "../stack/stack.h"
 

@@ -11,7 +11,7 @@
 #if defined( TARGET_LINUX ) || defined( TARGET_WINDOWS )
     #include "../ffi/load_extern_library.h"
     #include <stdio.h>
-    #include <stdlib.h>"
+    #include <stdlib.h>
 #endif
 
 AskForthVm* vm            = NULL;

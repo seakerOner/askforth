@@ -1,8 +1,8 @@
 #include "input.h"
 
 #if defined( TARGET_LINUX )
-    #include "unistd.h"
     #include "stdio.h"
+    #include "input_read_linux.c"
 #elif defined( TARGET_WINDOWS )
     #include <windows.h>
     #include "stdio.h"
@@ -12,12 +12,10 @@ void askf_read_input_blocking( AskForthVm* vm  ) {
     vm->input_buffer->index   = 0;
     vm->istack->sources[0].in = 0;
 
-    // TODO: use proper way to read input ( move back characters, delete and what not )
     #if defined( TARGET_LINUX )
-        int res = read( STDIN_FILENO, 
-                         vm->input_buffer->base  , 
-                         vm->input_buffer->capacity  );
+        askf_read_linux();
     #elif defined( TARGET_WINDOWS )
+
         HANDLE askf_stdin = GetStdHandle( STD_INPUT_HANDLE );
 
         DWORD res = 0;
@@ -28,14 +26,13 @@ void askf_read_input_blocking( AskForthVm* vm  ) {
                     &res, NULL) ) {
             return;
         }
-
-    #endif
         if ( res == 0 )
             return;
 
         vm->input_buffer->index += res;
         vm->istack->sources[0].in_max = vm->input_buffer->index;
         vm->input_buffer->base[vm->input_buffer->index] = '\0';
+    #endif
 }
 
 u32 askf_read_input_blocking_tobuff( AskForthVm* vm, ascii* buffer, u64 cap ) {
