@@ -420,9 +420,6 @@ void askf_exec( AskForthVm* vm ) {
 
     AskForth_InputSource* source = askf_istack_peek( vm->istack );
     if ( vm->outer_state == ASKF_VM_OUTER_STATE_EXECUTE && source->source_id == 0 && source->blk == 0 ) {
-        vm->input_buffer->index = 0;
-        source->in_max          = 0;
-        FILL( vm->input_buffer->base, 0, vm->input_buffer->capacity );
         if ( vm->interpret_state == ASKF_INTERPRET ) 
             askf_print( ( ascii* )"ok.\n", 4 );
         else if ( vm->interpret_state == ASKF_COMPILE ) 

@@ -588,6 +588,9 @@ static void askf_word_words( void ) {
 
     AskForth_Word* base = dic->words_base;
 
+    #if defined( TARGET_LINUX )
+        askf_print_char('\n');
+    #endif
     askf_print( dic->name, dic->name_len );
     askf_print( (ascii*)" dictionary words: \n", 20 );
 
@@ -1563,6 +1566,10 @@ static void askf_word_list( void ) {
     u64 max_line_chars = vm->blocks->block_size / max_lines;
     AskForth_Cell* cell = global_c01;
 
+    #if defined( TARGET_LINUX )
+        askf_print_char('\n');
+    #endif
+
     for ( u64 x = 0; x < max_lines; x++) {
         if ( x < 10 )
             askf_print( (ascii*)"  ", 2);
@@ -1870,6 +1877,12 @@ static void askf_word_load( void ) {
     askf_istack_push( vm->istack, block, vm->blocks->block_size, 0, addr->val._64u );
 
     askf_exec( vm );
+
+     if ( vm->outer_state == ASKF_VM_OUTER_STATE_FAILED_CRITICAL ||
+                    vm->outer_state == ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL ) {
+        return;
+    }
+
 }
 
 static void askf_word_add_dic( void ) { 
@@ -2483,6 +2496,9 @@ void askf_word_see( void ) {
         return;
     }
 
+    #if defined( TARGET_LINUX )
+        askf_print_char('\n');
+    #endif
     askf_print( (ascii*)": ", 2);
     ascii tmp = word_name.base[word_name.length];
     word_name.base[word_name.length] = '\0';
@@ -2613,6 +2629,9 @@ static void askf_word_freeforeign( void ) {
 void askf_word_dot_foreign( void ) {
     AskForthForeignObject* base = vm->foreign_manager->objects;
 
+    #if defined( TARGET_LINUX )
+        askf_print_char('\n');
+    #endif
     askf_print( (ascii*)"Foreign objects (shared libraries): ", 36 );
     while ( base ) {
         askf_print( base->name, base->name_len );
@@ -2820,6 +2839,10 @@ static void askf_word_evaluate( void ) {
 
     askf_istack_push( vm->istack, (ascii*)global_c01->val._addr_t, global_c00->val._64u+1, -1, 0 );
     askf_exec( vm );
+    if ( vm->outer_state == ASKF_VM_OUTER_STATE_FAILED_CRITICAL ||
+                    vm->outer_state == ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL ) {
+        return;
+    }
 }
 
 #if defined( TARGET_LINUX ) || defined( TARGET_WINDOWS )

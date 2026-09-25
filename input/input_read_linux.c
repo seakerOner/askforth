@@ -145,10 +145,10 @@ static void askf_redraw_buffer( AskForth_TerminalBuffer* buf ) {
 // set linux terminal back to it's original state
 
 static void askf_terminal_end( void ) { 
-    //printf( ASKF_ANSI_ENABLE_WRAP );
-    fflush( stdout );
+    printf( ASKF_ANSI_ENABLE_WRAP );
 
     tcsetattr( STDIN_FILENO, TCSANOW, &askf_linux_terminal.original );
+    fflush( stdout );
 }
 
 // functions for input buffer manipulation

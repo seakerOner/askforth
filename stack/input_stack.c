@@ -30,7 +30,6 @@ AskForth_InputSource* askf_istack_peek( AskForth_InputStack* Istack ) {
 }
 
 boolean askf_istack_pop( AskForth_InputStack* Istack ) {
-    // cannot remove the main inputbuffer source but we reset it
     if ( Istack->index <= 1 )  {
         return FALSE;
     }
