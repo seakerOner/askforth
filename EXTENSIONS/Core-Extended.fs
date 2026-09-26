@@ -15,9 +15,9 @@ ADD-DIC vars
 ADD-DIC tmp
 : :tmp core PARSE-NAME s" tmp"   CREATE-WORD ; 
 
-:core -rot
-    rot rot
-;
+:core -rot rot rot ;
+:core 1+ 1 + ; INLINE
+:core 1- 1 - ; INLINE
 
 :core LIT
     POSTPONE LITERAL
@@ -150,7 +150,7 @@ ADD-DIC tmp
 
 :core ENDOF   
     POSTPONE ELSE 
-    1 +
+    1+
     ['] R@ COMPILE,
 ; IMMEDIATE
 
@@ -264,16 +264,16 @@ CREATE TMPSTRING  , 0 , 128 ,
         SOURCE +  
         >= IF error" t'' ->  Delimiter not found " ABORT THEN
 
-        [ TMPSTRING 1 FIELD ] LITERAL @ 1 + 
+        [ TMPSTRING 1 FIELD ] LITERAL @ 1+ 
         [ TMPSTRING 2 FIELD ] LITERAL @ > IF error" t'' -> temporary string can only hold < 128 ascii characteres." ABORT THEN
 
         SOURCE drop >IN @ + c@ 
         [ TMPSTRING 0 FIELD ] LITERAL @
         [ TMPSTRING 1 FIELD ] LITERAL @ + c!    \ store >IN character
 
-        [ TMPSTRING 1 FIELD ] LITERAL @  1 +
+        [ TMPSTRING 1 FIELD ] LITERAL @  1+
         [ TMPSTRING 1 FIELD ] LITERAL !         
-        >IN @ 1 + >IN !                         \ next character
+        >IN @ 1+ >IN !                         \ next character
 
    SOURCE drop >IN @ + c@ DECIMAL 34 = UNTIL    \ loop until we find '"'
 
@@ -282,7 +282,7 @@ CREATE TMPSTRING  , 0 , 128 ,
 
    \ adjust >IN to the start of next character or end of buffer
    BEGIN
-    >IN @ 1 + >IN !                         
+    >IN @ 1+ >IN !                         
    SOURCE drop >IN @ + c@ DECIMAL 32 <> 
    SOURCE  nip >IN @ <> and UNTIL
 

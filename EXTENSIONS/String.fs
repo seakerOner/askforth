@@ -13,9 +13,9 @@
         over I + c@ 
         over I + c@ 
         <> IF 
+            over I + c@ 
+            over I + c@ 
             UNLOOP R> R> 2drop 
-            over I + c@ 
-            over I + c@ 
             < >R 2drop R> IF -1 ELSE 1 THEN EXIT
         THEN      
     LOOP
@@ -47,6 +47,22 @@
             drop UNCASE UNLOOP EXIT
         ENDCASE
     -LOOP
+;
+
+:core SEARCH ( addr1 u1 addr2 u2 -- addr3 u3 flag )
+    rot >R rot R> 2dup >R >R \ preserve initial string for fail path
+
+    over >R + R>
+    DO 
+        2dup I over 
+        COMPARE 0= IF 
+            2drop I dup UNLOOP 
+            R> R> + swap -
+            TRUE EXIT
+        THEN
+    LOOP
+    \ failure path
+    2drop R> R> FALSE
 ;
 
 ADD-DIC substitutions
