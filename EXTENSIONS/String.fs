@@ -109,10 +109,10 @@ VARIABLE SUB-COUNT
                     ?dup 0= IF
                         >R 2dup R@ + < IF R> drop nip -1 UNLOOP EXIT THEN
                         rot 2dup + R> I 1- swap >R swap R@ 1+ COPY -rot R@ 1+ +
-                        R> R> 1- + >R ( update counter )
+                        R> R> 1- + >R ( update loop counter )
                     ELSE
                         >R >R 2dup R@ + < IF R> R> 2drop nip -1 UNLOOP EXIT THEN R> R> 
-                        swap R> + 1- >R  ( update counter )
+                        swap R> + 1- >R  ( update loop counter )
                         >R rot 2dup + R> EXECUTE >R swap R@ COPY -rot R> +
                         SUB-COUNT @ 1+ SUB-COUNT !
                     THEN
