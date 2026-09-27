@@ -1062,6 +1062,14 @@ static void askf_word_allot( void ) {
     }
 }
 
+static void askf_word_unused( void ) {
+    AskForth_Cell* val  = global_c00;
+
+    val->val._addr_t = vm->ram->length - vm->ram->byte_index;
+
+    askf_stack_push( val, vm->stack );
+}
+
 static void askf_word_cells( void ) {
     AskForth_Cell* val  = global_c00;
 
@@ -3242,7 +3250,7 @@ void askf_add_core_words( void ) {
     scratch_word_name.length          = 4;
 
     boolean added_sfind = 
-        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_sfind, scratch_word_name );
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_sfind, scratch_word_name );
 
     if ( !added_sfind )
         _askf_print_failed_add_word( &scratch_word_name );
@@ -3534,6 +3542,16 @@ void askf_add_core_words( void ) {
         askf_dic_add_word_native( core_dic_name, FALSE, askf_word_allot , scratch_word_name );
 
     if ( !added_allot )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // UNUSED
+    scratch_word_name.base            = (ascii*)"UNUSED";
+    scratch_word_name.length          = 6;
+
+    boolean added_unused = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_unused , scratch_word_name );
+
+    if ( !added_unused )
         _askf_print_failed_add_word( &scratch_word_name );
 
     // ."

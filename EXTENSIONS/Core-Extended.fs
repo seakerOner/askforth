@@ -86,6 +86,10 @@ ADD-DIC tmp
     R@
 ; INLINE
 
+:core I+ 
+    R> 1+ >R
+;
+
 :core LOOP  
     ['] R>    COMPILE, 
     ['] R>    COMPILE, 
@@ -131,8 +135,6 @@ ADD-DIC tmp
     POSTPONE REPEAT
 ; IMMEDIATE
 
-\ FIX: case is leaking to RSTACK uppon use
-
 :core CASE ( n -- )
     ['] dup COMPILE, 
     ['] >R  COMPILE,
@@ -174,6 +176,12 @@ ADD-DIC tmp
     depth 0= IF error" [UNDEFINED] -> Expects Dictionary address" ( recovery ) ABORT ELSE
     ?dup  0= IF error" [UNDEFINED] -> NULL address of Dictionary" ( recovery ) ABORT THEN
     POSTPONE [FIND] 0=
+; IMMEDIATE
+
+:core [CHAR] 
+    PARSE-NAME drop
+    c@
+    ?COMPTIME TRUE = IF LIT THEN
 ; IMMEDIATE
 
 :core TO 
@@ -287,3 +295,5 @@ CREATE TMPSTRING  , 0 , 128 ,
    SOURCE  nip >IN @ <> and UNTIL
 
 ; IMMEDIATE
+
+32 CONSTANT BL 
