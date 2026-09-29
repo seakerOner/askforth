@@ -27,6 +27,7 @@ static boolean _stack_invalid_for_addresses() {
     return ( vm->stack->cell_scale / 8  ) != sizeof( askf_addr_t );
 }
 
+
 static void _askf_word_failed( ascii* msg, u64 len ) {
     AskForthError err = {0};
     err.error = ASKF_ERROR_WORD_FAILED;
@@ -389,13 +390,13 @@ static void askf_word_lib( void ) {
 static void askf_word_parse_name( void ) {
     AskForth_InputSource* source = askf_istack_peek( vm->istack );
 
-    AskForthToken token = askf_next_token( source );
-
     if ( ( vm->stack->cell_scale / 8 ) != sizeof( askf_addr_t ) ) {
         _askf_word_failed( 
                 (ascii *)"PARSE-NAME -> cell width must match architecture word width", 59 );
         return;
     }
+
+    AskForthToken token = askf_next_token( source );
 
     AskForth_Cell* cell      = global_c00;
 
@@ -1853,6 +1854,8 @@ static void askf_word_add_line_toblock( void ) {
     AskForth_Cell* addr = global_c00;
     askf_stack_pop( addr, vm->stack );
 
+    askf_print( (ascii*)">", 1 );
+
     u32 read = askf_read_input_blocking_tobuff( vm, (ascii*)addr->val._64u, 
             vm->blocks->block_size );
 
@@ -2247,6 +2250,22 @@ static void askf_word_execute( void ) {
         case ASKF_WORD_THREADED:
             askf_stack_push( addr, vm->stack );
             askf_execute_threaded_word();
+            break;
+        case ASKF_WORD_NATIVE_FOREIGN:
+            if ( !askf_trampoline( word->source.source.foreign_sig ) ){
+                AskForthError err = {0};
+                err.error = ASKF_ERROR_WORD_FOREIGN_FAILED;
+                err.zone  = ASKF_ERROR_ZONE_INNER;
+
+                ascii tmp = word->name[word->name_len];
+                word->name[word->name_len] = '0';
+                AskForthErrorMessage* opt_msg = 
+                askf_alloc_new_opt_message( word->name, word->name_len );
+                word->name[word->name_len] = tmp;
+                err.opt_message = opt_msg;
+                askf_throw_error( err );
+                return;
+            }
             break;
         default:
             break;
@@ -2652,6 +2671,8 @@ boolean _askf_interp_ffi_params_and_result_to_global_sig( void ) {
     boolean got_params      = FALSE;
     boolean got_result      = FALSE;
 
+    global_ffi_sig->count = 0;
+
     while ( TRUE ) {
         tkn = askf_next_token( source );
         if ( tkn.base == NULL && tkn.length == 0 ) 
@@ -2701,13 +2722,13 @@ boolean _askf_interp_ffi_params_and_result_to_global_sig( void ) {
                         _askf_word_failed( (ascii*)"FUNCTION: -> when using 'void' it must be the only param", 56 );
                         return FALSE;
                     }
-                    global_ffi_sig->args[global_ffi_sig->count++] = ASKF_ARG_PTR;
+                    global_ffi_sig->args[0] = ASKF_ARG_VOID;
                 } else {
                     if ( got_result ) {
                         _askf_word_failed( (ascii*)"FUNCTION: -> result must only contain one return type ", 54 );
                         return FALSE;
                     }
-                    global_ffi_sig->ret_type = ASKF_ARG_U64;
+                    global_ffi_sig->ret_type = ASKF_ARG_VOID;
                     got_result = TRUE;
                 }
             }
@@ -2715,12 +2736,7 @@ boolean _askf_interp_ffi_params_and_result_to_global_sig( void ) {
         else if ( tkn.length == 2 ) 
         {
             if ( _strequal( tkn.base, (ascii*)"--", 2 ) ) {
-                if ( global_ffi_sig->count > 0 ) {
-                    got_params = TRUE;
-                } else {
-                    _askf_word_failed( (ascii*)"FUNCTION: -> no params found before '--' ", 41 );
-                    return FALSE;
-                }
+                got_params = TRUE;
             }
 
         }

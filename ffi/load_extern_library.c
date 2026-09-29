@@ -443,12 +443,12 @@ void switch_context( void* rsp, AskForthForeignFuncSig* signature ) {
             #if defined( ARQBITS64 )
                 #if defined( TARGET_LINUX ) 
                     set_foreign_call_for_trampoline_ctx_x86_64_sysv( &manager->ctxs, signature->handle, signature );
-                    u64 arg_count = signature->args[0] == ASKF_ARG_VOID ? 0 : ( signature->count > 6 ? 6 : signature->count );
+                    u64 arg_count = signature->count > 6 ? 6 : signature->count;
 
                     enter_foreign_ctx_x86_64_sysv(manager->ctxs.trampoline_ctx.rsp, arg_count );
                 #elif defined( TARGET_WINDOWS ) 
                     set_foreign_call_for_trampoline_ctx_x86_64_winv( &manager->ctxs, signature->handle, signature );
-                    u64 arg_count = signature->args[0] == ASKF_ARG_VOID ? 0 : ( signature->count > 4 ? 4 : signature->count );
+                    u64 arg_count = signature->count > 4 ? 4 : signature->count;
 
                     enter_foreign_ctx_x86_64_winv(manager->ctxs.trampoline_ctx.rsp, arg_count );
                 #endif
@@ -470,8 +470,10 @@ void switch_context( void* rsp, AskForthForeignFuncSig* signature ) {
 }
 
 boolean askf_trampoline( AskForthForeignFuncSig* signature ) {
-    if ( askf_get_global_vm()->stack->index < signature->count) 
-        return FALSE;
+    AskForthVm* vm = askf_get_global_vm();
+
+    if ( vm->stack->index < signature->count ) 
+            return FALSE;
 
     #if defined( ARQBITS64 )
         #if defined( TARGET_LINUX ) 
@@ -480,6 +482,10 @@ boolean askf_trampoline( AskForthForeignFuncSig* signature ) {
             trampoline_forth_ctx_x86_64_winv( signature );
         #endif
     #endif
+
+    if ( signature->ret_type == ASKF_ARG_VOID ) {
+        vm->stack->index--;
+    }
 
     return TRUE;
 }

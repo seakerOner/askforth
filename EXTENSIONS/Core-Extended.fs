@@ -12,9 +12,6 @@ DECIMAL 64 BITS UNSIGNED
 ADD-DIC vars
 : :vars core PARSE-NAME s" vars" CREATE-WORD ; 
 
-ADD-DIC tmp
-: :tmp core PARSE-NAME s" tmp"   CREATE-WORD ; 
-
 :core -rot rot rot ;
 :core 1+ 1 + ; INLINE
 :core 1- 1 - ; INLINE
@@ -166,17 +163,6 @@ ADD-DIC tmp
     R> drop 
 ;
 
-:core [DEFINED]
-    depth 0= IF error" [DEFINED] -> Expects Dictionary address" ( recovery ) ABORT ELSE
-    ?dup  0= IF error" [DEFINED] -> NULL address of Dictionary" ( recovery ) ABORT THEN
-    POSTPONE [FIND] 0<>
-; IMMEDIATE
-
-:core [UNDEFINED]
-    depth 0= IF error" [UNDEFINED] -> Expects Dictionary address" ( recovery ) ABORT ELSE
-    ?dup  0= IF error" [UNDEFINED] -> NULL address of Dictionary" ( recovery ) ABORT THEN
-    POSTPONE [FIND] 0=
-; IMMEDIATE
 
 :core [CHAR] 
     PARSE-NAME drop
