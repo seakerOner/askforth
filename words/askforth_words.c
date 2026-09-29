@@ -39,6 +39,44 @@ static void _askf_word_failed( ascii* msg, u64 len ) {
     askf_throw_error( err );
 }
 
+static void askf_word_aligned( void ) {
+    u32 res = askf_stack_pop( global_c00, vm->stack );
+
+    if ( !res ) {
+        _askf_word_failed( (ascii*)"ALIGNED -> Stack Empty", 22 );
+        return;
+    }
+
+    #if defined( ARQBITS64 )
+        global_c00->val._addr_t = ALIGN_UP( global_c00->val._addr_t, 8 );
+    #elif defined( ARQBITS32 )
+        global_c00->val._addr_t = ALIGN_UP( global_c00->val._addr_t, 4 );
+    #elif defined( ARQBITS16 )
+        global_c00->val._addr_t = ALIGN_UP( global_c00->val._addr_t, 2 );
+    #elif defined( ARQBITS8 )
+        global_c00->val._addr_t = ALIGN_UP( global_c00->val._addr_t, 1 );
+    #endif 
+
+    askf_stack_push( global_c00, vm->stack );
+}
+
+static void askf_word_align( void ) {
+    askf_addr_t here = (askf_addr_t)&((u8*)vm->ram->start_ptr)[vm->ram->byte_index];
+
+    #if defined( ARQBITS64 )
+        here = ALIGN_UP( here, 8 );
+    #elif defined( ARQBITS32 )
+        here = ALIGN_UP( here, 4 );
+    #elif defined( ARQBITS16 )
+        here = ALIGN_UP( here, 2 );
+    #elif defined( ARQBITS8 )
+        here = ALIGN_UP( here, 1 );
+    #endif 
+
+    askf_addr_t diff = here - (askf_addr_t)&((u8*)vm->ram->start_ptr)[vm->ram->byte_index];
+    vm->ram->byte_index += diff;
+}
+
 static void askf_word_dot( void ) {
     u32 res = askf_stack_pop( global_c00, vm->stack );
 
@@ -1178,9 +1216,16 @@ static void askf_word_print_string( void ) {
 
             askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_skippable );
 
+
             ascii* ptr = (ascii*)askf_alloc( len+1 );
             COPY( string_base, ptr, len+1 );
-            askf_compile_threaded_memory( len+1 );
+
+            askf_addr_t here = (askf_addr_t)&((u8*)vm->ram->start_ptr)[vm->ram->byte_index];
+            askf_word_align();
+            askf_addr_t c_here = (askf_addr_t)&((u8*)vm->ram->start_ptr)[vm->ram->byte_index];
+            askf_addr_t alignment = c_here - here;
+
+            askf_compile_threaded_memory( len+1+alignment );
 
             askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_literal );
             askf_compile_threaded_memory( (u64)ptr );
@@ -1252,7 +1297,12 @@ static void askf_word_error_with_string( void ) {
             COPY( string_base, ptr, len+1 );
             ptr[len] = '\0';
 
-            askf_compile_threaded_memory( len+1 );
+            askf_addr_t here = (askf_addr_t)&((u8*)vm->ram->start_ptr)[vm->ram->byte_index];
+            askf_word_align();
+            askf_addr_t c_here = (askf_addr_t)&((u8*)vm->ram->start_ptr)[vm->ram->byte_index];
+            askf_addr_t alignment = c_here - here;
+
+            askf_compile_threaded_memory( len+1+alignment );
 
             askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_dispatch_error );
 
@@ -1304,10 +1354,19 @@ static void askf_word_store_string( void ) {
     if ( vm->interpret_state == ASKF_COMPILE )
         askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_skippable );
 
+    if ( vm->interpret_state == ASKF_INTERPRET )
+        askf_word_align();
+
     ascii* new_base = askf_alloc( sizeof(ascii) * len+1 );
-    
-    if ( vm->interpret_state == ASKF_COMPILE )
-        askf_compile_threaded_memory( len+1 );
+
+    if ( vm->interpret_state == ASKF_COMPILE ) {
+        askf_addr_t here = (askf_addr_t)&((u8*)vm->ram->start_ptr)[vm->ram->byte_index];
+        askf_word_align();
+        askf_addr_t c_here = (askf_addr_t)&((u8*)vm->ram->start_ptr)[vm->ram->byte_index];
+        askf_addr_t alignment = c_here - here;
+
+        askf_compile_threaded_memory( len+1+alignment );
+    }
 
     COPY( string_base, new_base, len );
     new_base[len+1] = '\0';
@@ -1709,7 +1768,7 @@ static void askf_word_create_word( void ) {
         return;
     }
 
-
+    askf_word_align();
     askf_dic_add_word_threaded( dic, word_name );
 
     vm->interpret_state  = ASKF_COMPILE;
@@ -1767,6 +1826,7 @@ static void askf_word_colon( void ) {
         return;
     }
 
+    askf_word_align();
     askf_dic_add_word_threaded( dic, word_name );
 
     vm->interpret_state  = ASKF_COMPILE;
@@ -1778,6 +1838,9 @@ static void askf_word_colon_noname( void ) {
             (ascii *)":NONAME -> cell width must match architecture word width", 56 );
         return;
     }
+
+    askf_word_align();
+
     AskForth_Word* new_word = askf_alloc( sizeof( AskForth_Word ) );
 
     new_word->prev                      = NULL;
@@ -1785,6 +1848,8 @@ static void askf_word_colon_noname( void ) {
     new_word->is_immediate              = FALSE;
 
     new_word->source.type               = ASKF_WORD_THREADED;
+
+    askf_word_align();
     new_word->source.source.threaded_code_start_addr = (u64)askf_alloc( sizeof(u64) );
 
     new_word->name_len                  = 0;
@@ -1815,6 +1880,20 @@ static void askf_word_immediate( void ) {
     }
     ( (AskForth_Library*)vm->lib )->curr_compiling.word->is_immediate = TRUE;
 }
+
+static void askf_word_isimmediate( void ) { 
+    if ( vm->stack->index < 1 ) {
+        _askf_word_failed( (ascii*)"?IMMEDIATE -> Expects ( xt -- flag )", 36 );
+        return;
+    }
+    askf_stack_pop( global_c00, vm->stack );
+
+    AskForth_Word* word = ( AskForth_Word* )global_c00->val._addr_t;
+    word->is_immediate ? ( global_c00->val._addr_t = -1 ) : ( global_c00->val._addr_t = 0 ) ;
+
+    askf_stack_push( global_c00, vm->stack );
+}
+
 static void askf_word_inline( void ) {
     if ( !( (AskForth_Library*)vm->lib )->curr_compiling.word ) {
         _askf_word_failed( (ascii*)"INLINE -> No last word definition found", 39 );
@@ -1917,6 +1996,7 @@ static void askf_word_add_dic( void ) {
         return;
     }
 
+    askf_word_align();
     askf_create_dic( vm, (ascii*)addr->val._64u, len->val._64u );
 }
 
@@ -2972,11 +3052,16 @@ void askf_add_core_words( void ) {
     vm                  = askf_get_global_vm();
     AskForth_Cell cell  = askf_new_cell_payload( vm->stack );
 
+    askf_word_align();
     global_c00 = askf_alloc( sizeof(AskForth_Cell) );
+    askf_word_align();
     global_c01 = askf_alloc( sizeof(AskForth_Cell) );
+    askf_word_align();
     global_c02 = askf_alloc( sizeof(AskForth_Cell) );
+    askf_word_align();
     global_c03 = askf_alloc( sizeof(AskForth_Cell) );
 
+    askf_word_align();
     global_ffi_sig = askf_alloc( sizeof(AskForthForeignFuncSig) );
     global_ffi_sig->count = 0;
 
@@ -3034,6 +3119,27 @@ void askf_add_core_words( void ) {
 
     if ( !added_stack_input_source_blk )
         _askf_print_failed_add_word( &scratch_word_name );
+
+    // ALIGNED
+    scratch_word_name.base            = (ascii*)"ALIGNED";
+    scratch_word_name.length          = 7;
+
+    boolean added_aligned = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_aligned, scratch_word_name );
+
+    if ( !added_aligned )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // ALIGN
+    scratch_word_name.base            = (ascii*)"ALIGN";
+    scratch_word_name.length          = 5;
+
+    boolean added_align = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_align, scratch_word_name );
+
+    if ( !added_align )
+        _askf_print_failed_add_word( &scratch_word_name );
+
 
     // DOT 
     scratch_word_name.base          = (ascii*)".";
@@ -3922,6 +4028,17 @@ void askf_add_core_words( void ) {
 
     if ( !added_immediate )
         _askf_print_failed_add_word( &scratch_word_name );
+
+    // ?IMMEDIATE
+    scratch_word_name.base            = (ascii*)"?IMMEDIATE";
+    scratch_word_name.length          = 10;
+
+    boolean added_isimmediate = 
+        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_isimmediate, scratch_word_name );
+
+    if ( !added_isimmediate )
+        _askf_print_failed_add_word( &scratch_word_name );
+
 
     // OPTIMIZE
     scratch_word_name.base            = (ascii*)"OPTIMIZE";

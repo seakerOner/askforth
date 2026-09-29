@@ -10,10 +10,13 @@ DECIMAL 64 BITS UNSIGNED
 : :core core PARSE-NAME s" core" CREATE-WORD ; 
 
 ADD-DIC vars
+
 : :vars core PARSE-NAME s" vars" CREATE-WORD ; 
 
 :core -rot rot rot ;
+
 :core 1+ 1 + ; INLINE
+
 :core 1- 1 - ; INLINE
 
 :core LIT
@@ -23,6 +26,7 @@ ADD-DIC vars
 :core [:] 
     POSTPONE :
 ;
+
 :core [:vars] 
     POSTPONE :vars
 ;
@@ -41,16 +45,16 @@ ADD-DIC vars
 ;
 
 :core CONSTANT ( w "name" -- )
-    [:vars] LIT [;]
+   [:vars] LIT [;]
 ;
 
 :core VARIABLE ( "name"  -- )
-    HERE 1 cells ALLOT
+    ALIGN HERE 1 cells ALLOT
     [:vars] LIT [;]
 ;
 
 :core BUFFER ( u "name" -- )
-    HERE swap cells ALLOT 
+    ALIGN HERE swap cells ALLOT 
     [:vars] LIT [;]
 ;
 
@@ -59,9 +63,9 @@ ADD-DIC vars
 ;
 
 :core CREATE ( "name" "dictionary" -- )
-    HERE dup 1 cells ALLOT 
+    ALIGN HERE dup 1 cells ALLOT 
     [:vars] LIT ['] @ COMPILE, [;]
-    HERE swap !
+    ALIGN HERE swap !
 ;
 
 :core , ( d -- )
@@ -121,7 +125,6 @@ ADD-DIC vars
     ['] 2drop COMPILE, 
 ; IMMEDIATE 
 
-
 :core UNLOOP
     R> R> 2drop 
 ;
@@ -162,7 +165,6 @@ ADD-DIC vars
 :core UNCASE
     R> drop 
 ;
-
 
 :core [CHAR] 
     PARSE-NAME drop
@@ -241,7 +243,7 @@ VARIABLE concat@idx
     2dup < IF swap THEN drop
 ;
 
-HERE 512 chars ALLOT CONSTANT PAD
+ALIGN HERE 512 chars ALLOT CONSTANT PAD
 512 CONSTANT PAD-SIZE
 
 HERE 128 chars ALLOT 

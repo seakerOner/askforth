@@ -3,13 +3,15 @@
 \ Requires the `Core-Extended.fs` Words
 \ Requires the `String.fs` Words
 
-:core [DEFINED]
+\ Different from the Forth standard `[DEFINED]` and `[UNDEFINED]' expect a dictionary xt (using `[FROM] <dict_name>`)
+
+:core [DEFINED] ( dict_xt -- addr ) 
     depth 0= IF error" [DEFINED] -> Expects Dictionary address" ( recovery ) ABORT ELSE
     ?dup  0= IF error" [DEFINED] -> NULL address of Dictionary" ( recovery ) ABORT THEN
     POSTPONE [FIND] 0<>
 ; IMMEDIATE
 
-:core [UNDEFINED]
+:core [UNDEFINED] ( dict_xt -- addr )
     depth 0= IF error" [UNDEFINED] -> Expects Dictionary address" ( recovery ) ABORT ELSE
     ?dup  0= IF error" [UNDEFINED] -> NULL address of Dictionary" ( recovery ) ABORT THEN
     POSTPONE [FIND] 0=
@@ -27,8 +29,12 @@
 ; IMMEDIATE
 
 :core [ELSE]
-    BEGIN PARSE-NAME s" [THEN]" COMPARE 0= IF EXIT THEN TRUE WHILE REPEAT
+    BEGIN 
+        PARSE-NAME 
+        s" [THEN]" COMPARE 0= IF EXIT THEN 
+        TRUE WHILE REPEAT
 ; IMMEDIATE
 
-:core [THEN]
-; IMMEDIATE
+:core [THEN] ; IMMEDIATE
+
+:core ? ( addr -- ) @ . ;
