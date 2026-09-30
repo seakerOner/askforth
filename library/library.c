@@ -68,6 +68,7 @@ AskForth_Dictionary*    askf_create_dic( AskForthVm* vm, ascii name[ASKF_MAX_NAM
     new_dic->next        = NULL;
     new_dic->recent_word = NULL;
     new_dic->words_base  = NULL;
+    new_dic->prev        = dic;
     COPY(name, new_dic->name, name_len );
     new_dic->name_len = name_len;
 
@@ -191,6 +192,7 @@ boolean askf_dic_add_word_native(
     new_word->source.source.native_code = native_subroutine;
 
     new_word->name_len                  = word_name.length;
+    new_word->dict_origin               = dic;
     COPY(word_name.base, new_word->name, word_name.length);
 
 
@@ -233,6 +235,7 @@ boolean askf_dic_add_word_foreign_native(
     COPY( signature, new_word->source.source.foreign_sig, sizeof( AskForthForeignFuncSig ) );
 
     new_word->name_len                  = word_name.length;
+    new_word->dict_origin               = dic;
     COPY(word_name.base, new_word->name, word_name.length);
 
 
@@ -279,6 +282,7 @@ boolean askf_dic_add_word_threaded( AskForth_Dictionary* dic, AskForthToken word
     ( (AskForth_Library*)vm->lib )->curr_compiling.here = 
         (u64*)new_word->source.source.threaded_code_start_addr;
 
+    new_word->dict_origin               = dic;
     return TRUE;
 }
 

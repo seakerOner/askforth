@@ -599,6 +599,37 @@ static void askf_word_forget( void ) {
     }
 }
 
+static void askf_word_xtforget( void ) {
+    if ( vm->stack->index < 1 ) {
+        _askf_word_failed( (ascii*)"FORGET -> Expects ( word_xt -- )", 32 );
+        return;
+    }
+
+    if ( _stack_invalid_for_addresses() ) {
+        _askf_word_failed( 
+                (ascii *)"FORGET -> cell width must match architecture word width", 55 );
+        return;
+    }
+
+    AskForth_Cell* word_cell = global_c00;
+    askf_stack_pop( word_cell, vm->stack );
+
+    AskForth_Word* word = (AskForth_Word*)word_cell->val._addr_t;
+
+    if ( word->prev && word->next ) {
+        word->prev->next = word->next;
+        word->next->prev = word->prev;
+    } else if ( word->prev && !word->next ) 
+        word->prev->next = NULL;
+
+    if ( (askf_addr_t)word->dict_origin->recent_word == (askf_addr_t)word ) { 
+        word->dict_origin->recent_word = word->prev;
+    }
+    if ( (askf_addr_t)word->dict_origin->words_base == (askf_addr_t)word ) {  
+        word->dict_origin->words_base  = NULL;
+    }
+}
+
 static void askf_word_words( void ) {
     askf_word_parse_name();
 
@@ -1992,6 +2023,69 @@ static void askf_word_add_dic( void ) {
     askf_create_dic( vm, (ascii*)addr->val._64u, len->val._64u );
 }
 
+static void askf_word_forget_dic( void ) { 
+    if ( ( vm->stack->cell_scale / 8  ) != sizeof( askf_addr_t ) ) {
+        _askf_word_failed( 
+            (ascii *)"FORGET-DICT -> cell width must match architecture word width", 60 );
+        return;
+    }
+
+    if ( vm->stack->index < 1 ) {
+        _askf_word_failed( (ascii*)"FORGET-DICT -> Expects ( dict_xt -- ) ", 38 );
+        return;
+    }
+
+    AskForth_Cell* addr = global_c01;
+
+    askf_stack_pop( addr, vm->stack );
+
+    AskForth_Dictionary* dict = (AskForth_Dictionary*)addr->val._addr_t;
+
+    if ( dict == NULL ) {
+        _askf_word_failed( (ascii*)"FORGET-DICT -> NULL dict_xt", 27 );
+        return;
+    }
+
+    if ( dict->prev && dict->next ) {
+        dict->prev->next = dict->next;
+        dict->next->prev = dict->prev;
+    } else if ( dict->prev && !dict->next ) 
+        dict->prev->next = NULL;
+
+}
+
+static void askf_word_remember_dic( void ) { 
+    if ( ( vm->stack->cell_scale / 8  ) != sizeof( askf_addr_t ) ) {
+        _askf_word_failed( 
+            (ascii *)"REMEMBER-DICT -> cell width must match architecture word width", 62 );
+        return;
+    }
+
+    if ( vm->stack->index < 1 ) {
+        _askf_word_failed( (ascii*)"REMEMBER-DICT -> Expects ( dict_xt -- ) ", 38 );
+        return;
+    }
+
+    AskForth_Cell* addr = global_c01;
+
+    askf_stack_pop( addr, vm->stack );
+
+    AskForth_Dictionary* dict = (AskForth_Dictionary*)addr->val._addr_t;
+
+    if ( dict == NULL ) {
+        _askf_word_failed( (ascii*)"REMEBER-DICT -> NULL dict_xt", 28 );
+        return;
+    }
+
+    AskForth_Library* lib = (AskForth_Library*)vm->lib;
+
+    dict->next = NULL;
+    dict->prev  = lib->recent_dic;
+
+    lib->recent_dic->next = dict;
+    lib->recent_dic = dict;
+}
+
 static void askf_word_abort( void ) { 
     if ( vm->interpret_state == ASKF_COMPILE )
         vm->interpret_state = ASKF_INTERPRET;
@@ -3012,6 +3106,50 @@ static void askf_word_include( void ) {
         source = askf_istack_peek( vm->istack );
         source->in_max = base_idx;
 }
+
+static void askf_word_included( void ) { 
+        if ( vm->stack->index < 2 ) {
+            _askf_word_failed( (ascii*)"INCLUDED -> Expects ( c-addr u -- )", 35 );
+            return;
+        }
+
+        AskForth_Cell* len   = global_c00;
+        AskForth_Cell* path  = global_c01;
+
+        askf_stack_pop( len, vm->stack );
+        askf_stack_pop( path, vm->stack );
+
+        ascii* alloced_name = malloc( len->val._addr_t );
+
+        ascii tmp = ((ascii*)path->val._64u)[len->val._64u];
+
+        ((ascii*)path->val._64u)[len->val._64u] = '\0';
+        FILE *f = fopen( (char*)path->val._64u, "r");
+        ((ascii*)path->val._64u)[len->val._64u] = tmp;
+        COPY( path->val._64u, alloced_name, len->val._addr_t );
+
+        if ( !f ) {
+            _askf_word_failed( (ascii*)"INCLUDE -> Could not open file", 30 );
+            _askf_word_failed( (ascii*)path->val._64u, len->val._64u );
+            return;
+        }
+
+        int is_eof;
+
+        ascii* base = malloc( KB(4) );
+        u64    base_idx = 0;
+        u64    baselen  = KB(4);
+
+        int fileid = fileno(f);
+        AskForth_InputSource* source = NULL; 
+        u64 read = _askf_custom_fgets( base, baselen - 1, f, &is_eof );
+
+        base_idx = read;
+        base[base_idx] = '\0';
+        askf_istack_push( vm->istack, base, baselen, fileid, 0, (askf_addr_t)f, alloced_name, len->val._64u );
+        source = askf_istack_peek( vm->istack );
+        source->in_max = base_idx;
+}
 #endif
 
 void askf_word_refill( void )  {
@@ -3417,6 +3555,17 @@ void askf_add_core_words( void ) {
 
     if ( !added_forget )
         _askf_print_failed_add_word( &scratch_word_name );
+
+    // FORGET
+    scratch_word_name.base            = (ascii*)"FORGET";
+    scratch_word_name.length          = 6;
+
+    boolean added_xtforget = 
+        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_xtforget, scratch_word_name );
+
+    if ( !added_xtforget )
+        _askf_print_failed_add_word( &scratch_word_name );
+
 
 
     // PARSE-NAME
@@ -4092,8 +4241,17 @@ void askf_add_core_words( void ) {
         _askf_print_failed_add_word( &scratch_word_name );
 
 
-
     #if defined( TARGET_LINUX ) || defined( TARGET_WINDOWS )
+        // INCLUDED
+        scratch_word_name.base            = (ascii*)"INCLUDED";
+        scratch_word_name.length          = 8;
+
+        boolean added_included = 
+            askf_dic_add_word_native( core_dic_name, FALSE, askf_word_included, scratch_word_name );
+
+        if ( !added_included )
+            _askf_print_failed_add_word( &scratch_word_name );
+
         // INCLUDE
         scratch_word_name.base            = (ascii*)"INCLUDE";
         scratch_word_name.length          = 7;
@@ -4125,6 +4283,28 @@ void askf_add_core_words( void ) {
 
     if ( !added_add_dic )
         _askf_print_failed_add_word( &scratch_word_name );
+
+    // FORGET-DICT
+    scratch_word_name.base            = (ascii*)"FORGET-DICT";
+    scratch_word_name.length          = 11;
+
+    boolean added_forget_dic = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_forget_dic, scratch_word_name );
+
+    if ( !added_forget_dic )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+    // REMEMBER-DICT
+    scratch_word_name.base            = (ascii*)"REMEMBER-DICT";
+    scratch_word_name.length          = 13;
+
+    boolean added_remeber_dic = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_remember_dic, scratch_word_name );
+
+    if ( !added_remeber_dic )
+        _askf_print_failed_add_word( &scratch_word_name );
+
+
 
     // ABORT
     scratch_word_name.base            = (ascii*)"ABORT";

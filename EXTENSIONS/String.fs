@@ -140,7 +140,7 @@ VARIABLE SUB-COUNT
     2dup + 0 swap c! \ null terminator
 ;
 
-\ for from the standard, but these are nice for multi line comments
+\ not from the standard, but these are nice for multi line comments
 
 :core {
     BEGIN 

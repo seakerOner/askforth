@@ -27,6 +27,8 @@ typedef struct {
     } source;
 } AskForth_WordSource;
 
+typedef struct AskForth_Dictionary_t AskForth_Dictionary;
+
 typedef struct AskForth_Word_t {
     ascii name[ASKF_MAX_NAME_LEN];
     u64   name_len;
@@ -36,14 +38,15 @@ typedef struct AskForth_Word_t {
     boolean is_inline;
     AskForth_Word* prev;
     AskForth_Word* next;
+    AskForth_Dictionary* dict_origin;
 } AskForth_Word;
 
-typedef struct AskForth_Dictionary_t AskForth_Dictionary;
 
 typedef struct AskForth_Dictionary_t {
     AskForth_Word*          words_base;
     AskForth_Word*          recent_word;
     AskForth_Dictionary*    next;
+    AskForth_Dictionary*    prev;
     ascii                   name[ASKF_MAX_NAME_LEN];
     u64                     name_len;
 } AskForth_Dictionary;

@@ -1,9 +1,11 @@
-\ The optional Programming-Tools word set
+{  -----------------------------------------------------------------------------------------
+    The optional Programming-Tools word set
 
-\ Requires the `Core-Extended.fs` Words
-\ Requires the `String.fs` Words
+    Requires the `Core-Extended.fs` Words
+    Requires the `String.fs` Words
 
-\ Different from the Forth standard `[DEFINED]` and `[UNDEFINED]' expect a dictionary xt (using `[FROM] <dict_name>`)
+    Different from the Forth standard `[DEFINED]` and `[UNDEFINED]' expect a dictionary xt (using `[FROM] <dict_name>`)
+  ------------------------------------------------------------------------------------------ }
 
 :core [DEFINED] ( dict_xt -- addr ) 
     depth 0= IF error" [DEFINED] -> Expects Dictionary address" ( recovery ) ABORT ELSE
