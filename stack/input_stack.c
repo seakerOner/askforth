@@ -12,15 +12,18 @@ void askf_start_istack( AskForth_InputStack* Istack, ascii* base, u64 byte_cap )
     Istack->sources[Istack->index++].byte_cap   = byte_cap;
 }
 
-boolean askf_istack_push( AskForth_InputStack* Istack, ascii* base, u64 byte_cap , i64 source_id, u64 blk ) {
+boolean askf_istack_push( AskForth_InputStack* Istack, ascii* base, u64 byte_cap , i64 source_id, u64 blk, askf_addr_t file, ascii* file_name, u64 file_name_len ) {
     if ( Istack->index >= Istack->capacity ) 
         return FALSE;
 
-    Istack->sources[Istack->index].base         = base;
-    Istack->sources[Istack->index].in           = 0;    
-    Istack->sources[Istack->index].in_max       = byte_cap;    
-    Istack->sources[Istack->index].source_id    = source_id;
-    Istack->sources[Istack->index].blk          = blk;
+    Istack->sources[Istack->index].base             = base;
+    Istack->sources[Istack->index].in               = 0;    
+    Istack->sources[Istack->index].in_max           = byte_cap;    
+    Istack->sources[Istack->index].source_id        = source_id;
+    Istack->sources[Istack->index].blk              = blk;
+    Istack->sources[Istack->index].file             = file;
+    Istack->sources[Istack->index].file_name        = file_name;
+    Istack->sources[Istack->index].file_name_len    = file_name_len;
     Istack->sources[Istack->index++].byte_cap   = byte_cap;
     return TRUE;
 };

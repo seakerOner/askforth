@@ -12,6 +12,10 @@ typedef struct {
     u64     in_max;
     u64     byte_cap;
 
+    ascii*  file_name;
+    u64     file_name_len;
+
+    askf_addr_t file;
     i64     source_id;  // 0 if source is user input, -1 string from EVALUATE, or N for a FILEID
     u64     blk;        // 0 if input source is not a BLOCK, N if it is, and N is the block number
 } AskForth_InputSource;
@@ -24,7 +28,7 @@ typedef struct {
 
 void askf_start_istack( AskForth_InputStack* Istack, ascii* base, u64 byte_cap );
 
-boolean askf_istack_push( AskForth_InputStack* Istack, ascii* base, u64 byte_cap , i64 source_id, u64 blk );
+boolean askf_istack_push( AskForth_InputStack* Istack, ascii* base, u64 byte_cap , i64 source_id, u64 blk, askf_addr_t file, ascii* file_name, u64 file_name_len );
 
 AskForth_InputSource* askf_istack_peek( AskForth_InputStack* Istack );
 

@@ -9,7 +9,7 @@ DECIMAL 64 BITS UNSIGNED
 
 : :core core PARSE-NAME s" core" CREATE-WORD ; 
 
-ADD-DIC vars
+DICTIONARY vars 
 
 : :vars core PARSE-NAME s" vars" CREATE-WORD ; 
 
@@ -223,8 +223,8 @@ VARIABLE concat@idx
 :core END-CONCAT
     depth 1 > IF CONCAT THEN  
 
-    0
-    [ concat@idx ]   LITERAL  @ 
+    0 
+    [ concat@idx ] LITERAL  @ 
     [ concat@items ] LITERAL  @ + !     \ store string null terminator
 
     [ concat@items ] LITERAL @
@@ -285,3 +285,5 @@ CREATE TMPSTRING  , 0 , 128 ,
 ; IMMEDIATE
 
 32 CONSTANT BL 
+
+:core BOUNDS ( addr u1 -- addr+u1 addr ) over + swap ;

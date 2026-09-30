@@ -13,7 +13,6 @@
 #define ASKF_THREADEDFRAMES_STACK_CAPACITY  256
 
 typedef enum {
-    ASKF_VM_OUTER_STATE_BLOCKING_INPUT,
     ASKF_VM_OUTER_STATE_EXECUTE,
     ASKF_VM_OUTER_STATE_EXECUTE_CONTINUE,
     ASKF_VM_OUTER_STATE_FAILED_CRITICAL,
@@ -113,7 +112,7 @@ void askf_vm_change_outer_state( AskForthVmOuterState new_state );
 
 void askf_execute_threaded_word( void );
 
-void _askf_execute_threaded_frames( void );
+void _askf_execute_threaded_frames( u64 source_depth );
 
 void askf_vm_trace_error( AskForthError error );
 AskForthError* askf_vm_get_most_recent_error( void );

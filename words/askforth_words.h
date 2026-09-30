@@ -3,7 +3,6 @@
 
 void askf_add_core_words( void );
 
-void askf_continue_comment_paren( void );
-void askf_continue_comment_slash( void );
+void askf_word_refill( void );
 
 #endif

@@ -105,7 +105,7 @@ int main( void ) {
     vm.input_buffer         = &input_buffer;
     vm.fallback_input       = &fallback_input_buffer;
     vm.blocks               = &blocks;
-    vm.outer_state          = ASKF_VM_OUTER_STATE_BLOCKING_INPUT;
+    vm.outer_state          = ASKF_VM_OUTER_STATE_EXECUTE;
     vm.interpret_state      = ASKF_INTERPRET;
     vm.num_base             = ASKF_DECIMAL;
     vm.error_tracer         = &tracer;
@@ -131,22 +131,14 @@ int main( void ) {
 
     askf_add_core_words();
 
-    askf_print( ( ascii* )"Welcome to the Agnostic Seaker's Forth :D", 41 );
-    askf_print_char( (ascii)'\n' );
+    askf_print( ( ascii* )"Welcome to the Agnostic Seaker's Forth :D ", 42 );
 
     while ( vm.outer_state != ASKF_VM_OUTER_STATE_SHUTDOWN_REQUEST ) {
 
         switch ( vm.outer_state ) {
-            case ASKF_VM_OUTER_STATE_BLOCKING_INPUT:
-                askf_read_input_blocking( &vm );
-
-                askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_EXECUTE );
-                break;
             case ASKF_VM_OUTER_STATE_EXECUTE_CONTINUE:
             case ASKF_VM_OUTER_STATE_EXECUTE:
                 askf_exec( &vm );
-                if ( vm.outer_state == ASKF_VM_OUTER_STATE_EXECUTE )
-                    askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_BLOCKING_INPUT );
                 break;
             case ASKF_VM_OUTER_STATE_FAILED_CRITICAL:
             case ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL:

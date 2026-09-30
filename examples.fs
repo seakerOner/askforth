@@ -28,10 +28,10 @@ DECIMAL 64 BITS UNSIGNED
 
 : :core core PARSE-NAME s" core" CREATE-WORD ; 
 
-ADD-DIC vars
+DICTIONARY vars
 : :vars core PARSE-NAME s" vars" CREATE-WORD ; 
 
-ADD-DIC tmp
+DICTIONARY tmp
 : :tmp core PARSE-NAME s" tmp"   CREATE-WORD ; 
 
 \ LIT is a small helper that compiles a literal into

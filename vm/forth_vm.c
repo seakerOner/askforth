@@ -65,7 +65,7 @@ static AskForthThreadedFrame* _askf_pop_ip_frame( AskForthVm* vm ) {
 #define NEXT() ip++
 #define RUN_OP() goto *(void*)*ip++
 
-void _askf_execute_threaded_frames( void ) {
+void _askf_execute_threaded_frames( u64 source_depth ) {
     AskForthVm* vm               = askf_get_global_vm();
 
     // GCC labels-as-values are local to this function.
@@ -99,7 +99,6 @@ void _askf_execute_threaded_frames( void ) {
         ip = (u64*)frame->resume_ip;
     else 
         ip = (u64*)frame->base_ip;
-
 
 return_call:
     while ( TRUE ) {
@@ -157,8 +156,11 @@ return_call:
                     vm->outer_state == ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL) {
                 _askf_push_ip_frame( vm, word, (u64)ip, TRUE);
                 return;
-            } else if ( vm->outer_state == ASKF_VM_OUTER_STATE_BLOCKING_INPUT ) 
+            } 
+            if ( source_depth !=  vm->istack->index ) {
+                _askf_push_ip_frame( vm, word, (u64)ip, TRUE);
                 return;
+            }
 
             continue;
         }
@@ -236,50 +238,33 @@ void askf_execute_threaded_word( void ) {
     _askf_push_ip_frame( vm, 
             (AskForth_Word*)vm_c00->val._64u, 
             ((AskForth_Word*)vm_c00->val._64u)->source.source.threaded_code_start_addr, FALSE );
-    _askf_execute_threaded_frames();
+
+    _askf_execute_threaded_frames( vm->istack->index );
 }
 
 void askf_exec( AskForthVm* vm ) {
 
-    switch ( vm->comment_state ) {
-        case ASKF_COMMENT_STATE_SLASH:
-            askf_continue_comment_slash();
-            if ( vm->comment_state == ASKF_COMMENT_STATE_SLASH ) 
-                goto end_exec;
-
-            break;
-        case ASKF_COMMENT_STATE_PAREN:
-            askf_continue_comment_paren();
-            if ( vm->comment_state == ASKF_COMMENT_STATE_PAREN ) 
-                goto end_exec;
-
-            break;
-        case ASKF_COMMENT_STATE_NONE:
-            break;
-        default:
-            return;
-    }
-
-    if ( vm->outer_state == ASKF_VM_OUTER_STATE_EXECUTE_CONTINUE ) { 
-        vm->outer_state = ASKF_VM_OUTER_STATE_EXECUTE;
-
-        // having a ASKF_VM_OUTER_STATE_EXECUTE_CONTINUE flag means we continuing 
-        // execution after an error ocurred, if the threadedframes stack has content inside
-        // it means we stopped execution inside a threaded word and we must resume it until
-        // no nested words are left to execute
-        
-        while ( vm->tframes_stack->index > 0 )  {
-            _askf_execute_threaded_frames();
-
-            if ( vm->outer_state == ASKF_VM_OUTER_STATE_FAILED_CRITICAL ||
-                    vm->outer_state == ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL) {
-                return;
-            }
-        }
-    }
-
+    // if ( vm->outer_state == ASKF_VM_OUTER_STATE_EXECUTE_CONTINUE ) { 
+    //     vm->outer_state = ASKF_VM_OUTER_STATE_EXECUTE;
+    //
+    //     // having a ASKF_VM_OUTER_STATE_EXECUTE_CONTINUE flag means we continuing 
+    //     // execution after an error ocurred, if the threadedframes stack has content inside
+    //     // it means we stopped execution inside a threaded word and we must resume it until
+    //     // no nested words are left to execute
+    //
+    //     while ( vm->tframes_stack->index > 0 )  {
+    //         _askf_execute_threaded_frames( vm->istack->index );
+    //
+    //         if ( vm->outer_state == ASKF_VM_OUTER_STATE_FAILED_CRITICAL ||
+    //                 vm->outer_state == ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL) {
+    //             return;
+    //         }
+    //     }
+    // }
+    //
     AskForthToken token = {0};
 
+new_input_source:
     while ( TRUE ) {
         AskForth_InputSource* source = askf_istack_peek( vm->istack );
         token = askf_next_token( source );
@@ -343,7 +328,7 @@ void askf_exec( AskForthVm* vm ) {
                         _askf_push_ip_frame( vm, 
                             word, 
                             word->source.source.threaded_code_start_addr, FALSE );
-                         _askf_execute_threaded_frames();
+                            _askf_execute_threaded_frames( vm->istack->index );
                         break;
                 }
                break;
@@ -374,7 +359,7 @@ void askf_exec( AskForthVm* vm ) {
                             _askf_push_ip_frame( vm, 
                                 word, 
                                 word->source.source.threaded_code_start_addr, FALSE );
-                            _askf_execute_threaded_frames();
+                            _askf_execute_threaded_frames( vm->istack->index );
                            break;
                    }
                } else {
@@ -410,7 +395,22 @@ void askf_exec( AskForthVm* vm ) {
             return;
     }
 
+    while ( vm->tframes_stack->index > 0 )  {
+        u64 current_depth = vm->istack->index;
+        _askf_execute_threaded_frames( current_depth );
+
+        if ( vm->outer_state == ASKF_VM_OUTER_STATE_FAILED_CRITICAL ||
+                vm->outer_state == ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL) {
+            return;
+        }
+
+        if ( vm->istack->index != current_depth ) {
+            goto new_input_source;
+        }
+    }
+
     AskForth_InputSource* source = askf_istack_peek( vm->istack );
+
     if ( vm->outer_state == ASKF_VM_OUTER_STATE_EXECUTE && source->source_id == 0 && source->blk == 0 ) {
         if ( vm->interpret_state == ASKF_INTERPRET ) 
             askf_print( ( ascii* )"ok.\n", 4 );
@@ -418,9 +418,15 @@ void askf_exec( AskForthVm* vm ) {
             askf_print( ( ascii* )"compiling.\n", 11 );
     } 
 
-    end_exec:
-    // this will not pop the stack if we are in the main input buffer
-     askf_istack_pop( vm->istack );
+    if ( source->blk > 0  || source->source_id == -1) {
+        // in the main vm loop we dont want the side effects of the word REFILL if we are on a block so we just pop it
+        // or if we are in an EVALUATE string if also just pop it
+        askf_istack_pop( vm->istack );
+    } else {
+        askf_word_refill();
+        // we dont need return flag from fill
+        vm->stack->index--;
+    }
 }
 
 void askf_vm_change_cell_scale( AskForth_CellSize new_cell_size ) {
@@ -458,7 +464,6 @@ void askf_vm_change_cell_scale( AskForth_CellSize new_cell_size ) {
 
 void askf_vm_change_outer_state( AskForthVmOuterState new_state ) {
     switch ( new_state ) {
-        case ASKF_VM_OUTER_STATE_BLOCKING_INPUT:
         case ASKF_VM_OUTER_STATE_EXECUTE:
         case ASKF_VM_OUTER_STATE_FAILED_CRITICAL:
         case ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL:

@@ -50,9 +50,6 @@ static void _askf_fallback_cmd_status( AskForthVm* vm ) {
 
     askf_print( (ascii*)"Outer state: ", 13 );
     switch ( vm->outer_state ) {
-        case ASKF_VM_OUTER_STATE_BLOCKING_INPUT:
-            askf_print( (ascii*)"ASKF_VM_OUTER_STATE_BLOCKING_INPUT", 34 );
-            break;
         case ASKF_VM_OUTER_STATE_EXECUTE:
             askf_print( (ascii*)"ASKF_VM_OUTER_STATE_EXECUTE", 27 );
             break;
@@ -450,7 +447,7 @@ static void _askf_fallback_cmd_abort( AskForthVm* vm ) {
     vm->istack->index = 1;
     FILL( vm->input_buffer->base, 0, vm->input_buffer->capacity );
 
-    askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_BLOCKING_INPUT );
+    askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_EXECUTE );
     vm->interpret_state = ASKF_INTERPRET;
 
     // we dont need the execution context when aborting so we clear the stack 

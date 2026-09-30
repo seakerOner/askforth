@@ -1395,15 +1395,17 @@ static void askf_word_comment_parenteshis( void ) {
     while ( TRUE ) {
         token = askf_next_token( source );
         if ( token.length == 0 && token.base == NULL ) {
-            break;
+            if ( source->blk > 0 ) {
+                _askf_word_failed( (ascii*)"( -> Could not find ')' inside the current block", 48 );
+                return;
+            }
+            askf_word_refill();
+            continue;
         }
         if ( token.base[token.length - 1] == ')' ) {
-            vm->comment_state    = ASKF_COMMENT_STATE_NONE;
             return;
         } 
     }
-
-    vm->comment_state    = ASKF_COMMENT_STATE_PAREN;
 }
 
 static void askf_word_comment_slash( void ) {
@@ -1413,22 +1415,12 @@ static void askf_word_comment_slash( void ) {
     while ( TRUE ) {
         token = askf_next_token( source );
         if ( token.length == 0 && token.base == NULL ) {
-            break;
+            return;
         }
         if ( token.line_end == TRUE )  {
-            vm->comment_state    = ASKF_COMMENT_STATE_NONE;
             return;
         }
     }
-
-    vm->comment_state    = ASKF_COMMENT_STATE_SLASH;
-}
-
-void askf_continue_comment_paren( void ) {
-    askf_word_comment_parenteshis();
-}
-void askf_continue_comment_slash( void ) {
-    askf_word_comment_slash();
 }
 
 static void askf_word_cr( void ) { 
@@ -1966,9 +1958,9 @@ static void askf_word_load( void ) {
 
     ascii* block = vm->blocks->start_blocks + vm->blocks->block_size * ( addr->val._64u - 1 );
 
-    askf_istack_push( vm->istack, block, vm->blocks->block_size, 0, addr->val._64u );
+    askf_istack_push( vm->istack, block, vm->blocks->block_size, 0, addr->val._64u, 0, NULL, 0 );
 
-    askf_exec( vm );
+    // askf_exec( vm );
 }
 
 static void askf_word_add_dic( void ) { 
@@ -2004,7 +1996,7 @@ static void askf_word_abort( void ) {
     if ( vm->interpret_state == ASKF_COMPILE )
         vm->interpret_state = ASKF_INTERPRET;
 
-    askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_BLOCKING_INPUT );
+    askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_EXECUTE );
 
     vm->input_buffer->index       = 0;
     vm->istack->sources[0].in_max = 0;
@@ -2927,12 +2919,7 @@ static void askf_word_evaluate( void ) {
     askf_stack_pop( global_c00, vm->stack );
     askf_stack_pop( global_c01, vm->stack );
 
-    askf_istack_push( vm->istack, (ascii*)global_c01->val._addr_t, global_c00->val._64u+1, -1, 0 );
-    askf_exec( vm );
-    if ( vm->outer_state == ASKF_VM_OUTER_STATE_FAILED_CRITICAL ||
-                    vm->outer_state == ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL ) {
-        return;
-    }
+    askf_istack_push( vm->istack, (ascii*)global_c01->val._addr_t, global_c00->val._64u+1, -1, 0, 0, NULL, 0 );
 }
 
 #if defined( TARGET_LINUX ) || defined( TARGET_WINDOWS )
@@ -2951,7 +2938,6 @@ static u64 _askf_custom_fgets( ascii* buff, u64 cap, FILE* stream, int* is_eof )
         if ( ch == EOF ) {
             *is_eof = 1;
             return bytes_read;
-            break;
         }
 
         if ( ch == '\n' ) {
@@ -2980,7 +2966,8 @@ static u64 _askf_custom_fgets( ascii* buff, u64 cap, FILE* stream, int* is_eof )
     return bytes_read;
 }
 
-    static void askf_word_include( void ) { 
+
+static void askf_word_include( void ) { 
         askf_word_parse_name();
 
         if ( vm->stack->index < 2 ) {
@@ -2994,10 +2981,14 @@ static u64 _askf_custom_fgets( ascii* buff, u64 cap, FILE* stream, int* is_eof )
         askf_stack_pop( len, vm->stack );
         askf_stack_pop( path, vm->stack );
 
+        ascii* alloced_name = malloc( len->val._addr_t );
+
         ascii tmp = ((ascii*)path->val._64u)[len->val._64u];
+
         ((ascii*)path->val._64u)[len->val._64u] = '\0';
         FILE *f = fopen( (char*)path->val._64u, "r");
         ((ascii*)path->val._64u)[len->val._64u] = tmp;
+        COPY( path->val._64u, alloced_name, len->val._addr_t );
 
         if ( !f ) {
             _askf_word_failed( (ascii*)"INCLUDE -> Could not open file", 30 );
@@ -3013,34 +3004,64 @@ static u64 _askf_custom_fgets( ascii* buff, u64 cap, FILE* stream, int* is_eof )
 
         int fileid = fileno(f);
         AskForth_InputSource* source = NULL; 
+        u64 read = _askf_custom_fgets( base, baselen - 1, f, &is_eof );
 
-        while ( vm->outer_state == ASKF_VM_OUTER_STATE_EXECUTE )   { 
-            u64 read = _askf_custom_fgets( base,
-                    baselen - 1, f, &is_eof );
-
-            if ( read > 0 ) {
-                base_idx = read;
-                base[base_idx] = '\0';
-                askf_istack_push( vm->istack, base, baselen, fileid, 0 );
-                source = askf_istack_peek( vm->istack );
-                source->in_max = base_idx;
-
-                askf_exec( vm );
-
-               if ( vm->outer_state == ASKF_VM_OUTER_STATE_FAILED_CRITICAL ||
-                    vm->outer_state == ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL ) {
-                   return;
-               }
-            }
-
-            if ( is_eof )
-                break;
-        }
-
-        free( base );
-        fclose( f );
-    }
+        base_idx = read;
+        base[base_idx] = '\0';
+        askf_istack_push( vm->istack, base, baselen, fileid, 0, (askf_addr_t)f, alloced_name, len->val._64u );
+        source = askf_istack_peek( vm->istack );
+        source->in_max = base_idx;
+}
 #endif
+
+void askf_word_refill( void )  {
+    AskForth_InputSource* source = askf_istack_peek( vm->istack );
+
+    // input source EVALUATE return false
+    if ( source->source_id == -1 ) {
+        global_c00->val._addr_t = FORTH_FALSE;
+        askf_stack_push( global_c00, vm->stack );
+        return;
+    }
+
+    // input source from user input device
+    if ( source->blk == 0 && source->source_id == 0 ) {
+        askf_read_input_blocking( vm );
+        global_c00->val._addr_t = FORTH_TRUE;
+        askf_stack_push( global_c00, vm->stack );
+
+    // input source from text file
+    } else if ( source->blk == 0 && source->source_id > 0 ) {
+        #if defined( TARGET_LINUX ) || defined( TARGET_WINDOWS )
+            int is_eof;
+            u64 read = _askf_custom_fgets(source->base , source->byte_cap-1, (FILE*)source->file, &is_eof);
+
+            source->in = 0;
+            source->in_max = read;
+            if ( is_eof && read == 0 ) {
+                free( source->base );
+                free( source->file_name );
+                fclose( (FILE*)source->file );
+                askf_istack_pop( vm->istack );
+                askf_stack_push( global_c00, vm->stack );
+                global_c00->val._addr_t = FORTH_FALSE;
+            } else if ( read > 0 ) {
+                source->base[read] = '\0';
+                global_c00->val._addr_t = FORTH_TRUE;
+                askf_stack_push( global_c00, vm->stack );
+            }
+        #endif
+
+    // input source from block
+    } else if ( source->blk != 0 ) {
+        ascii* block = vm->blocks->start_blocks + vm->blocks->block_size * ( source->blk );
+
+        source->base = block;
+        source->blk += 1;
+        source->in = 0;
+    }
+
+}
 
 void _askf_print_failed_add_word( AskForthToken* tkn ) {
     askf_print( (ascii*)"Failed adding '", 15 );
@@ -3071,9 +3092,8 @@ void askf_add_core_words( void ) {
     COPY( &cell, global_c03, sizeof(AskForth_Cell) );
 
     // trickery to set jump labels set (happens on first run)
-    _askf_execute_threaded_frames();
+    _askf_execute_threaded_frames( vm->istack->index );
 
-    
     AskForthToken core_dic_name = {0};
     core_dic_name.base          = (ascii*)"core";
     core_dic_name.length        = 4;
@@ -3119,6 +3139,17 @@ void askf_add_core_words( void ) {
 
     if ( !added_stack_input_source_blk )
         _askf_print_failed_add_word( &scratch_word_name );
+
+    // REFILL
+    scratch_word_name.base            = (ascii*)"REFILL";
+    scratch_word_name.length          = 6;
+
+    boolean added_refill = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_refill, scratch_word_name );
+
+    if ( !added_refill )
+        _askf_print_failed_add_word( &scratch_word_name );
+
 
     // ALIGNED
     scratch_word_name.base            = (ascii*)"ALIGNED";
@@ -4085,9 +4116,9 @@ void askf_add_core_words( void ) {
     if ( !added_load )
         _askf_print_failed_add_word( &scratch_word_name );
 
-    // ADD-DIC
-    scratch_word_name.base            = (ascii*)"ADD-DIC";
-    scratch_word_name.length          = 7;
+    // DICTIONARY
+    scratch_word_name.base            = (ascii*)"DICTIONARY";
+    scratch_word_name.length          = 10;
 
     boolean added_add_dic = 
         askf_dic_add_word_native( core_dic_name, FALSE, askf_word_add_dic, scratch_word_name );

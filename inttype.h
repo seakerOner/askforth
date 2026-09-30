@@ -60,6 +60,9 @@ typedef u8 ascii;
 #define TRUE 1
 #define FALSE 0
 
+#define FORTH_TRUE -1
+#define FORTH_FALSE 0
+
 #define UNUSED(x) (void)x
 
 #define KB(n) ((u64)(n * 1024ULL))

@@ -20,19 +20,26 @@
 :core [IF] ( flag -- )
     0 <> IF EXIT ELSE 
         BEGIN 
-            PARSE-NAME 
-            2dup s" [ELSE]" COMPARE 0= IF 2drop EXIT THEN
-                 s" [THEN]" COMPARE 0= IF       EXIT THEN
-
+            PARSE-NAME ?dup 0= 
+            IF drop 
+                REFILL FALSE = IF error" [IF] -> Could not find [ELSE] or [THEN] in input buffer." ABORT THEN
+            ELSE
+                2dup s" [ELSE]" COMPARE 0= IF 2drop EXIT THEN
+                     s" [THEN]" COMPARE 0= IF       EXIT THEN
+            THEN
         TRUE WHILE REPEAT
     THEN
 ; IMMEDIATE
 
 :core [ELSE]
     BEGIN 
-        PARSE-NAME 
-        s" [THEN]" COMPARE 0= IF EXIT THEN 
-        TRUE WHILE REPEAT
+        PARSE-NAME  ?dup 0= 
+        IF drop 
+            REFILL FALSE = IF error" [ELSE] -> Could not find [THEN] in input buffer" THEN
+        ELSE 
+            s" [THEN]" COMPARE 0= IF EXIT THEN 
+        THEN
+    TRUE WHILE REPEAT
 ; IMMEDIATE
 
 :core [THEN] ; IMMEDIATE

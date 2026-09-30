@@ -52,7 +52,7 @@
     -LOOP
 ;
 
-ADD-DIC substitutions
+DICTIONARY substitutions
 
 \ example:   s" banana" t" fruit" REPLACES
 
@@ -140,3 +140,17 @@ VARIABLE SUB-COUNT
     2dup + 0 swap c! \ null terminator
 ;
 
+\ for from the standard, but these are nice for multi line comments
+
+:core {
+    BEGIN 
+        PARSE-NAME ?dup 0= 
+        IF drop 
+            REFILL FALSE = IF error" { -> Could not find '}' pair." ABORT THEN
+        ELSE 
+            s" }" COMPARE 0= IF EXIT THEN 
+        THEN
+    TRUE WHILE REPEAT
+; IMMEDIATE
+
+:core } ; IMMEDIATE
