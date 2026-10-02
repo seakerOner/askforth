@@ -227,35 +227,17 @@ FUNCTION: fflush  ( u64 -- u64 )                    foreign
     swap 0 fseek 0<> IF ERRNO ELSE 0 THEN
 ;
 
-{  ----------------------------------------------------------------------------------------------------------------------------------------- 
-
-    NOTE for RESIZE-FILE file expansion behavior:
-
-    After resizing the file the actual size may not immediatly display on FILE-SIZE or outside your program.
-    For example on my machine doing on Bash: 
-
-    ```Bash 
-        ls -lah
-    ```
-    Said my test file 18 bytes, but:
-
-    ```Bash
-        du -sh <filename>
-    ```
-    Says 4K
-
-   ----------------------------------------------------------------------------------------------------------------------------------------- }
 :core RESIZE-FILE ( ud fileid -- ior ) 
     dup FLUSH-FILE drop
 
     [ ?SYSTEM-LINUX ]   [IF]
-        fileno dup     0<> IF 2drop ERRNO EXIT THEN
-        swap ftruncate 0<> IF ERRNO ELSE 0 THEN
+        fileno dup     -1 = IF 2drop ERRNO EXIT THEN
+        swap ftruncate  0<> IF ERRNO ELSE 0 THEN
     [THEN]
 
     [ ?SYSTEM-WINDOWS ] [IF]
-        _fileno dup     0<> IF 2drop ERRNO EXIT THEN 
-        swap _chsize_s  0<> IF ERRNO ELSE 0 THEN
+        _fileno dup     -1 = IF 2drop ERRNO EXIT THEN 
+        swap _chsize_s   0<> IF ERRNO ELSE 0 THEN
     [THEN]
 ;
 
@@ -288,7 +270,7 @@ FUNCTION: fflush  ( u64 -- u64 )                    foreign
     [THEN]
 
     [ ?SYSTEM-WINDOWS ] [IF]
-        13 ( CR ) over fputc -1 = IF drop ERRNO ELSE 0 THEN
+        13 ( CR ) over fputc -1 = IF drop ERRNO EXIT ELSE 0 THEN
         10 ( LF ) swap fputc -1 = IF      ERRNO ELSE 0 THEN
     [THEN]
 ;
