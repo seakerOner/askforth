@@ -135,6 +135,12 @@ DICTIONARY vars
     POSTPONE REPEAT
 ; IMMEDIATE
 
+:core AGAIN
+    ['] TRUE COMPILE,
+    POSTPONE WHILE 
+    POSTPONE REPEAT
+; IMMEDIATE
+
 :core CASE ( n -- )
     ['] dup COMPILE, 
     ['] >R  COMPILE,

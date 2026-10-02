@@ -100,7 +100,7 @@ void _askf_execute_threaded_frames( u64 source_depth ) {
     else 
         ip = (u64*)frame->base_ip;
 
-return_call:
+    return_call:
     while ( TRUE ) {
         RUN_OP();
         
@@ -184,6 +184,7 @@ return_call:
                 _askf_push_ip_frame( vm, word, (u64)ip, TRUE);
                 return;
             }
+            continue;
         }
         op_dispatch_error: {
             NEXT(); // skip literal flag

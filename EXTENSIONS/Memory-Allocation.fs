@@ -23,6 +23,8 @@ FUNCTION: free    ( addr -- void )          foreign
     VARIABLE WIN_ERRNO 
 [THEN] 
 
+FUNCTION: strerror ( u64 -- u64 )               foreign
+
 : ERRNO foreign
     [ ?SYSTEM-LINUX ] 
         [IF] [FROM] foreign [FIND] __errno_location LITERAL EXECUTE @ [THEN]
@@ -32,6 +34,15 @@ FUNCTION: free    ( addr -- void )          foreign
             WIN_ERRNO [FROM] foreign [FIND] _get_errno LITERAL EXECUTE 
             ?dup 0= IF WIN_ERRNO @ THEN 
         [THEN] 
+;
+
+{ This string should not be modified or preserved, you may copy the string into your own buffer and then preserved it that way ( e.g: usin ERROR ) }
+:core IOR.STR ( ior -- c-addr u )
+    strerror
+    { strerror doesnt tell us the length of the string... so we search for the null terminator }
+    0 BEGIN 
+        2dup + c@ 
+    0<> WHILE 1+ REPEAT 
 ;
 
 :core ALLOCATE ( u -- a-addr ior )
