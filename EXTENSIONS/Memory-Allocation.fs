@@ -33,8 +33,7 @@ FUNCTION: strerror ( u64 -- u64 )               foreign
         [IF] 
             WIN_ERRNO [FROM] foreign [FIND] _get_errno LITERAL EXECUTE 
             ?dup 0= IF WIN_ERRNO @ THEN 
-        [THEN] 
-;
+        [THEN] ;
 
 { This string should not be modified or preserved, you may copy the string into your own buffer and then preserved it that way ( e.g: usin ERROR ) }
 :core IOR.STR ( ior -- c-addr u )
@@ -42,17 +41,15 @@ FUNCTION: strerror ( u64 -- u64 )               foreign
     { strerror doesnt tell us the length of the string... so we search for the null terminator }
     0 BEGIN 
         2dup + c@ 
-    0<> WHILE 1+ REPEAT 
-;
+    0<> WHILE 1+ REPEAT ;
 
 :core ALLOCATE ( u -- a-addr ior )
     [FROM] foreign [FIND] malloc LITERAL EXECUTE 
-    dup 0= IF ERRNO ELSE 0 THEN
-;
+    dup 0= IF ERRNO ELSE 0 THEN ;
+
 :core FREE ( a-addr -- ior )
-    [FROM] foreign [FIND] free LITERAL EXECUTE 0
-;
+    [FROM] foreign [FIND] free LITERAL EXECUTE 0 ;
+
 :core RESIZE ( a-addr1 u -- a-addr2 ior )
     over -rot [FROM] foreign [FIND] realloc LITERAL EXECUTE
-    ?dup 0= IF ERRNO ELSE rot drop 0 THEN
-;
+    ?dup 0= IF ERRNO ELSE rot drop 0 THEN ;

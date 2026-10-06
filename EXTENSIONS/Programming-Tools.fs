@@ -10,14 +10,12 @@
 :core [DEFINED] ( dict_xt -- addr ) 
     depth 0= IF error" [DEFINED] -> Expects Dictionary address" ( recovery ) ABORT ELSE
     ?dup  0= IF error" [DEFINED] -> NULL address of Dictionary" ( recovery ) ABORT THEN
-    POSTPONE [FIND] 0<>
-; IMMEDIATE
+    POSTPONE [FIND] 0<> ; IMMEDIATE
 
 :core [UNDEFINED] ( dict_xt -- addr )
     depth 0= IF error" [UNDEFINED] -> Expects Dictionary address" ( recovery ) ABORT ELSE
     ?dup  0= IF error" [UNDEFINED] -> NULL address of Dictionary" ( recovery ) ABORT THEN
-    POSTPONE [FIND] 0=
-; IMMEDIATE
+    POSTPONE [FIND] 0= ; IMMEDIATE
 
 :core [IF] ( flag -- )
     0 <> IF EXIT ELSE 
@@ -30,8 +28,7 @@
                      s" [THEN]" COMPARE 0= IF       EXIT THEN
             THEN
         TRUE WHILE REPEAT
-    THEN
-; IMMEDIATE
+    THEN ; IMMEDIATE
 
 :core [ELSE]
     BEGIN 
@@ -41,8 +38,7 @@
         ELSE 
             s" [THEN]" COMPARE 0= IF EXIT THEN 
         THEN
-    TRUE WHILE REPEAT
-; IMMEDIATE
+    TRUE WHILE REPEAT ; IMMEDIATE
 
 :core [THEN] ; IMMEDIATE
 

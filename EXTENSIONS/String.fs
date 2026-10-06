@@ -5,8 +5,7 @@
 \ Requires the `Core-Extended.fs` Words
 
 :core BLANK ( addr u -- )
-    DECIMAL BL FILL
-;
+    DECIMAL BL FILL ;
 
 :core COMPARE ( addr1 u1 addr2 u2 -- flag )
     depth 4 < IF error" COMPARE -> Expects ( addr1 u1 addr2 u2 -- -1|0|1 )" ( recovery -> ) ABORT THEN
@@ -29,13 +28,11 @@
         ELSE
              1
         THEN
-    THEN
-;
+    THEN ;
 
 :core /STRING ( addr1 u1 n -- addr2 u2 )
     depth 3 < IF error" /STRING -> Expects ( addr1 u1 n -- addr2 u2 )" ( recovery -> ) ABORT THEN
-    dup >R - swap R> chars + swap
-;
+    dup >R - swap R> chars + swap ;
 
 :core -TRAILING ( addr u1 -- addr u2 )
     dup 0= IF EXIT THEN
@@ -49,8 +46,7 @@
             ( default )
             drop UNCASE UNLOOP EXIT
         ENDCASE
-    -LOOP
-;
+    -LOOP ;
 
 DICTIONARY substitutions
 
@@ -60,8 +56,7 @@ DICTIONARY substitutions
     PAD PAD-SIZE DO-CONCAT s" sub_" CONCAT ( addr2 u2 ) END-CONCAT \ mangle addr2 name to PAD
     HERE dup >R 
     swap dup >R  COPY R@ chars ALLOT             \ ALLOT mangled name
-    R> R> swap s" substitutions" CREATE-WORD POSTPONE [ swap POSTPONE ] LIT LIT POSTPONE ; 
-;
+    R> R> swap s" substitutions" CREATE-WORD POSTPONE [ swap POSTPONE ] LIT LIT POSTPONE ; ;
 
 :core SEARCH ( addr1 u1 addr2 u2 -- addr3 u3 flag )
     rot >R rot R> 2dup >R >R \ preserve initial string for fail path
@@ -76,14 +71,11 @@ DICTIONARY substitutions
         THEN
     LOOP
     \ failure path
-    2drop R> R> FALSE
-;
+    2drop R> R> FALSE ;
 
 :core SLITERAL ( addr1 u -- )
     ?INTERPTIME TRUE = IF error" SLITERAL -> Cannot be used in INTERPTIME." ABORT THEN
-    swap LIT LIT
-; IMMEDIATE
-
+    swap LIT LIT ; IMMEDIATE
 
 VARIABLE SUB-COUNT 
 
@@ -125,8 +117,7 @@ VARIABLE SUB-COUNT
     LOOP
 
     nip 2dup + 0 swap c!   \ null terminator
-    SUB-COUNT @
-;
+    SUB-COUNT @ ;
 
 :core UNESCAPE ( addr1 u1 addr2 -- addr2 u2 )
     -rot 2dup + -rot drop 0 -rot
@@ -137,8 +128,7 @@ VARIABLE SUB-COUNT
 
         2dup + I c@ swap c! 1+
     LOOP
-    2dup + 0 swap c! \ null terminator
-;
+    2dup + 0 swap c! ( null terminator ) ;
 
 \ not from the standard, but these are nice for multi line comments
 
@@ -150,7 +140,6 @@ VARIABLE SUB-COUNT
         ELSE 
             s" }" COMPARE 0= IF EXIT THEN 
         THEN
-    TRUE WHILE REPEAT
-; IMMEDIATE
+    TRUE WHILE REPEAT ; IMMEDIATE
 
 :core } ; IMMEDIATE

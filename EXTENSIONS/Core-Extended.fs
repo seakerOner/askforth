@@ -20,58 +20,45 @@ DICTIONARY vars
 :core 1- 1 - ; INLINE
 
 :core LIT
-    POSTPONE LITERAL
-;
+    POSTPONE LITERAL ;
 
 :core [:] 
-    POSTPONE :
-;
+    POSTPONE : ;
 
 :core [:vars] 
-    POSTPONE :vars
-;
+    POSTPONE :vars ;
 
 :core [;] 
-    POSTPONE ;
-;
+    POSTPONE ; ;
 
 :core ['] 
-    POSTPONE '
-    LIT
-; IMMEDIATE
+    POSTPONE ' LIT ; IMMEDIATE
 
 :core EXEC,
-   ['] EXECUTE COMPILE,
-;
+   ['] EXECUTE COMPILE, ;
 
 :core CONSTANT ( w "name" -- )
-   [:vars] LIT [;]
-;
+   [:vars] LIT [;] ;
 
 :core VARIABLE ( "name"  -- )
     ALIGN HERE 1 cells ALLOT
-    [:vars] LIT [;]
-;
+    [:vars] LIT [;] ;
 
 :core BUFFER ( u "name" -- )
     ALIGN HERE swap cells ALLOT 
-    [:vars] LIT [;]
-;
+    [:vars] LIT [;] ;
 
 :core FIELD ( addr u -- addr )
-    cells +
-;
+    cells + ;
 
 :core CREATE ( "name" "dictionary" -- )
     ALIGN HERE dup 1 cells ALLOT 
     [:vars] LIT ['] @ COMPILE, [;]
-    ALIGN HERE swap !
-;
+    ALIGN HERE swap ! ;
 
 :core , ( d -- )
     HERE !
-    1 cells ALLOT
-;
+    1 cells ALLOT ;
 
 :core DO ( limit index -- )
     POSTPONE BEGIN 
@@ -80,18 +67,15 @@ DICTIONARY vars
         ['] >R   COMPILE, 
         ['] >R   COMPILE, 
         ['] >    COMPILE, 
-    POSTPONE WHILE
-; IMMEDIATE
+    POSTPONE WHILE ; IMMEDIATE
 
 :core I ( -- d )
-    R@
-; INLINE
+    R@ ; INLINE
 
-:core I+ 
-    R> 1+ >R
-;
+:core I+ ( -- ) 
+    R> 1+ >R ;
 
-:core LOOP  
+:core LOOP ( limit index -- )
     ['] R>    COMPILE, 
     ['] R>    COMPILE, 
     ['] swap  COMPILE, 
@@ -100,8 +84,7 @@ DICTIONARY vars
     POSTPONE REPEAT 
     ['] R>    COMPILE, 
     ['] R>    COMPILE, 
-    ['] 2drop COMPILE, 
-; IMMEDIATE 
+    ['] 2drop COMPILE, ; IMMEDIATE 
 
 :core -DO ( limit index -- )
     POSTPONE BEGIN 
@@ -110,8 +93,7 @@ DICTIONARY vars
         ['] >R   COMPILE, 
         ['] >R   COMPILE, 
         ['] <>   COMPILE, 
-    POSTPONE WHILE
-; IMMEDIATE
+    POSTPONE WHILE ; IMMEDIATE
 
 :core -LOOP  
     ['] R>    COMPILE, 
@@ -122,61 +104,50 @@ DICTIONARY vars
     POSTPONE REPEAT 
     ['] R>    COMPILE, 
     ['] R>    COMPILE, 
-    ['] 2drop COMPILE, 
-; IMMEDIATE 
+    ['] 2drop COMPILE, ; IMMEDIATE 
 
 :core UNLOOP
-    R> R> 2drop 
-;
+    R> R> 2drop ;
 
 :core UNTIL 
     ['] invert COMPILE,
     POSTPONE WHILE 
-    POSTPONE REPEAT
-; IMMEDIATE
+    POSTPONE REPEAT ; IMMEDIATE
 
 :core AGAIN
     ['] TRUE COMPILE,
     POSTPONE WHILE 
-    POSTPONE REPEAT
-; IMMEDIATE
+    POSTPONE REPEAT ; IMMEDIATE
 
 :core CASE ( n -- )
     ['] dup COMPILE, 
     ['] >R  COMPILE,
-    0
-; IMMEDIATE
+    0 ; IMMEDIATE
 
 :core OF   ( n -- )
     ['] = COMPILE, 
-    POSTPONE IF   
-; IMMEDIATE
+    POSTPONE IF ; IMMEDIATE
 
 :core ?OF  ( flag -- )
-    POSTPONE IF
-; IMMEDIATE
+    POSTPONE IF ; IMMEDIATE
 
 :core ENDOF   
     POSTPONE ELSE 
     1+
-    ['] R@ COMPILE,
-; IMMEDIATE
+    ['] R@ COMPILE, ; IMMEDIATE
 
 :core ENDCASE 
     0 DO POSTPONE THEN LOOP
     ['] R>   COMPILE,
-    ['] drop COMPILE,
-; IMMEDIATE
+    ['] drop COMPILE, ; IMMEDIATE
 
 :core UNCASE
-    R> drop 
-;
+    R> drop  ;
 
 :core [CHAR] 
     PARSE-NAME drop
     c@
-    ?COMPTIME TRUE = IF LIT THEN
-; IMMEDIATE
+    ?COMPTIME TRUE = IF LIT THEN ; IMMEDIATE
 
 :core TO 
     [FROM] vars LITERAL \ the dictionary we will search for words (could also be the 'tmp' dictionary)
@@ -197,8 +168,7 @@ DICTIONARY vars
             EXECUTE !
         ENDOF
         drop 
-    ENDCASE
-; IMMEDIATE
+    ENDCASE ; IMMEDIATE
 
 VARIABLE concat@capacity
 VARIABLE concat@items 
@@ -213,8 +183,7 @@ VARIABLE concat@idx
 :core DO-CONCAT ( addr u -- ) 
          TO concat@capacity
          TO concat@items
-       0 TO concat@idx   
-;
+       0 TO concat@idx ;
 
 :core CONCAT ( addr u -- )
     dup [ concat@idx ] LITERAL @ + [ concat@capacity ] LITERAL @ >= IF error" CONCAT -> Buffer overflow." ( recovery ) ABORT THEN
@@ -223,31 +192,27 @@ VARIABLE concat@idx
     dup [ concat@idx ] LITERAL @ + TO concat@idx         \ update the base index
     R> swap
     \ str2_addr str1_addr_end str2_len copy
-    COPY
-;
+    COPY ;
 
 :core END-CONCAT
     depth 1 > IF CONCAT THEN  
 
     0 
-    [ concat@idx ] LITERAL  @ 
-    [ concat@items ] LITERAL  @ + !     \ store string null terminator
+    [ concat@idx ]   LITERAL @ 
+    [ concat@items ] LITERAL @ + !     \ store string null terminator
 
     [ concat@items ] LITERAL @
-    [ concat@idx   ] LITERAL @
-;
+    [ concat@idx   ] LITERAL @ ;
 
 [FROM] vars [FORGET] concat@capacity
 [FROM] vars [FORGET] concat@items
 [FROM] vars [FORGET] concat@idx
 
 :core MIN ( n1 n2 -- n3 )
-    2dup > IF swap THEN drop
-;
+    2dup > IF swap THEN drop ;
 
 :core MAX ( n1 n2 -- n3 )
-    2dup < IF swap THEN drop
-;
+    2dup < IF swap THEN drop ;
 
 ALIGN HERE 512 chars ALLOT CONSTANT PAD
 512 CONSTANT PAD-SIZE
@@ -286,9 +251,7 @@ CREATE TMPSTRING  , 0 , 128 ,
    BEGIN
     >IN @ 1+ >IN !                         
    SOURCE drop >IN @ + c@ DECIMAL 32 <> 
-   SOURCE  nip >IN @ <> and UNTIL
-
-; IMMEDIATE
+   SOURCE  nip >IN @ <> and UNTIL ; IMMEDIATE
 
 32 CONSTANT BL 
 

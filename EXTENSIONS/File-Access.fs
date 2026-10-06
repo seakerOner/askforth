@@ -54,6 +54,12 @@
         Requires the `Programming-Tools.fs` Word Set
         Requires the `Memory-Allocation.fs` Word Set
 
+        ------------------------------------------------------
+
+        TO FIX WINDOWS:
+            DELETE-FILE is not working on Windows 
+              MODE-FILE on Windows returns 'bad file descriptor' IOR
+
   ----------------------------------------------------------------------------------------------------------------------------------------- }
 
 \ Include foreign functions (LIBC) from the OS
@@ -112,27 +118,22 @@ FUNCTION: fflush  ( u64 -- u64 )                    foreign
 
 :core MODE-FILE   ( fileid fam -- ior )
     swap 0 -rot
-    freopen 0= IF ERRNO ELSE 0 THEN
-;
+    freopen 0= IF ERRNO ELSE 0 THEN ;
 
 \ ior is 0 if successful or returns error number from the OS
 :core CLOSE-FILE  ( fileid -- ior )
-    fclose 0= IF 0 ELSE ERRNO THEN
-;
+    fclose 0= IF 0 ELSE ERRNO THEN ;
 
 :core CREATE-FILE  ( c-addr u fam -- fileid ior )
     nip swap W/O fopen 
     dup 0= IF drop ERRNO EXIT THEN
-    tuck swap MODE-FILE 
-;
+    tuck swap MODE-FILE ;
 
 :core DELETE-FILE  ( c-addr u -- ior )
-    drop remove 0= IF 0 ELSE ERRNO THEN
-;
+    drop remove 0= IF 0 ELSE ERRNO THEN ;
 
 :core FILE-POSITION ( fileid -- ud ior )
-    ftell dup -1 = IF ERRNO THEN 0
-;
+    ftell dup -1 = IF ERRNO THEN 0 ;
 
 :core FILE-SIZE ( fileid -- ud ior )
     dup FILE-POSITION   0<> IF   nip ERRNO EXIT THEN
@@ -146,8 +147,7 @@ FUNCTION: fflush  ( u64 -- u64 )                    foreign
 
     \ setting back to the original file position.
     \ 0 is the magical number for SEEK_SET macro on C
-    -rot swap 0 fseek   0<> IF       ERRNO EXIT THEN 0
-;
+    -rot swap 0 fseek   0<> IF       ERRNO EXIT THEN 0 ;
 
 \ TODO: decide how to go about this
 \ :core FILE-STATUS ( c-addr u -- x ior )
@@ -160,12 +160,10 @@ FUNCTION: fflush  ( u64 -- u64 )                    foreign
    ----------------------------------------------------------------------------------------------------------------------------------------- }
 
 :core FLUSH-FILE ( fileid -- ior )
-    fflush 0<> IF ERRNO THEN 0
-;
+    fflush 0<> IF ERRNO THEN 0 ;
 
 :core OPEN-FILE ( c-addr u fam -- fileid ior )
-    nip fopen dup 0= IF ERRNO ELSE 0 THEN
-;
+    nip fopen dup 0= IF ERRNO ELSE 0 THEN ;
 
 :core READ-FILE ( c-addr u1 fileid -- u2 ior )
     dup  FILE-POSITION 0<> 
@@ -181,8 +179,7 @@ FUNCTION: fflush  ( u64 -- u64 )                    foreign
     dup >R fread 
 
     \ check for error on stream
-    R> ferror 0<> IF ERRNO ELSE 0 THEN
-;
+    R> ferror 0<> IF ERRNO ELSE 0 THEN ;
 
 :core READ-LINE ( c-addr u1 fileid -- u2 flag ior ) 
     dup  FILE-POSITION 0<> 
@@ -213,19 +210,16 @@ FUNCTION: fflush  ( u64 -- u64 )                    foreign
             \ restore order
             >R -rot R>
         ENDCASE
-    AGAIN
-;
+    AGAIN ;
 
 :core RENAME-FILE ( c-addr1 u1 c-addr2 u2 -- ior ) 
-    drop nip rename 0<> IF ERRNO ELSE 0 THEN
-;
+    drop nip rename 0<> IF ERRNO ELSE 0 THEN ;
 
 :core REPOSITION-FILE ( ud fileid -- ior ) 
     dup FILE-SIZE 0<> IF 2drop drop ERRNO EXIT THEN
     >R over R>      > IF 2drop 22 ( ERRNO for Invalid Argument ) EXIT THEN 
 
-    swap 0 fseek 0<> IF ERRNO ELSE 0 THEN
-;
+    swap 0 fseek 0<> IF ERRNO ELSE 0 THEN ;
 
 :core RESIZE-FILE ( ud fileid -- ior ) 
     dup FLUSH-FILE drop
@@ -238,8 +232,7 @@ FUNCTION: fflush  ( u64 -- u64 )                    foreign
     [ ?SYSTEM-WINDOWS ] [IF]
         _fileno dup     -1 = IF 2drop ERRNO EXIT THEN 
         swap _chsize_s   0<> IF ERRNO ELSE 0 THEN
-    [THEN]
-;
+    [THEN] ;
 
 :core WRITE-FILE ( c-addr u fileid -- ior ) 
     dup  FILE-POSITION 0<> 
@@ -255,9 +248,7 @@ FUNCTION: fflush  ( u64 -- u64 )                    foreign
     dup >R fwrite
 
     \ check for error on stream
-    R> ferror 0<> IF ERRNO ELSE 0 THEN
-
-;
+    R> ferror 0<> IF ERRNO ELSE 0 THEN ;
 
 :core WRITE-LINE ( c-addr u fileid -- ior ) 
     -rot BOUNDS
@@ -265,14 +256,13 @@ FUNCTION: fflush  ( u64 -- u64 )                    foreign
         dup I c@  swap
         fputc -1 = IF ERRNO UNLOOP EXIT THEN
     LOOP
+
     [ ?SYSTEM-LINUX ]   [IF]
         10 ( LF ) swap fputc -1 = IF ERRNO ELSE 0 THEN
     [THEN]
-
     [ ?SYSTEM-WINDOWS ] [IF]
-        13 ( CR ) over fputc -1 = IF drop ERRNO EXIT ELSE 0 THEN
+        13 ( CR ) over fputc -1 = IF drop ERRNO EXIT   THEN
         10 ( LF ) swap fputc -1 = IF      ERRNO ELSE 0 THEN
-    [THEN]
-;
+    [THEN] ;
 
 
