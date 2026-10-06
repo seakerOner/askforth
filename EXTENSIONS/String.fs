@@ -41,7 +41,7 @@
     swap dup >R swap R> 1- R> \ addr u1 addr-1 addr+u1-1
     -DO  
         I c@ CASE
-        DECIMAL  0 OF     ENDOF
+                 0 OF     ENDOF
                 BL OF 1- ENDOF
             ( default )
             drop UNCASE UNLOOP EXIT

@@ -5,7 +5,7 @@
 \ 
 \ All other optional word sets require ATLEAST this word-set.
 
-DECIMAL 64 BITS UNSIGNED
+#64 BITS UNSIGNED
 
 : :core core PARSE-NAME s" core" CREATE-WORD ; 
 
@@ -214,12 +214,12 @@ VARIABLE concat@idx
 :core MAX ( n1 n2 -- n3 )
     2dup < IF swap THEN drop ;
 
-ALIGN HERE 512 chars ALLOT CONSTANT PAD
-512 CONSTANT PAD-SIZE
+ALIGN HERE #512 chars ALLOT CONSTANT PAD
+#512 CONSTANT PAD-SIZE
 
-ALIGN HERE 128 chars ALLOT 
+ALIGN HERE #128 chars ALLOT 
 
-CREATE TMPSTRING  , 0 , 128 ,
+CREATE TMPSTRING  , 0 , #128 ,
 
 \ for temporary string stored on a transient buffer!
 
@@ -242,7 +242,7 @@ CREATE TMPSTRING  , 0 , 128 ,
         [ TMPSTRING 1 FIELD ] LITERAL !         
         >IN @ 1+ >IN !                         \ next character
 
-   SOURCE drop >IN @ + c@ DECIMAL 34 = UNTIL    \ loop until we find '"'
+   SOURCE drop >IN @ + c@ #34 = UNTIL    \ loop until we find '"'
 
    [ TMPSTRING 0 FIELD ] LITERAL @
    [ TMPSTRING 1 FIELD ] LITERAL @
@@ -250,9 +250,9 @@ CREATE TMPSTRING  , 0 , 128 ,
    \ adjust >IN to the start of next character or end of buffer
    BEGIN
     >IN @ 1+ >IN !                         
-   SOURCE drop >IN @ + c@ DECIMAL 32 <> 
+   SOURCE drop >IN @ + c@ #32 <> 
    SOURCE  nip >IN @ <> and UNTIL ; IMMEDIATE
 
-32 CONSTANT BL 
+#32 CONSTANT BL 
 
 :core BOUNDS ( addr u1 -- addr+u1 addr ) over + swap ;

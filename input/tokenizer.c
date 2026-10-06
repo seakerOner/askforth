@@ -2,6 +2,7 @@
 
 #include "../memory/backend_blob.h"
 #include "../vm/forth_vm.h"
+#include "../input/input.h"
 
 void askf_tokenizer_new( AskForthTokenizer* tokenizer, u64 max_tokens ) {
     if ( tokenizer == NULL ) {
@@ -84,7 +85,29 @@ boolean askf_parse_token_to_num( AskForthToken* token, AskForth_Cell* out_cell )
     if ( make_negative && token->length == 1 ) 
         return FALSE;
 
-    for ( u64 x = make_negative; x < token->length; x++ ) {
+    u8 offset = make_negative ? 1 : 0;
+
+    switch ( token->base[offset] ) {
+        case '#' :
+            radix = ASKF_DECIMAL; 
+            offset++;
+            break;
+        case '$':  
+            radix = ASKF_HEXADECIMAL; 
+            offset++;
+            break;
+        case '%':   
+            radix = ASKF_OCTAL; 
+            offset++;
+            break;
+        default:
+            break;
+    }
+
+    if ( offset == token->length ) 
+        return FALSE;
+
+    for ( u64 x = offset; x < token->length; x++ ) {
         ascii character = token->base[x];
 
         u64 digit;

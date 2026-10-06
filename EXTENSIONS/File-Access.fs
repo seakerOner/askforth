@@ -193,10 +193,10 @@ FUNCTION: fflush  ( u64 -- u64 )                    foreign
     0 BEGIN 
         over
         fgetc CASE
-            10 (  LF ) OF nip nip nip TRUE 0 UNCASE EXIT ENDOF
-            13 (  CR ) OF over 
+            #10 (  LF ) OF nip nip nip TRUE 0 UNCASE EXIT ENDOF
+            #13 (  CR ) OF over 
                         fgetc dup 
-                            10 = IF drop nip nip nip TRUE 0 UNCASE EXIT ELSE 
+                            #10 = IF drop nip nip nip TRUE 0 UNCASE EXIT ELSE 
                                     over ungetc 
                                     -1 = IF nip nip nip FALSE ERRNO UNCASE EXIT THEN
                                 THEN
@@ -217,7 +217,7 @@ FUNCTION: fflush  ( u64 -- u64 )                    foreign
 
 :core REPOSITION-FILE ( ud fileid -- ior ) 
     dup FILE-SIZE 0<> IF 2drop drop ERRNO EXIT THEN
-    >R over R>      > IF 2drop 22 ( ERRNO for Invalid Argument ) EXIT THEN 
+    >R over R>      > IF 2drop #22 ( ERRNO for Invalid Argument ) EXIT THEN 
 
     swap 0 fseek 0<> IF ERRNO ELSE 0 THEN ;
 
@@ -258,11 +258,11 @@ FUNCTION: fflush  ( u64 -- u64 )                    foreign
     LOOP
 
     [ ?SYSTEM-LINUX ]   [IF]
-        10 ( LF ) swap fputc -1 = IF ERRNO ELSE 0 THEN
+        #10 ( LF ) swap fputc -1 = IF ERRNO ELSE 0 THEN
     [THEN]
     [ ?SYSTEM-WINDOWS ] [IF]
-        13 ( CR ) over fputc -1 = IF drop ERRNO EXIT   THEN
-        10 ( LF ) swap fputc -1 = IF      ERRNO ELSE 0 THEN
+        #13 ( CR ) over fputc -1 = IF drop ERRNO EXIT   THEN
+        #10 ( LF ) swap fputc -1 = IF      ERRNO ELSE 0 THEN
     [THEN] ;
 
 
