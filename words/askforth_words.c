@@ -1990,8 +1990,6 @@ static void askf_word_load( void ) {
     ascii* block = vm->blocks->start_blocks + vm->blocks->block_size * ( addr->val._64u - 1 );
 
     askf_istack_push( vm->istack, block, vm->blocks->block_size, 0, addr->val._64u, 0, NULL, 0 );
-
-    // askf_exec( vm );
 }
 
 static void askf_word_add_dic( void ) { 
@@ -2084,6 +2082,45 @@ static void askf_word_remember_dic( void ) {
 
     lib->recent_dic->next = dict;
     lib->recent_dic = dict;
+}
+
+static void askf_word_promote_dic( void ) { 
+    if ( ( vm->stack->cell_scale / 8  ) != sizeof( askf_addr_t ) ) {
+        _askf_word_failed( 
+            (ascii *)"PROMOTE-DICT -> cell width must match architecture word width", 61 );
+        return;
+    }
+
+    if ( vm->stack->index < 1 ) {
+        _askf_word_failed( (ascii*)"PROMOTE-DICT -> Expects ( dict_xt -- ) ", 39 );
+        return;
+    }
+
+    AskForth_Cell* addr = global_c01;
+
+    askf_stack_pop( addr, vm->stack );
+
+    AskForth_Dictionary* dict = (AskForth_Dictionary*)addr->val._addr_t;
+
+    if ( dict == NULL ) {
+        _askf_word_failed( (ascii*)"PROMOTE-DICT -> NULL dict_xt", 28 );
+        return;
+    }
+
+    // forget dict
+    if ( dict->prev && dict->next ) {
+        dict->prev->next = dict->next;
+        dict->next->prev = dict->prev;
+    } else if ( dict->prev && !dict->next ) 
+        dict->prev->next = NULL;
+
+    AskForth_Library* lib = ( AskForth_Library* )vm->lib;
+
+    // set to be first dict to search
+    lib->dictionaries_base->prev = dict;
+    dict->next                   = lib->dictionaries_base;
+    dict->prev                   = NULL;
+    lib->dictionaries_base       = dict;
 }
 
 static void askf_word_abort( void ) { 
@@ -4304,7 +4341,15 @@ void askf_add_core_words( void ) {
     if ( !added_remeber_dic )
         _askf_print_failed_add_word( &scratch_word_name );
 
+    // PROMOTE-DICT
+    scratch_word_name.base            = (ascii*)"PROMOTE-DICT";
+    scratch_word_name.length          = 12;
 
+    boolean added_promote_dic = 
+        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_promote_dic, scratch_word_name );
+
+    if ( !added_promote_dic )
+        _askf_print_failed_add_word( &scratch_word_name );
 
     // ABORT
     scratch_word_name.base            = (ascii*)"ABORT";
