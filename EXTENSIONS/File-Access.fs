@@ -54,12 +54,6 @@
         Requires the `Programming-Tools.fs` Word Set
         Requires the `Memory-Allocation.fs` Word Set
 
-        ------------------------------------------------------
-
-        TO FIX WINDOWS:
-            DELETE-FILE is not working on Windows 
-              MODE-FILE on Windows returns 'bad file descriptor' IOR
-
   ----------------------------------------------------------------------------------------------------------------------------------------- }
 
 \ Include foreign functions (LIBC) from the OS
@@ -111,13 +105,22 @@ FUNCTION: fflush  ( u64 -- u64 )                    foreign
     MODE-FILE is not part from the Standard Forth lexicon.
 
     MODE-FILE will let you change the currently active fileid's fam without closing the file stream; 
-
     Returns 0 on success or IOR number from the OS
+
+    Sadly the stack notations are different depending on the host OS:
+        - On Windows you are required to provide the string path of the already opened `fileid` to change it's mode.
+        - On Linux no such thing is required, only the `fileid` and the new mode is required.
+
+    Stack notation:
+            Linux:  ( fileid fam -- ior )
+          Windows:  ( c-addr u fileid fam -- ior )
 
    ----------------------------------------------------------------------------------------------------------------------------------------- }
 
-:core MODE-FILE   ( fileid fam -- ior )
-    swap 0 -rot
+:core MODE-FILE   \ Linux: ( fileid fam -- ior ) Windows: ( c-addr u fileid fam -- ior )
+    [ ?SYSTEM-LINUX   ] [IF] swap 0 -rot   [THEN]
+    [ ?SYSTEM-WINDOWS ] [IF] rot drop swap [THEN]
+
     freopen 0= IF ERRNO ELSE 0 THEN ;
 
 \ ior is 0 if successful or returns error number from the OS
@@ -125,9 +128,9 @@ FUNCTION: fflush  ( u64 -- u64 )                    foreign
     fclose 0= IF 0 ELSE ERRNO THEN ;
 
 :core CREATE-FILE  ( c-addr u fam -- fileid ior )
-    nip swap W/O fopen 
-    dup 0= IF drop ERRNO EXIT THEN
-    tuck swap MODE-FILE ;
+    nip swap  [ ?SYSTEM-WINDOWS ] [IF] dup >R         [THEN] W/O fopen 
+    dup 0= IF [ ?SYSTEM-WINDOWS ] [IF] R> drop        [THEN] ERRNO EXIT THEN
+    tuck swap [ ?SYSTEM-WINDOWS ] [IF] R> -rot 0 -rot [THEN] MODE-FILE ;
 
 :core DELETE-FILE  ( c-addr u -- ior )
     drop remove 0= IF 0 ELSE ERRNO THEN ;
