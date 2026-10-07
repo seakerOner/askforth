@@ -121,11 +121,6 @@ static void askf_word_input_source_in( void ) {
 }
 
 static void askf_word_input_source_blk( void ) {
-    if ( _stack_invalid_for_addresses() ) {
-        _askf_word_failed( 
-                (ascii *)">IN -> cell width must match architecture word width", 52 );
-        return;
-    }
     global_c00->val._addr_t = ( askf_addr_t )&vm->istack->sources[vm->istack->index-1].blk;
 
     askf_stack_push( global_c00, vm->stack );
@@ -208,7 +203,7 @@ static void askf_word_maybe_dup ( void ) {
     u32 res = askf_stack_pop( global_c00, vm->stack );
 
     if ( !res ) {
-        _askf_word_failed( ( ascii* )"?dup -> Stack Empty" , 18);
+        _askf_word_failed( ( ascii* )"?dup -> Stack Empty" , 19);
         return;
     }
 
@@ -244,7 +239,7 @@ static void askf_word_swap( void ) {
     u32 res1 = askf_stack_pop( cell_ts, vm->stack );
 
     if ( !res1 ) {
-        _askf_word_failed( ( ascii* )"swap -> Stack Empty" , 18);
+        _askf_word_failed( ( ascii* )"swap -> Stack Empty" , 19);
     }
 
     u32 res2 = askf_stack_pop( cell_ss, vm->stack );
@@ -281,7 +276,7 @@ static void askf_word_2swap( void ) {
 
 static void askf_word_rot ( void ) {
     if ( vm->stack->index < 3 ) {
-        _askf_word_failed( ( ascii* )"rot -> Expects ( a b c - )" , 27 );
+        _askf_word_failed( ( ascii* )"rot -> Expects ( a b c - )" , 26 );
         return;
     }
 
@@ -638,7 +633,7 @@ static void askf_word_words( void ) {
     }
 
     if ( vm->stack->index < 2 ) {
-        _askf_word_failed( (ascii*)"words -> Expects (addr len - )", 30 );
+        _askf_word_failed( (ascii*)"words: -> Expects ( <dict_name> - )", 35 );
         return;
     }
 
@@ -654,7 +649,7 @@ static void askf_word_words( void ) {
     AskForth_Dictionary* dic    = askf_library_find_dic( vm, &tkn );
 
     if ( !dic ) {
-        _askf_word_failed( (ascii*)"words -> dictionary not found" , 29 );
+        _askf_word_failed( (ascii*)"words: -> dictionary not found" , 30 );
         return;
     }
 
@@ -954,7 +949,7 @@ static void askf_word_bits( void ) {
     u32 res = askf_stack_pop( global_c00, vm->stack );
 
     if ( !res ) {
-        _askf_word_failed( (ascii*)" BITS -> Empty Stack", 21 );
+        _askf_word_failed( (ascii*)" BITS -> Empty Stack", 20 );
         return;
     }
 
@@ -1054,7 +1049,7 @@ static void askf_word_byte_store( void ){
 
 static void askf_word_load_ptr( void ){
     if ( vm->stack->index < 1 ) {
-        _askf_word_failed( (ascii*)"@ -> Expects ( addr - )", 27);
+        _askf_word_failed( (ascii*)"@ -> Expects ( addr - )", 23 );
         return;
     }
     AskForth_Cell* addr  = global_c00;
@@ -1076,7 +1071,7 @@ static void askf_word_load_ptr( void ){
 
 static void askf_word_load_byte_ptr( void ){
     if ( vm->stack->index < 1 ) {
-        _askf_word_failed( (ascii*)"c@ -> Expects ( addr - )", 27);
+        _askf_word_failed( (ascii*)"c@ -> Expects ( addr - )", 24);
         return;
     }
     AskForth_Cell* addr  = global_c00;
@@ -1117,7 +1112,7 @@ static void askf_word_allot( void ) {
     u32 res = askf_stack_pop( val, vm->stack );
 
     if ( !res ) {
-        _askf_word_failed( (ascii*)"ALLOT -> Expects ( bytes - )", 26 );
+        _askf_word_failed( (ascii*)"ALLOT -> Expects ( bytes - )", 28 );
         return;
     }
 

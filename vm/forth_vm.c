@@ -419,6 +419,11 @@ new_input_source:
             askf_print( ( ascii* )"compiling.\n", 11 );
     } 
 
+    if ( vm->outer_state == ASKF_VM_OUTER_STATE_FAILED_CRITICAL ||
+        vm->outer_state == ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL) {
+        return;
+    }
+
     if ( source->blk > 0  || source->source_id == -1) {
         // in the main vm loop we dont want the side effects of the word REFILL if we are on a block so we just pop it
         // or if we are in an EVALUATE string if also just pop it

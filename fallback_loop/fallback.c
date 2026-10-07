@@ -432,7 +432,8 @@ static void _askf_fallback_cmd_input( AskForthVm* vm ) {
 static void _askf_fallback_cmd_continue( AskForthVm* vm ) {
     // reset tracer
     vm->error_tracer->head = 0;
-    askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_EXECUTE_CONTINUE );
+    //askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_EXECUTE_CONTINUE );
+    askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_EXECUTE );
 }
 
 static void _askf_fallback_cmd_quit( AskForthVm* vm ) {
