@@ -56,7 +56,7 @@ DICTIONARY substitutions
     PAD PAD-SIZE DO-CONCAT s" sub_" CONCAT ( addr2 u2 ) END-CONCAT \ mangle addr2 name to PAD
     HERE dup >R 
     swap dup >R  COPY R@ chars ALLOT             \ ALLOT mangled name
-    R> R> swap s" substitutions" CREATE-WORD POSTPONE [ swap POSTPONE ] LIT LIT POSTPONE ; ;
+    R> R> swap s" substitutions" CREATE-WORD POSTPONE [ swap POSTPONE ] RLIT LIT POSTPONE ; ;
 
 :core SEARCH ( addr1 u1 addr2 u2 -- addr3 u3 flag )
     rot >R rot R> 2dup >R >R \ preserve initial string for fail path
@@ -75,7 +75,7 @@ DICTIONARY substitutions
 
 :core SLITERAL ( addr1 u -- )
     ?INTERPTIME TRUE = IF error" SLITERAL -> Cannot be used in INTERPTIME." ABORT THEN
-    swap LIT LIT ; IMMEDIATE
+    swap RLIT LIT ; IMMEDIATE
 
 VARIABLE SUB-COUNT 
 
@@ -97,7 +97,7 @@ VARIABLE SUB-COUNT
                 ELSE
                     drop I - 1+
                     HERE UNUSED DO-CONCAT s" sub_" CONCAT I swap END-CONCAT 
-                    [ [FROM] substitutions ] LITERAL -rot dup 4 - >R 1- FIND R> swap 
+                    [ [FROM] substitutions ] RLITERAL -rot dup 4 - >R 1- FIND R> swap 
                     ?dup 0= IF
                         >R 2dup R@ + < IF R> drop nip -1 UNLOOP EXIT THEN
                         rot 2dup + R> I 1- swap >R swap R@ 1+ COPY -rot R@ 1+ +

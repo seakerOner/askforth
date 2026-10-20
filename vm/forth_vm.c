@@ -18,6 +18,23 @@ void askf_vm_to_global_state( AskForthVm* vm ) {
     COPY( &new_cell, vm_c01, sizeof(AskForth_Cell) );
 }
 
+void askf_align_ram( AskForthVm* vm ) {
+     askf_addr_t here = (askf_addr_t)&((u8*)vm->ram->start_ptr)[vm->ram->byte_index];
+
+    #if defined( ARQBITS64 )
+        here = ALIGN_UP( here, 8 );
+    #elif defined( ARQBITS32 )
+        here = ALIGN_UP( here, 4 );
+    #elif defined( ARQBITS16 )
+        here = ALIGN_UP( here, 2 );
+    #elif defined( ARQBITS8 )
+        here = ALIGN_UP( here, 1 );
+    #endif 
+
+    askf_addr_t diff = here - (askf_addr_t)&((u8*)vm->ram->start_ptr)[vm->ram->byte_index];
+    vm->ram->byte_index += diff;
+}
+
 AskForthVm* askf_get_global_vm( void ) {
     return global_vm;
 }
@@ -72,6 +89,7 @@ void _askf_execute_threaded_frames( u64 source_depth ) {
     // Capture their addresses for the threaded-code compiler.
     if ( !vm->dispatch_calls.initialized ) {
         vm->dispatch_calls.op_literal        = &&op_literal;
+        vm->dispatch_calls.op_literal_relocatable = &&op_literal_relocatable;
         vm->dispatch_calls.op_threadedword   = &&op_threadedword;
         vm->dispatch_calls.op_0branch        = &&op_0branch;
         vm->dispatch_calls.op_branch         = &&op_branch;
@@ -104,6 +122,7 @@ void _askf_execute_threaded_frames( u64 source_depth ) {
     while ( TRUE ) {
         RUN_OP();
         
+        op_literal_relocatable:
         op_literal: {
             vm_c00->val._64u      = *ip;
             askf_stack_push( vm_c00, vm->stack );
@@ -474,7 +493,6 @@ void askf_vm_change_outer_state( AskForthVmOuterState new_state ) {
         case ASKF_VM_OUTER_STATE_FAILED_CRITICAL:
         case ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL:
         case ASKF_VM_OUTER_STATE_SHUTDOWN_REQUEST:
-        case ASKF_VM_OUTER_STATE_EXECUTE_CONTINUE:
             global_vm->outer_state = new_state;
             break;
         default:

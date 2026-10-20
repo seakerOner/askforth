@@ -13,8 +13,23 @@
 #define ASKF_THREADEDFRAMES_STACK_CAPACITY  256
 
 typedef enum {
+    OP_LITERAL = 0,
+    OP_LITERAL_RELOCATABLE,
+    OP_THREADEDWORD,
+    OP_0BRANCH,
+    OP_BRANCH,
+    OP_NATIVE,        
+    OP_NATIVE_FOREIGN,
+    OP_SKIPPABLE,
+    OP_DISPATCH_ERROR,
+    OP_ENDWORD,
+
+    OPT_NOOP,
+    OPT_TYPE_STRING,
+} AskForthOPids;
+
+typedef enum {
     ASKF_VM_OUTER_STATE_EXECUTE,
-    ASKF_VM_OUTER_STATE_EXECUTE_CONTINUE,
     ASKF_VM_OUTER_STATE_FAILED_CRITICAL,
     ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL,
     ASKF_VM_OUTER_STATE_SHUTDOWN_REQUEST,
@@ -58,6 +73,7 @@ typedef struct {
 
 typedef struct {
     void* op_literal;
+    void* op_literal_relocatable;
     void* op_native;
     void* op_native_foreign;
     void* op_threadedword;
@@ -88,6 +104,8 @@ typedef struct AskForthVm_t {
     AskForthBlocks*                         blocks;
 
     void*                                   lib;
+    void*                                   shadow_lib;
+
     volatile AskForthVmOuterState           outer_state;
     volatile AskForthVmInterpreterState     interpret_state;
     AskForthErrorTrace*                     error_tracer;
@@ -101,6 +119,7 @@ typedef struct AskForthVm_t {
 
 void askf_vm_to_global_state( AskForthVm* vm );
 AskForthVm* askf_get_global_vm( void );
+void askf_align_ram( AskForthVm* vm );
 
 void askf_exec( AskForthVm* vm );
 

@@ -3,9 +3,12 @@
 
 #include "../errors/error_thrower.h"
 #include "../errors/errors.h"
+#include "../loader/loader.h"
 
 AskForth_Library* askf_create_library( AskForthVm* vm ) {
     AskForth_Library* lib = NULL;
+
+    askf_align_ram( vm );
 
     lib = ( AskForth_Library * ) askf_blob_alloc( vm->ram, sizeof( AskForth_Library ) );
 
@@ -19,6 +22,7 @@ AskForth_Library* askf_create_library( AskForthVm* vm ) {
         return NULL;
     }
 
+    askf_align_ram( vm );
     lib->dictionaries_base = ( AskForth_Dictionary* ) askf_blob_alloc( vm->ram, sizeof( AskForth_Dictionary ) );
 
     if ( lib->dictionaries_base == NULL ) {
@@ -37,7 +41,9 @@ AskForth_Library* askf_create_library( AskForthVm* vm ) {
     ascii core_dic_name[ASKF_MAX_NAME_LEN] = "core";
     lib->dictionaries_base->name_len = 4;
 
-    COPY( core_dic_name, lib->dictionaries_base->name, ASKF_MAX_NAME_LEN );
+    askf_align_ram( vm );
+    lib->dictionaries_base->name = askf_alloc( sizeof(ascii) * (lib->dictionaries_base->name_len+1) );
+    COPY( core_dic_name, lib->dictionaries_base->name, (lib->dictionaries_base->name_len+1) );
 
     lib->dictionaries_base->words_base  = NULL;
     lib->dictionaries_base->next        = NULL;
@@ -46,11 +52,35 @@ AskForth_Library* askf_create_library( AskForthVm* vm ) {
     return lib;
 }
 
-AskForth_Dictionary*    askf_create_dic( AskForthVm* vm, ascii name[ASKF_MAX_NAME_LEN], u64 name_len ) {
+AskForth_ShadowLibrary* askf_create_shadowlibrary( AskForthVm* vm ) {
+    AskForth_ShadowLibrary* lib = NULL;
+
+    askf_align_ram( vm );
+
+    askf_set_recoverable_blob_offset( vm );
+    lib = ( AskForth_ShadowLibrary * ) askf_blob_alloc( vm->ram, sizeof( AskForth_ShadowLibrary ) );
+
+    if ( lib == NULL ) {
+        AskForthError err = 
+            {   .zone = ASKF_ERROR_ZONE_OUTER, 
+                .error = ASKF_ERROR_FAILED_LIB_ALLOC,
+                .opt_message = NULL
+            };
+        askf_throw_error( err );
+        return NULL;
+    }
+    lib->dict_base = NULL;
+    lib->word_base = NULL;
+
+    return lib;
+}
+
+AskForth_Dictionary*    askf_create_dic( AskForthVm* vm, ascii* name, u64 name_len ) {
     AskForth_Library*    lib        = ( AskForth_Library* )vm->lib;
     AskForth_Dictionary* dic        = lib->recent_dic;
     AskForth_Dictionary* new_dic    = NULL;
 
+    askf_align_ram( vm );
     new_dic = ( AskForth_Dictionary* )askf_blob_alloc( vm->ram, sizeof( AskForth_Dictionary ) );
 
     if ( new_dic == NULL ) {
@@ -69,8 +99,8 @@ AskForth_Dictionary*    askf_create_dic( AskForthVm* vm, ascii name[ASKF_MAX_NAM
     new_dic->recent_word = NULL;
     new_dic->words_base  = NULL;
     new_dic->prev        = dic;
-    COPY(name, new_dic->name, name_len );
-    new_dic->name_len = name_len;
+    new_dic->name        = name;
+    new_dic->name_len    = name_len;
 
     dic->next = new_dic;
     lib->recent_dic = new_dic;
@@ -174,6 +204,7 @@ boolean askf_dic_add_word_native(
     if ( !dic )
         return FALSE;
 
+    askf_align_ram( vm );
     AskForth_Word* new_word = askf_alloc( sizeof( AskForth_Word ) );
 
     if ( !dic->words_base ) {
@@ -191,10 +222,9 @@ boolean askf_dic_add_word_native(
     new_word->source.type               = ASKF_WORD_NATIVE;
     new_word->source.source.native_code = native_subroutine;
 
-    new_word->name_len                  = word_name.length;
     new_word->dict_origin               = dic;
-    COPY(word_name.base, new_word->name, word_name.length);
-
+    new_word->name_len                  = word_name.length;
+    new_word->name                      = word_name.base;
 
     return TRUE;
 }
@@ -215,6 +245,7 @@ boolean askf_dic_add_word_foreign_native(
     if ( !dic )
         return FALSE;
 
+    askf_align_ram( vm );
     AskForth_Word* new_word = askf_alloc( sizeof( AskForth_Word ) );
 
     if ( !dic->words_base ) {
@@ -231,13 +262,13 @@ boolean askf_dic_add_word_foreign_native(
 
     new_word->source.type               = ASKF_WORD_NATIVE_FOREIGN;
 
+    askf_align_ram( vm );
     new_word->source.source.foreign_sig = askf_alloc( sizeof( AskForthForeignFuncSig ) );
     COPY( signature, new_word->source.source.foreign_sig, sizeof( AskForthForeignFuncSig ) );
 
     new_word->name_len                  = word_name.length;
     new_word->dict_origin               = dic;
-    COPY(word_name.base, new_word->name, word_name.length);
-
+    new_word->name                      = word_name.base;
 
     return TRUE;
 
@@ -257,6 +288,7 @@ boolean askf_dic_add_word_threaded( AskForth_Dictionary* dic, AskForthToken word
         return FALSE;
     }
 
+    askf_align_ram( vm );
     AskForth_Word* new_word = askf_alloc( sizeof( AskForth_Word ) );
 
     if ( !dic->words_base ) {
@@ -272,10 +304,11 @@ boolean askf_dic_add_word_threaded( AskForth_Dictionary* dic, AskForthToken word
     new_word->is_immediate              = FALSE;
 
     new_word->source.type               = ASKF_WORD_THREADED;
+    askf_align_ram( vm );
     new_word->source.source.threaded_code_start_addr = (u64)askf_alloc( sizeof(u64) );
 
     new_word->name_len                  = word_name.length;
-    COPY(word_name.base, new_word->name, word_name.length);
+    new_word->name                      = word_name.base;
 
     ( (AskForth_Library*)vm->lib )->curr_compiling.word = new_word;
     ( (AskForth_Library*)vm->lib )->curr_compiling.dic  = dic;

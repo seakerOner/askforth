@@ -17,7 +17,7 @@ EXECUTABLE_EXT  =
 
 TARGET ?= -DTARGET_LINUX
 
-FLAGS = -Wall -Wextra -x c -O2
+FLAGS = -Wall -Wextra -x c -O2 
 FLAGS += -march=$(ARQ)
 FLAGS += $(TARGET)
 FLAGS += -DARQBITS$(CELL-BITS)
@@ -37,6 +37,7 @@ OBJECTS = 					\
 	optimizer.o				\
 	load_extern_library.o 	\
 	istack.o				\
+	loader.o				\
 
 
 $(BUILD):
@@ -86,6 +87,9 @@ optimizer.o: ./optimizer/optimizer.c
 
 load_extern_library.o: ./ffi/load_extern_library.c
 	$(CC) $(FLAGS)	-c ./ffi/load_extern_library.c -o $(BUILD)/load_extern_library.o
+
+loader.o: ./loader/loader.c
+	$(CC) $(FLAGS)	-c ./loader/loader.c -o $(BUILD)/loader.o
 
 clean:
 	rm -f $(BUILD)/*.o

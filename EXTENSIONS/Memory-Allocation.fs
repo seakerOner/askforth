@@ -27,11 +27,11 @@ FUNCTION: strerror ( u64 -- u64 )               foreign
 
 : ERRNO foreign
     [ ?SYSTEM-LINUX ] 
-        [IF] [FROM] foreign [FIND] __errno_location LITERAL EXECUTE @ [THEN]
+        [IF] [FROM] foreign [FIND] __errno_location RLITERAL EXECUTE @ [THEN]
 
     [ ?SYSTEM-WINDOWS ] 
         [IF] 
-            WIN_ERRNO [FROM] foreign [FIND] _get_errno LITERAL EXECUTE 
+            WIN_ERRNO [FROM] foreign [FIND] _get_errno RLITERAL EXECUTE 
             ?dup 0= IF WIN_ERRNO @ THEN 
         [THEN] ;
 
@@ -44,12 +44,12 @@ FUNCTION: strerror ( u64 -- u64 )               foreign
     0<> WHILE 1+ REPEAT ;
 
 :core ALLOCATE ( u -- a-addr ior )
-    [FROM] foreign [FIND] malloc LITERAL EXECUTE 
+    [FROM] foreign [FIND] malloc RLITERAL EXECUTE 
     dup 0= IF ERRNO ELSE 0 THEN ;
 
 :core FREE ( a-addr -- ior )
-    [FROM] foreign [FIND] free LITERAL EXECUTE 0 ;
+    [FROM] foreign [FIND] free RLITERAL EXECUTE 0 ;
 
 :core RESIZE ( a-addr1 u -- a-addr2 ior )
-    over -rot [FROM] foreign [FIND] realloc LITERAL EXECUTE
+    over -rot [FROM] foreign [FIND] realloc RLITERAL EXECUTE
     ?dup 0= IF ERRNO ELSE rot drop 0 THEN ;

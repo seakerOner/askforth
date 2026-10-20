@@ -48,6 +48,7 @@ AskForthErrorMessage error_messages[] = {
 void askf_start_error_tracer( AskForth_Ram* ram, AskForthErrorTrace* tracer, u64 tracer_capacity ) {
     tracer->capacity = tracer_capacity;
     tracer->head     = 0;
+    askf_align_ram( askf_get_global_vm() );
     tracer->errors   = ( AskForthError* ) askf_blob_alloc( ram, (tracer_capacity * sizeof( AskForthError ) ));
 
     if ( tracer->errors == NULL ) {
@@ -88,8 +89,11 @@ void askf_print_error( AskForthError* error ) {
 }
 
 AskForthErrorMessage* askf_alloc_new_opt_message( ascii* message, u64 len ) {
+    askf_align_ram( askf_get_global_vm() );
     AskForthErrorMessage* msg = askf_alloc( sizeof( AskForthErrorMessage ) );
     msg->length = len;
+
+    askf_align_ram( askf_get_global_vm() );
     ascii* blob               = askf_alloc( sizeof( ascii ) * msg->length );
     COPY( message, blob, msg->length );
     msg->message = blob;

@@ -90,6 +90,37 @@ boolean askf_bind_function( const ascii* func_name, u64 func_name_len, AskForthF
     return FALSE;
 }
 
+boolean askf_rebind_function( const ascii* func_name, u64 func_name_len, AskForthForeignFuncSig* signature  ) {
+    AskForthForeignManager* manager = askf_get_global_vm()->foreign_manager;
+
+    ascii* saved_string = malloc( sizeof(ascii) * func_name_len+1 );
+    COPY( func_name, saved_string, func_name_len );
+    saved_string[func_name_len] = '\0';
+
+    AskForthForeignObject* base = manager->recent_obj;
+
+    while ( base ) {
+        #if defined( TARGET_LINUX )
+            void* func = dlsym( base->linux_handle, ( const char* )saved_string );
+        #elif defined( TARGET_WINDOWS )
+            FARPROC func = GetProcAddress( base->windows_handle, ( const char* )saved_string );
+        #endif
+
+        if ( !func )
+            goto skip_obj;
+
+        free( saved_string );
+        signature->handle = ( void* )func;
+        return TRUE;
+
+        skip_obj:
+        base = base->prev;
+    }
+
+    free( saved_string );
+    return FALSE;
+}
+
 boolean askf_free_foreign_object( const ascii* obj_name, u64 len ) {
     AskForthForeignManager* manager = askf_get_global_vm()->foreign_manager;
 

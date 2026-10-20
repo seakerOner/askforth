@@ -14,6 +14,7 @@ void askf_tokenizer_new( AskForthTokenizer* tokenizer, u64 max_tokens ) {
 
     tokenizer->capacity = max_tokens;
     tokenizer->index    = 0;
+    askf_align_ram( global_vm );
     tokenizer->tokens   = ( AskForthToken* )askf_blob_alloc
         ( global_vm->ram, ( sizeof( AskForthToken ) * max_tokens ) );
 

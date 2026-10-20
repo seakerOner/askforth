@@ -5,6 +5,8 @@
     #define ASKFORTH_BLOCKS_MAX             1024
     #define ASKFORTH_BLOCKS_SIZE            1024
 #elif defined( TARGET_WINDOWS )
+    #define WIN32_LEAN_AND_MEAN  \\ found out this is a thing, very funny 
+
     #define RAW_RAM_START_ADDRESS           0x0
     #define ASKFORTH_BLOCKS_MAX             1024
     #define ASKFORTH_BLOCKS_SIZE            1024
@@ -27,6 +29,8 @@
 #include "./errors/error_thrower.h"
 #include "./words/askforth_words.h"
 #include "./fallback_loop/fallback.h"
+
+#include "./loader/loader.h"
 
 #define ASKFORTH_RAW_RAM_START_ADDRESS  NULL
 #define ASKFORTH_INPUT_BUFFER_MAX_CHARS 1024
@@ -94,7 +98,6 @@ int main( void ) {
     tframe_stack.index      = 0;
     tframe_stack.capacity   = ASKF_THREADEDFRAMES_STACK_CAPACITY;
 
-    askf_start_error_tracer( &ram, &tracer, ASKFORTH_ERROR_TRACER_CAPACITY );
 
     vm.ram                  = &ram;
     vm.stack                = &stack;
@@ -111,15 +114,11 @@ int main( void ) {
     vm.error_tracer         = &tracer;
     vm.fallback_tokenizer   = &fallback_tokenizer;
     vm.comment_state        = ASKF_COMMENT_STATE_NONE;
-
-    vm.lib              = ( void* )askf_create_library( &vm );
-
     askf_vm_to_global_state( &vm );
 
-    askf_blocks_start( ASKFORTH_BLOCKS_MAX , ASKFORTH_BLOCKS_SIZE );
+    askf_start_error_tracer( &ram, &tracer, ASKFORTH_ERROR_TRACER_CAPACITY );
 
-    askf_tokenizer_new( &fallback_tokenizer, ( ASKFORTH_INPUT_BUFFER_MAX_CHARS / 4 ));
-
+    askf_align_ram( &vm );
     vm.foreign_manager              = ( AskForthForeignManager* )askf_alloc( sizeof(AskForthForeignManager) );
     vm.foreign_manager->objects                   = NULL;
     vm.foreign_manager->recent_obj                = NULL;
@@ -129,30 +128,59 @@ int main( void ) {
     vm.foreign_manager->ctxs.trampoline_ctx.stack = NULL;
     vm.foreign_manager->ctxs.state                = ASKF_CTX_MAIN;
 
-    askf_add_core_words();
+    askf_tokenizer_new( &fallback_tokenizer, ( ASKFORTH_INPUT_BUFFER_MAX_CHARS / 4 ));
+    askf_blocks_start( ASKFORTH_BLOCKS_MAX , ASKFORTH_BLOCKS_SIZE );
 
-    askf_print( ( ascii* )"Welcome to the Agnostic Seaker's Forth :D ", 42 );
+    askf_initialize_core();
 
-    while ( vm.outer_state != ASKF_VM_OUTER_STATE_SHUTDOWN_REQUEST ) {
+    if ( askf_image_is_available() ) {
+        askf_set_recoverable_blob_offset( &vm );
+        AskForthFooter* bin_footer = askf_get_footer();
+        if ( !askf_load_image( &vm, bin_footer ) ) {
+            askf_print( ( ascii* )"Failed to load program image.. aborting", 39 );
+            askf_print_char('\n');
+            return 1;
+        } 
 
-        switch ( vm.outer_state ) {
-            case ASKF_VM_OUTER_STATE_EXECUTE_CONTINUE:
-            case ASKF_VM_OUTER_STATE_EXECUTE:
-                askf_exec( &vm );
-                break;
-            case ASKF_VM_OUTER_STATE_FAILED_CRITICAL:
-            case ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL:
-                askforth_fallbackloop_run( &vm );
-                break;
-            case ASKF_VM_OUTER_STATE_SHUTDOWN_REQUEST:
-            default:
-                goto forth_end;
+        if ( bin_footer->has_starter ) 
+            goto starter_path; 
+        else   {
+            goto main_path;
         }
-    };
+
+    } else {
+        vm.shadow_lib           = ( void* )askf_create_shadowlibrary( &vm );
+        vm.lib                  = ( void* )askf_create_library( &vm );
+        askf_add_core_words();
+        goto main_path;
+    }
+
+    starter_path:
+        // inject starter word and execute
+        goto forth_end;
+
+    // normal forth execution if no starter word was declared
+    main_path:
+        askf_print( ( ascii* )"Welcome to the Agnostic Seaker's Forth :D ", 42 );
+        while ( vm.outer_state != ASKF_VM_OUTER_STATE_SHUTDOWN_REQUEST ) {
+
+            switch ( vm.outer_state ) {
+                case ASKF_VM_OUTER_STATE_EXECUTE:
+                    askf_exec( &vm );
+                    break;
+                case ASKF_VM_OUTER_STATE_FAILED_CRITICAL:
+                case ASKF_VM_OUTER_STATE_INNER_FAILED_CRITICAL:
+                    askforth_fallbackloop_run( &vm );
+                    break;
+                case ASKF_VM_OUTER_STATE_SHUTDOWN_REQUEST:
+                default:
+                    goto forth_end;
+            }
+        };
 
     forth_end:
-    // TODO: shutdown protocol and memory conservation
     askf_blocks_close();
 
     return 0;
 }
+

@@ -40,7 +40,7 @@ typedef u8 ascii;
 
 #define NULL (void *)0
 
-#define KSTR(str) ((u8 *)str)
+#define FSTR(str) ((ascii *)str)
 
 #define FILL(ptr, c, len_bytes)                                                \
   do {                                                                         \

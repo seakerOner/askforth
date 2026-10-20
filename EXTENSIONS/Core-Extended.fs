@@ -7,11 +7,18 @@
 
 #64 BITS UNSIGNED
 
-: :core core PARSE-NAME s" core" CREATE-WORD ; 
+\ to allocate parsed words we want to persist in memory
+: SAVE-NAME core  ( c-addr u -- c-addr )
+    ALIGN HERE swap dup >R COPY
+    HERE R> chars ALLOT
+;
+
+\ old_addr new_addr n_bytes
+: :core core PARSE-NAME tuck SAVE-NAME swap s" core" CREATE-WORD ; 
 
 DICTIONARY vars 
 
-: :vars core PARSE-NAME s" vars" CREATE-WORD ; 
+: :vars core PARSE-NAME tuck SAVE-NAME swap s" vars" CREATE-WORD ; 
 
 :core -rot rot rot ;
 
@@ -21,6 +28,11 @@ DICTIONARY vars
 
 :core LIT
     POSTPONE LITERAL ;
+
+\ RLITERAL is for storing HERE addresses in threaded code in a image portable way
+
+:core RLIT
+    POSTPONE RLITERAL ;
 
 :core [:] 
     POSTPONE : ;
@@ -32,28 +44,38 @@ DICTIONARY vars
     POSTPONE ; ;
 
 :core ['] 
-    POSTPONE ' LIT ; IMMEDIATE
+    POSTPONE ' RLIT ; IMMEDIATE
 
 :core EXEC,
    ['] EXECUTE COMPILE, ;
 
+\ not suitable for HERE addresses
 :core CONSTANT ( w "name" -- )
    [:vars] LIT [;] ;
 
+\ suitable for HERE addresses
+:core ADDRESS ( w "name" -- )
+   [:vars] RLIT [;] ;
+
 :core VARIABLE ( "name"  -- )
     ALIGN HERE 1 cells ALLOT
-    [:vars] LIT [;] ;
+    [:vars] RLIT [;] ;
 
 :core BUFFER ( u "name" -- )
     ALIGN HERE swap cells ALLOT 
-    [:vars] LIT [;] ;
+    [:vars] RLIT [;] ;
+
+:core CBUFFER ( u "name" -- )
+    ALIGN HERE swap chars ALLOT 
+    [:vars] RLIT [;] ;
 
 :core FIELD ( addr u -- addr )
     cells + ;
 
+\ CREATE and , are not suitable for storing portable HERE addresses
 :core CREATE ( "name" "dictionary" -- )
     ALIGN HERE dup 1 cells ALLOT 
-    [:vars] LIT ['] @ COMPILE, [;]
+    [:vars] RLIT ['] @ COMPILE, [;]
     ALIGN HERE swap ! ;
 
 :core , ( d -- )
@@ -150,7 +172,7 @@ DICTIONARY vars
     ?COMPTIME TRUE = IF LIT THEN ; IMMEDIATE
 
 :core TO 
-    [FROM] vars LITERAL \ the dictionary we will search for words (could also be the 'tmp' dictionary)
+    [FROM] vars RLITERAL \ the dictionary we will search for words (could also be the 'tmp' dictionary)
 
     TRUE CASE 
         ?COMPTIME OF
@@ -186,10 +208,10 @@ VARIABLE concat@idx
        0 TO concat@idx ;
 
 :core CONCAT ( addr u -- )
-    dup [ concat@idx ] LITERAL @ + [ concat@capacity ] LITERAL @ >= IF error" CONCAT -> Buffer overflow." ( recovery ) ABORT THEN
+    dup concat@idx @ + concat@capacity @ >= IF error" CONCAT -> Buffer overflow." ( recovery ) ABORT THEN
 
-    [ concat@items ]   LITERAL @ concat@idx @ + >R         \ end of base string to append
-    dup [ concat@idx ] LITERAL @ + TO concat@idx         \ update the base index
+    concat@items @ concat@idx @ + >R         \ end of base string to append
+    dup concat@idx @ + TO concat@idx         \ update the base index
     R> swap
     \ str2_addr str1_addr_end str2_len copy
     COPY ;
@@ -198,11 +220,11 @@ VARIABLE concat@idx
     depth 1 > IF CONCAT THEN  
 
     0 
-    [ concat@idx ]   LITERAL @ 
-    [ concat@items ] LITERAL @ + !     \ store string null terminator
+    concat@idx   @ 
+    concat@items @ + !     \ store string null terminator
 
-    [ concat@items ] LITERAL @
-    [ concat@idx   ] LITERAL @ ;
+    concat@items @
+    concat@idx   @ ;
 
 [FROM] vars [FORGET] concat@capacity
 [FROM] vars [FORGET] concat@items
@@ -214,38 +236,42 @@ VARIABLE concat@idx
 :core MAX ( n1 n2 -- n3 )
     2dup < IF swap THEN drop ;
 
-ALIGN HERE #512 chars ALLOT CONSTANT PAD
+\ ALIGN HERE #512 chars ALLOT ADDRESS PAD
 #512 CONSTANT PAD-SIZE
+#512 CBUFFER  PAD
 
-ALIGN HERE #128 chars ALLOT 
+\ ADDRESS TMPSTRING 
 
-CREATE TMPSTRING  , 0 , #128 ,
+#128 CONSTANT TMPSTRING>cap  
+#128  CBUFFER TMPSTRING
+     VARIABLE TMPSTRING>idx 
+  #0       TO TMPSTRING>idx
 
 \ for temporary string stored on a transient buffer!
 
 :core t" 
-   0  [ TMPSTRING 1 FIELD ] LITERAL !
+   0  TMPSTRING>idx !
 
    BEGIN 
         SOURCE drop >IN @ + 
         SOURCE +  
         >= IF error" t'' ->  Delimiter not found " ABORT THEN
 
-        [ TMPSTRING 1 FIELD ] LITERAL @ 1+ 
-        [ TMPSTRING 2 FIELD ] LITERAL @ > IF error" t'' -> temporary string can only hold < 128 ascii characteres." ABORT THEN
+        TMPSTRING>idx @ 1+ 
+        TMPSTRING>cap > IF error" t'' -> temporary string can only hold < 128 ascii characteres." ABORT THEN
 
         SOURCE drop >IN @ + c@ 
-        [ TMPSTRING 0 FIELD ] LITERAL @
-        [ TMPSTRING 1 FIELD ] LITERAL @ + c!    \ store >IN character
+        TMPSTRING 
+        TMPSTRING>idx @ + c!    \ store >IN character
 
-        [ TMPSTRING 1 FIELD ] LITERAL @  1+
-        [ TMPSTRING 1 FIELD ] LITERAL !         
+        TMPSTRING>idx @  1+
+        TMPSTRING>idx !         
         >IN @ 1+ >IN !                         \ next character
 
    SOURCE drop >IN @ + c@ #34 = UNTIL    \ loop until we find '"'
 
-   [ TMPSTRING 0 FIELD ] LITERAL @
-   [ TMPSTRING 1 FIELD ] LITERAL @
+   TMPSTRING    
+   TMPSTRING>idx @
 
    \ adjust >IN to the start of next character or end of buffer
    BEGIN

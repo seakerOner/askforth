@@ -7,12 +7,16 @@
 #include "../stack/input_stack.h"
 #include "../memory/blocks.h"
 #include "../optimizer/optimizer.h"
+#include "../loader/loader.h"
 
 #if defined( TARGET_LINUX ) || defined( TARGET_WINDOWS )
     #include "../ffi/load_extern_library.h"
     #include <stdio.h>
     #include <stdlib.h>
 #endif
+
+#define _CONCAT(a, b ) a##b
+#define CONCAT(a, b) _CONCAT(a, b)
 
 AskForthVm* vm            = NULL;
 
@@ -27,6 +31,13 @@ static boolean _stack_invalid_for_addresses() {
     return ( vm->stack->cell_scale / 8  ) != sizeof( askf_addr_t );
 }
 
+static boolean _strequal( ascii* str, ascii* to_compare, u64 len ) {
+    for ( u64 x = 0; x < len; x++ )
+        if ( str[x] != to_compare[x] )
+            return FALSE;
+
+    return TRUE;
+}
 
 static void _askf_word_failed( ascii* msg, u64 len ) {
     AskForthError err = {0};
@@ -39,7 +50,14 @@ static void _askf_word_failed( ascii* msg, u64 len ) {
     askf_throw_error( err );
 }
 
-static void askf_word_aligned( void ) {
+#define WID(name) WID_##name
+
+
+#define PROC_WORD( name, func ) \
+    enum { WID_##name = __COUNTER__ };  \
+    void func( void )                   \
+
+PROC_WORD( ALIGNED, askf_word_aligned ) {
     u32 res = askf_stack_pop( global_c00, vm->stack );
 
     if ( !res ) {
@@ -60,7 +78,7 @@ static void askf_word_aligned( void ) {
     askf_stack_push( global_c00, vm->stack );
 }
 
-static void askf_word_align( void ) {
+PROC_WORD( ALIGN , askf_word_align ) {
     askf_addr_t here = (askf_addr_t)&((u8*)vm->ram->start_ptr)[vm->ram->byte_index];
 
     #if defined( ARQBITS64 )
@@ -77,7 +95,7 @@ static void askf_word_align( void ) {
     vm->ram->byte_index += diff;
 }
 
-static void askf_word_dot( void ) {
+PROC_WORD( DOT, askf_word_dot ) {
     u32 res = askf_stack_pop( global_c00, vm->stack );
 
     // TODO: throw error stack underflow
@@ -90,7 +108,8 @@ static void askf_word_dot( void ) {
     askf_print( (ascii*)" ", 1 );
 }
 
-static void askf_word_input_source( void ) {
+
+PROC_WORD( SOURCE, askf_word_input_source ) {
     if ( _stack_invalid_for_addresses() ) {
         _askf_word_failed( 
                 (ascii *)"SOURCE -> cell width must match architecture word width", 55 );
@@ -103,13 +122,13 @@ static void askf_word_input_source( void ) {
     askf_stack_push( global_c01, vm->stack );
 }
 
-static void askf_word_input_source_id( void ) {
+PROC_WORD( SOURCEID, askf_word_input_source_id ) {
     global_c00->val._addr_t = ( askf_addr_t )vm->istack->sources[vm->istack->index-1].source_id;
 
     askf_stack_push( global_c00, vm->stack );
 }
 
-static void askf_word_input_source_in( void ) {
+PROC_WORD( SOURCEIN, askf_word_input_source_in ) {
     if ( _stack_invalid_for_addresses() ) {
         _askf_word_failed( 
                 (ascii *)">IN -> cell width must match architecture word width", 52 );
@@ -120,35 +139,35 @@ static void askf_word_input_source_in( void ) {
     askf_stack_push( global_c00, vm->stack );
 }
 
-static void askf_word_input_source_blk( void ) {
+PROC_WORD( BLK, askf_word_input_source_blk ) {
     global_c00->val._addr_t = ( askf_addr_t )&vm->istack->sources[vm->istack->index-1].blk;
 
     askf_stack_push( global_c00, vm->stack );
 }
 
-static void askf_word_stack_depth( void ) {
+PROC_WORD( DEPTH, askf_word_stack_depth ) {
     global_c00->val._8u = vm->stack->index;
     askf_stack_push( global_c00, vm->stack );
 }
 
-static void askf_word_base( void ) {
+PROC_WORD( BASE, askf_word_base ) {
     global_c00->val._addr_t = ( askf_addr_t )&vm->num_base;
     askf_stack_push( global_c00, vm->stack );
 }
 
-static void askf_word_decimal( void ) {
+PROC_WORD( DECIMAL, askf_word_decimal ) {
     vm->num_base = ASKF_DECIMAL;
 }
 
-static void askf_word_hexadecimal( void ) {
+PROC_WORD( HEXADECIMAL, askf_word_hexadecimal ) {
     vm->num_base = ASKF_HEXADECIMAL;
 }
 
-static void askf_word_octal( void ) {
+PROC_WORD( OCTAL, askf_word_octal ) {
     vm->num_base = ASKF_OCTAL;
 }
 
-static void askf_word_dot_stack ( void ) {
+PROC_WORD( DOT_STACK, askf_word_dot_stack ) {
     global_c00->val._64u = (u8)vm->stack->cell_scale;
     askf_print_cell( global_c00 );
     askf_print( (ascii*)" BITS ", 6 );
@@ -187,7 +206,7 @@ static void askf_word_dot_stack ( void ) {
     }
 }
 
-static void askf_word_dup ( void ) {
+PROC_WORD( DUP, askf_word_dup ) {
     u32 res = askf_stack_pop( global_c00, vm->stack );
 
     if ( !res ) {
@@ -199,7 +218,7 @@ static void askf_word_dup ( void ) {
     askf_stack_push( global_c00, vm->stack );
 }
 
-static void askf_word_maybe_dup ( void ) {
+PROC_WORD( MAYBE_DUP, askf_word_maybe_dup ) {
     u32 res = askf_stack_pop( global_c00, vm->stack );
 
     if ( !res ) {
@@ -214,7 +233,7 @@ static void askf_word_maybe_dup ( void ) {
 
 }
 
-static void askf_word_2dup ( void ) {
+PROC_WORD( 2DUP, askf_word_2dup ) {
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( ( ascii* )"2dup -> Expects ( a b - )" , 25 );
         return;
@@ -232,7 +251,7 @@ static void askf_word_2dup ( void ) {
     askf_stack_push( b, vm->stack );
 }
 
-static void askf_word_swap( void ) {
+PROC_WORD( SWAP, askf_word_swap ) {
     AskForth_Cell* cell_ts   = global_c00;
     AskForth_Cell* cell_ss   = global_c01;
 
@@ -252,7 +271,7 @@ static void askf_word_swap( void ) {
     askf_stack_push( cell_ss, vm->stack );
 }
 
-static void askf_word_2swap( void ) {
+PROC_WORD( 2SWAP, askf_word_2swap ) {
     if ( vm->stack->index < 4 ) {
         _askf_word_failed( ( ascii* )"2swap -> Expects ( a b c d - )" , 30 );
         return;
@@ -274,7 +293,7 @@ static void askf_word_2swap( void ) {
     askf_stack_push( cell_b, vm->stack );
 }
 
-static void askf_word_rot ( void ) {
+PROC_WORD( ROT, askf_word_rot ) {
     if ( vm->stack->index < 3 ) {
         _askf_word_failed( ( ascii* )"rot -> Expects ( a b c - )" , 26 );
         return;
@@ -293,7 +312,7 @@ static void askf_word_rot ( void ) {
     askf_stack_push( a, vm->stack );
 }
 
-static void askf_word_nip ( void ) {
+PROC_WORD( NIP, askf_word_nip ) {
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( ( ascii* )"nip -> Expects ( a b - )" , 24 );
         return;
@@ -309,9 +328,9 @@ static void askf_word_nip ( void ) {
     askf_stack_push( b, vm->stack );
 }
 
-static void askf_word_tuck ( void ) {
+PROC_WORD( TUCK, askf_word_tuck ) {
     if ( vm->stack->index < 2 ) {
-        _askf_word_failed( ( ascii* )"nip -> Expects ( a b - )" , 24 );
+        _askf_word_failed( ( ascii* )"tuck -> Expects ( a b - )" , 25 );
         return;
     }
 
@@ -326,7 +345,7 @@ static void askf_word_tuck ( void ) {
     askf_stack_push( b, vm->stack );
 }
 
-static void askf_word_drop( void ) {
+PROC_WORD( DROP, askf_word_drop ) {
     u32 res = askf_stack_pop( global_c00, vm->stack );
 
     if ( !res ) {
@@ -334,7 +353,7 @@ static void askf_word_drop( void ) {
     }
 }
 
-static void askf_word_2drop( void ) {
+PROC_WORD( 2DROP, askf_word_2drop ) {
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"2drop -> Expects ( a b - )", 26 );
         return;
@@ -347,7 +366,7 @@ static void askf_word_2drop( void ) {
     UNUSED(dummy);
 }
 
-static void askf_word_over( void ) {
+PROC_WORD( OVER, askf_word_over ) {
     AskForth_Cell* cell_ts   = global_c00;
     AskForth_Cell* cell_ss   = global_c01;
 
@@ -368,7 +387,7 @@ static void askf_word_over( void ) {
     askf_stack_push( cell_ss, vm->stack );
 }
 
-static void askf_word_2over( void ) {
+PROC_WORD( 2OVER, askf_word_2over ) {
     if ( vm->stack->index < 4 ) {
         _askf_word_failed( (ascii*)"2over -> Expects ( a b c d - )", 30 );
         return;
@@ -393,7 +412,7 @@ static void askf_word_2over( void ) {
     askf_stack_push( cell_c, vm->stack );
 }
 
-static void askf_word_negate( void ) {
+PROC_WORD( NEGATE, askf_word_negate ) {
     u32 res = askf_stack_pop( global_c00, vm->stack );
     if ( !res ) {
         _askf_word_failed( (ascii*)"negate -> Empty Stack", 21 );
@@ -404,7 +423,7 @@ static void askf_word_negate( void ) {
     askf_stack_push( global_c00, vm->stack );
 }
 
-static void askf_word_lib( void ) {
+PROC_WORD( LIB, askf_word_lib ) {
     AskForth_Library* lib       = (AskForth_Library*)vm->lib;
 
     AskForth_Dictionary* base   = lib->dictionaries_base;
@@ -418,9 +437,7 @@ static void askf_word_lib( void ) {
     }
 }
 
-
-
-static void askf_word_parse_name( void ) {
+PROC_WORD( PARSE_NAME, askf_word_parse_name ) {
     AskForth_InputSource* source = askf_istack_peek( vm->istack );
 
     if ( ( vm->stack->cell_scale / 8 ) != sizeof( askf_addr_t ) ) {
@@ -439,7 +456,7 @@ static void askf_word_parse_name( void ) {
     askf_stack_push( cell, vm->stack );
 }
 
-static void askf_word_from( void ) {
+PROC_WORD( FROM, askf_word_from ) {
     if ( _stack_invalid_for_addresses() ) {
         _askf_word_failed( 
                 (ascii *)"[FROM] -> cell width must match architecture word width", 55 );
@@ -469,7 +486,7 @@ static void askf_word_from( void ) {
     askf_stack_push( global_c03, vm->stack );
 }
 
-static void askf_word_find( void ) {
+PROC_WORD( FIND, askf_word_find ) {
     if ( vm->stack->index < 1 ) {
         _askf_word_failed( (ascii*)"[FIND] -> Expects dictionary address", 36 );
         return;
@@ -510,7 +527,7 @@ static void askf_word_find( void ) {
     askf_stack_push( global_c03, vm->stack );
 }
 
-static void askf_word_sfind( void ) {
+PROC_WORD( SFIND, askf_word_sfind ) {
     if ( vm->stack->index < 3 ) {
         _askf_word_failed( (ascii*)"FIND -> ( dict_xt addr u -- ) ", 30 );
         return;
@@ -543,7 +560,7 @@ static void askf_word_sfind( void ) {
     askf_stack_push( global_c03, vm->stack );
 }
 
-static void askf_word_forget( void ) {
+PROC_WORD( FORGET, askf_word_forget ) {
     if ( vm->stack->index < 1 ) {
         _askf_word_failed( (ascii*)"[FORGET] -> Expects dictionary address", 38 );
         return;
@@ -579,22 +596,46 @@ static void askf_word_forget( void ) {
 
     AskForth_Word* word = askf_library_find_word_from_dic( dic, &tkn );
 
+    // clean main library
+
     if ( word->prev && word->next ) {
         word->prev->next = word->next;
         word->next->prev = word->prev;
-    } else if ( word->prev && !word->next ) 
+    } else if ( word->prev && !word->next )  {
         word->prev->next = NULL;
-
-
-    if ( (askf_addr_t)dic->recent_word == (askf_addr_t)word ) { 
-        dic->recent_word = NULL;
+        dic->recent_word = word->prev;
+    } else if ( !word->prev && word->next ) {
+        word->next->prev = NULL;
+        dic->words_base  = word->next;
+    } else if ( !word->prev && !word->next ) {
+        if ( (askf_addr_t)dic->recent_word == (askf_addr_t)word ) { 
+            dic->recent_word = NULL;
+        }
+        if ( (askf_addr_t)dic->words_base == (askf_addr_t)word ) {  
+            dic->words_base  = NULL;
+        }
     }
-    if ( (askf_addr_t)dic->words_base == (askf_addr_t)word ) {  
-        dic->words_base  = NULL;
+
+
+    // add word to shadow library
+    AskForth_ShadowLibrary* slib = (AskForth_ShadowLibrary*)vm->shadow_lib;
+
+    if ( slib->word_base == NULL ) {
+        slib->word_base = word;
+        slib->word_recent = slib->word_base;
+        slib->word_base->prev = NULL;
+        slib->word_base->next = NULL;
+    } else {
+        AskForth_Word* old_shadow_word = slib->word_recent;
+
+        old_shadow_word->next = word;
+        slib->word_recent = word;
+        slib->word_recent->prev = old_shadow_word;
+        slib->word_recent->next = NULL;
     }
 }
 
-static void askf_word_xtforget( void ) {
+PROC_WORD( XTFORGET, askf_word_xtforget ) {
     if ( vm->stack->index < 1 ) {
         _askf_word_failed( (ascii*)"FORGET -> Expects ( word_xt -- )", 32 );
         return;
@@ -611,21 +652,46 @@ static void askf_word_xtforget( void ) {
 
     AskForth_Word* word = (AskForth_Word*)word_cell->val._addr_t;
 
+    // clean main library
+    AskForth_Dictionary* dic = word->dict_origin;
+    
     if ( word->prev && word->next ) {
         word->prev->next = word->next;
         word->next->prev = word->prev;
-    } else if ( word->prev && !word->next ) 
+    } else if ( word->prev && !word->next )  {
         word->prev->next = NULL;
-
-    if ( (askf_addr_t)word->dict_origin->recent_word == (askf_addr_t)word ) { 
-        word->dict_origin->recent_word = word->prev;
+        dic->recent_word = word->prev;
+    } else if ( !word->prev && word->next ) {
+        word->next->prev = NULL;
+        dic->words_base  = word->next;
+    } else if ( !word->prev && !word->next ) {
+        if ( (askf_addr_t)dic->recent_word == (askf_addr_t)word ) { 
+            dic->recent_word = NULL;
+        }
+        if ( (askf_addr_t)dic->words_base == (askf_addr_t)word ) {  
+            dic->words_base  = NULL;
+        }
     }
-    if ( (askf_addr_t)word->dict_origin->words_base == (askf_addr_t)word ) {  
-        word->dict_origin->words_base  = NULL;
+
+     // add word to shadow library
+    AskForth_ShadowLibrary* slib = (AskForth_ShadowLibrary*)vm->shadow_lib;
+
+    if ( slib->word_base == NULL ) {
+        slib->word_base = word;
+        slib->word_recent = slib->word_base;
+        slib->word_base->prev = NULL;
+        slib->word_base->next = NULL;
+    } else {
+        AskForth_Word* old_shadow_word = slib->word_recent;
+
+        old_shadow_word->next = word;
+        slib->word_recent = word;
+        slib->word_recent->prev = old_shadow_word;
+        slib->word_recent->next = NULL;
     }
 }
 
-static void askf_word_words( void ) {
+PROC_WORD( WORDS, askf_word_words ) {
     askf_word_parse_name();
 
     if ( vm->outer_state != ASKF_VM_OUTER_STATE_EXECUTE ) {
@@ -673,7 +739,7 @@ static void askf_word_words( void ) {
     }
 }
 
-static void askf_word_add( void ) {
+PROC_WORD( ADD, askf_word_add ) {
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"+ -> Expects 2 values on stack" , 30 );
         return;
@@ -690,7 +756,7 @@ static void askf_word_add( void ) {
     askf_stack_push( top_stack, vm->stack );
 }
 
-static void askf_word_minus( void ) {
+PROC_WORD( MINUS, askf_word_minus ) {
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"- -> Expects 2 values on stack" , 30 );
         return;
@@ -707,7 +773,7 @@ static void askf_word_minus( void ) {
     askf_stack_push( top_stack, vm->stack );
 }
 
-static void askf_word_multiply( void ) {
+PROC_WORD( MULTIPLY, askf_word_multiply ) {
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"* -> Expects 2 values on stack" , 30 );
         return;
@@ -724,7 +790,7 @@ static void askf_word_multiply( void ) {
     askf_stack_push( top_stack, vm->stack );
 }
 
-static void askf_word_slashmod( void ) {
+PROC_WORD( SLASHMOD, askf_word_slashmod ) {
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"/mod -> Expects 2 values on stack" , 33 );
         return;
@@ -744,7 +810,7 @@ static void askf_word_slashmod( void ) {
     askf_stack_push( top_stack, vm->stack );
 }
 
-static void askf_word_equals( void ) {
+PROC_WORD( EQUALS, askf_word_equals ) {
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"= -> Expects 2 values on stack" , 30 );
         return;
@@ -761,7 +827,7 @@ static void askf_word_equals( void ) {
     askf_stack_push( top_stack, vm->stack );
 }
 
-static void askf_word_equals_zero( void ) {
+PROC_WORD( EQUALS_ZERO, askf_word_equals_zero ) {
     if ( vm->stack->index < 1 ) {
         _askf_word_failed( (ascii*)"0= -> Expects 1 values on stack" , 31 );
         return;
@@ -776,7 +842,7 @@ static void askf_word_equals_zero( void ) {
     askf_stack_push( top_stack, vm->stack );
 }
 
-static void askf_word_less_than( void ) {
+PROC_WORD( LESS_THAN, askf_word_less_than ) {
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"< -> Expects 2 values on stack" , 30 );
         return;
@@ -797,7 +863,7 @@ static void askf_word_less_than( void ) {
     askf_stack_push( top_stack, vm->stack );
 }
 
-static void askf_word_less_than_or_equal( void ) {
+PROC_WORD( LESS_THAN_OR_EQUAL, askf_word_less_than_or_equal ) {
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"< -> Expects 2 values on stack" , 30 );
         return;
@@ -819,7 +885,7 @@ static void askf_word_less_than_or_equal( void ) {
     askf_stack_push( top_stack, vm->stack );
 }
 
-static void askf_word_less_than_zero( void ) {
+PROC_WORD( LESS_THAN_ZERO, askf_word_less_than_zero ) {
     if ( vm->stack->index < 1 ) {
         _askf_word_failed( (ascii*)"0< -> Expects 1 values on stack" , 31 );
         return;
@@ -838,7 +904,7 @@ static void askf_word_less_than_zero( void ) {
     askf_stack_push( top_stack, vm->stack );
 }
 
-static void askf_word_more_than( void ) {
+PROC_WORD( MORE_THAN, askf_word_more_than ) {
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"> -> Expects 2 values on stack" , 30 );
         return;
@@ -861,7 +927,7 @@ static void askf_word_more_than( void ) {
     askf_stack_push( top_stack, vm->stack );
 }
 
-static void askf_word_more_than_or_equal( void ) {
+PROC_WORD( MORE_THAN_OR_EQUAL, askf_word_more_than_or_equal ) {
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"> -> Expects 2 values on stack" , 30 );
         return;
@@ -884,7 +950,7 @@ static void askf_word_more_than_or_equal( void ) {
     askf_stack_push( top_stack, vm->stack );
 }
 
-static void askf_word_more_than_zero( void ) {
+PROC_WORD( MORE_THAN_ZERO, askf_word_more_than_zero ) {
     if ( vm->stack->index < 1 ) {
         _askf_word_failed( (ascii*)"0> -> Expects 1 values on stack" , 31 );
         return;
@@ -904,7 +970,7 @@ static void askf_word_more_than_zero( void ) {
     askf_stack_push( top_stack, vm->stack );
 }
 
-static void askf_word_not_equal( void ) {
+PROC_WORD( NOT_EQUAL, askf_word_not_equal ) {
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"<> -> Expects 2 values on stack" , 31 );
         return;
@@ -922,7 +988,7 @@ static void askf_word_not_equal( void ) {
     askf_stack_push( top_stack, vm->stack );
 }
 
-static void  askf_word_not_equal_zero( void ) {
+PROC_WORD( NOT_EQUAL_ZERO, askf_word_not_equal_zero ) {
     if ( vm->stack->index < 1 ) {
         _askf_word_failed( (ascii*)"0<> -> Expects 1 values on stack" , 32 );
         return;
@@ -937,15 +1003,15 @@ static void  askf_word_not_equal_zero( void ) {
     askf_stack_push( top_stack, vm->stack );
 }
 
-static void askf_word_make_stack_signed( void ) {
+PROC_WORD( SIGNED, askf_word_make_stack_signed ) {
     vm->stack->is_signed = TRUE;
 }
 
-static void askf_word_make_stack_unsigned( void ) {
+PROC_WORD( UNSIGNED, askf_word_make_stack_unsigned ) {
     vm->stack->is_signed = FALSE;
 }
 
-static void askf_word_bits( void ) {
+PROC_WORD( BITS, askf_word_bits ) {
     u32 res = askf_stack_pop( global_c00, vm->stack );
 
     if ( !res ) {
@@ -974,13 +1040,13 @@ static void askf_word_bits( void ) {
         _askf_word_failed( (ascii*)"BITS -> Invalid BITS size", 25 );
 }
 
-static void askf_word_whatbits( void ) {
+PROC_WORD( WHATBITS, askf_word_whatbits ) {
     global_c00->val._64u = (u64)vm->stack->cell_scale;
     
     askf_stack_push( global_c00, vm->stack );
 }
 
-static void askf_word_type( void ){
+PROC_WORD( TYPE, askf_word_type ) {
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"TYPE -> Expects ( addr len - )", 30);
         return;
@@ -1003,7 +1069,7 @@ static void askf_word_type( void ){
     askf_print( ( ascii* )" ", 1 );
 }
 
-static void askf_word_store( void ){
+PROC_WORD( STORE, askf_word_store ) {
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"! -> Expects ( val addr - )", 27);
         return;
@@ -1025,7 +1091,7 @@ static void askf_word_store( void ){
     *ptr = val->val._addr_t;
 }
 
-static void askf_word_byte_store( void ){
+PROC_WORD( BYTE_STORE, askf_word_byte_store ) {
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"! -> Expects ( val addr - )", 27);
         return;
@@ -1047,7 +1113,7 @@ static void askf_word_byte_store( void ){
     *ptr = val->val._8u;
 }
 
-static void askf_word_load_ptr( void ){
+PROC_WORD( LOAD, askf_word_load_ptr ) {
     if ( vm->stack->index < 1 ) {
         _askf_word_failed( (ascii*)"@ -> Expects ( addr - )", 23 );
         return;
@@ -1069,7 +1135,7 @@ static void askf_word_load_ptr( void ){
     askf_stack_push( addr, vm->stack );
 }
 
-static void askf_word_load_byte_ptr( void ){
+PROC_WORD( BYTE_LOAD, askf_word_load_byte_ptr ) {
     if ( vm->stack->index < 1 ) {
         _askf_word_failed( (ascii*)"c@ -> Expects ( addr - )", 24);
         return;
@@ -1092,7 +1158,7 @@ static void askf_word_load_byte_ptr( void ){
     askf_stack_push( addr, vm->stack );
 }
 
-static void askf_word_here( void ) {
+PROC_WORD( HERE, askf_word_here ) {
     AskForth_Cell* addr  = global_c00;
 
     if ( _stack_invalid_for_addresses() ) {
@@ -1106,7 +1172,7 @@ static void askf_word_here( void ) {
     askf_stack_push( addr, vm->stack );
 }
 
-static void askf_word_allot( void ) {
+PROC_WORD( ALLOT, askf_word_allot ) {
     AskForth_Cell* val  = global_c00;
 
     u32 res = askf_stack_pop( val, vm->stack );
@@ -1127,7 +1193,7 @@ static void askf_word_allot( void ) {
     }
 }
 
-static void askf_word_unused( void ) {
+PROC_WORD( UNUSED, askf_word_unused ) {
     AskForth_Cell* val  = global_c00;
 
     val->val._addr_t = vm->ram->length - vm->ram->byte_index;
@@ -1135,7 +1201,7 @@ static void askf_word_unused( void ) {
     askf_stack_push( val, vm->stack );
 }
 
-static void askf_word_cells( void ) {
+PROC_WORD( CELLS, askf_word_cells ) {
     AskForth_Cell* val  = global_c00;
 
     u32 res = askf_stack_pop( val, vm->stack );
@@ -1150,7 +1216,7 @@ static void askf_word_cells( void ) {
     askf_stack_push( val, vm->stack );
 }
 
-static void askf_word_cell_add( void ) {
+PROC_WORD( CELLS_ADD, askf_word_cell_add ) {
     AskForth_Cell* val  = global_c00;
 
     u32 res = askf_stack_pop( val, vm->stack );
@@ -1165,7 +1231,7 @@ static void askf_word_cell_add( void ) {
     askf_stack_push( val, vm->stack );
 }
 
-static void askf_word_chars( void ) {
+PROC_WORD( CHARS, askf_word_chars ) {
     AskForth_Cell* val  = global_c00;
 
     u32 res = askf_stack_pop( val, vm->stack );
@@ -1180,7 +1246,7 @@ static void askf_word_chars( void ) {
     askf_stack_push( val, vm->stack );
 }
 
-static void askf_word_char_add( void ) {
+PROC_WORD( CHARS_ADD, askf_word_char_add ) {
     AskForth_Cell* val  = global_c00;
 
     u32 res = askf_stack_pop( val, vm->stack );
@@ -1195,7 +1261,7 @@ static void askf_word_char_add( void ) {
     askf_stack_push( val, vm->stack );
 }
 
-static void askf_word_print_string( void ) {
+PROC_WORD( PRINT_STRING, askf_word_print_string ) {
     AskForth_InputSource* source = askf_istack_peek(vm->istack);
     AskForthToken token = {0};
 
@@ -1278,7 +1344,7 @@ static void askf_word_print_string( void ) {
     }
 }
 
-static void askf_word_error_with_string( void ) {
+PROC_WORD( ERROR_WITH_STRING, askf_word_error_with_string ) {
     AskForth_InputSource* source = askf_istack_peek(vm->istack);
     AskForthToken token = {0};
     
@@ -1344,7 +1410,7 @@ static void askf_word_error_with_string( void ) {
     }
 }
 
-static void askf_word_store_string( void ) {
+PROC_WORD( STORE_STRING, askf_word_store_string ) {
     if ( _stack_invalid_for_addresses() ) {
         _askf_word_failed( 
             (ascii *)".\" -> cell width must match architecture word width", 51 );
@@ -1398,7 +1464,7 @@ static void askf_word_store_string( void ) {
     new_base[len+1] = '\0';
 
     if ( vm->interpret_state == ASKF_COMPILE ) {
-        askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_literal );
+        askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_literal_relocatable );
         askf_compile_threaded_memory( (u64)new_base );
         askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_literal );
         askf_compile_threaded_memory( (u64)len );
@@ -1414,7 +1480,7 @@ static void askf_word_store_string( void ) {
     }
 }
 
-static void askf_word_comment_parenteshis( void ) {
+PROC_WORD( COMMENT_PAREN, askf_word_comment_parenteshis ) {
     AskForth_InputSource* source = askf_istack_peek(vm->istack);
     AskForthToken token = {0};
 
@@ -1434,7 +1500,7 @@ static void askf_word_comment_parenteshis( void ) {
     }
 }
 
-static void askf_word_comment_slash( void ) {
+PROC_WORD( COMMENT_SLASH, askf_word_comment_slash ) {
     AskForth_InputSource* source = askf_istack_peek(vm->istack);
     AskForthToken token = {0};
 
@@ -1449,11 +1515,11 @@ static void askf_word_comment_slash( void ) {
     }
 }
 
-static void askf_word_cr( void ) { 
+PROC_WORD( CR, askf_word_cr ) {
     askf_print( (ascii*)"\n", 1 );
 }
 
-static void askf_word_emit( void ) { 
+PROC_WORD( EMIT, askf_word_emit ) {
     AskForth_Cell* ascii_char = global_c00;
     u32 res = askf_stack_pop( ascii_char, vm->stack );
 
@@ -1465,7 +1531,7 @@ static void askf_word_emit( void ) {
     askf_print( &ascii_char->val._8u, 1 );
 }
 
-static void askf_word_lshift( void ) {
+PROC_WORD( LSHIFT, askf_word_lshift ) {
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"lshift -> Expects 2 values on stack" , 35 );
         return;
@@ -1481,7 +1547,7 @@ static void askf_word_lshift( void ) {
     askf_stack_push( top_stack, vm->stack );
 }
 
-static void askf_word_rshift( void ) {
+PROC_WORD( RSHIFT, askf_word_rshift ) {
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"rshift -> Expects 2 values on stack" , 35 );
         return;
@@ -1497,7 +1563,7 @@ static void askf_word_rshift( void ) {
     askf_stack_push( top_stack, vm->stack );
 }
 
-static void askf_word_xor( void ) {
+PROC_WORD( XOR, askf_word_xor ) {
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"xor -> Expects 2 values on stack" , 32 );
         return;
@@ -1514,7 +1580,7 @@ static void askf_word_xor( void ) {
     askf_stack_push( top_stack, vm->stack );
 }
 
-static void askf_word_and( void ) {
+PROC_WORD( AND, askf_word_and ) {
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"and -> Expects 2 values on stack" , 32 );
         return;
@@ -1531,7 +1597,7 @@ static void askf_word_and( void ) {
     askf_stack_push( top_stack, vm->stack );
 }
 
-static void askf_word_or( void ) {
+PROC_WORD( OR, askf_word_or ) {
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"or -> Expects ( a b - )" , 23 );
         return;
@@ -1548,7 +1614,7 @@ static void askf_word_or( void ) {
     askf_stack_push( top_stack, vm->stack );
 }
 
-static void askf_word_invert( void ) {
+PROC_WORD( INVERT, askf_word_invert ) {
     if ( vm->stack->index < 1 ) {
         _askf_word_failed( (ascii*)"invert -> Expects ( n - )" , 25 );
         return;
@@ -1562,23 +1628,23 @@ static void askf_word_invert( void ) {
     askf_stack_push( top_stack, vm->stack );
 }
 
-static void askf_word_clearstack( void ) {
+PROC_WORD( 0SP, askf_word_clearstack ) {
     vm->stack->index = 0;
 }
 
-static void askf_word_true( void ) {
+PROC_WORD( TRUE, askf_word_true ) {
     global_c00->val._64u = -1;
 
     askf_stack_push( global_c00, vm->stack );
 }
 
-static void askf_word_false( void ) {
+PROC_WORD( FALSE, askf_word_false ) {
     global_c00->val._64u = 0;
 
     askf_stack_push( global_c00, vm->stack );
 }
 
-static void askf_word_fill( void ) {
+PROC_WORD( FILL, askf_word_fill ) {
     if ( vm->stack->index < 3 ) {
         _askf_word_failed( (ascii*)"FILL -> Expects ( addr n char - )", 33 );
     }
@@ -1600,7 +1666,7 @@ static void askf_word_fill( void ) {
     FILL( ((u8*)addr->val._64u), _char->val._64u , bytes->val._64u );
 }
 
-static void askf_word_copy( void ) {
+PROC_WORD( COPY, askf_word_copy ) {
     if ( vm->stack->index < 3 ) {
         _askf_word_failed( (ascii*)"COPY -> Expects ( old_addr new_addr n_bytes - )", 47 );
     }
@@ -1622,7 +1688,7 @@ static void askf_word_copy( void ) {
     COPY( ((u8*)old_addr->val._64u) , ((u8*)new_addr->val._64u), bytes->val._64u );
 }
 
-static void askf_word_flush( void ) { 
+PROC_WORD( FLUSH, askf_word_flush ) {
     askf_blocks_update();
 
     if ( askf_blocks_update() != 0 ) {
@@ -1630,7 +1696,7 @@ static void askf_word_flush( void ) {
     };
 }
 
-static void askf_word_list( void ) { 
+PROC_WORD( LIST, askf_word_list ) {
     if ( vm->stack->index < 1 ) {
         _askf_word_failed( (ascii*)"LIST -> Expects ( n - )", 23);
         return;
@@ -1681,7 +1747,7 @@ static void askf_word_list( void ) {
 
 }
 
-static void askf_word_block( void ) { 
+PROC_WORD( BLOCK, askf_word_block ) {
     if ( vm->stack->index < 1 ) {
         _askf_word_failed( (ascii*)"BLOCK -> Expects ( n - )", 24);
         return;
@@ -1709,12 +1775,12 @@ static void askf_word_block( void ) {
     askf_stack_push( cell, vm->stack );
 }
 
-static void askf_word_block_size( void ) { 
+PROC_WORD( BLOCK_SIZE, askf_word_block_size ) {
     global_c00->val._64u = vm->blocks->block_size;
     askf_stack_push( global_c00, vm->stack );
 }
 
-static void askf_word_line( void ) { 
+PROC_WORD( LINE, askf_word_line ) {
     if ( vm->stack->index < 1 ) {
         _askf_word_failed( (ascii*)"LINE -> Expects ( block_addr n - )", 32 );
         return;
@@ -1738,14 +1804,14 @@ static void askf_word_line( void ) {
     askf_stack_push( blk_addr, vm->stack );
 }
 
-static void askf_word_max_lines( void ) { 
+PROC_WORD( MAX_LINES, askf_word_max_lines ) {
     global_c00->val._64u        = 16;
 
     askf_stack_push( global_c00, vm->stack );
 
 }
 
-static void askf_word_create_word( void ) {
+PROC_WORD( CREATE_WORD, askf_word_create_word ) {
     if ( vm->stack->index < 4 ) {
         _askf_word_failed( (ascii*)"CREATE-WORD -> Expects 'str_word_addr len str_dic_name len' ", 60 );
         return;
@@ -1767,12 +1833,6 @@ static void askf_word_create_word( void ) {
     askf_stack_pop( cell, vm->stack );
     word_name.base   = (ascii*)cell->val._64u;
 
-    if ( word_name.length > ASKF_MAX_NAME_LEN ) {
-        _askf_word_failed( (ascii*)"CREATE-WORD -> word name > 28: ", 31 );
-        _askf_word_failed( word_name.base , word_name.length );
-        return;
-    }
-
     AskForth_Dictionary* dic = askf_library_find_dic( vm, &dic_name );
 
     if ( !dic ) {
@@ -1793,7 +1853,7 @@ static void askf_word_create_word( void ) {
 
 }
 
-static void askf_word_colon( void ) { 
+PROC_WORD( COLON, askf_word_colon ) {
     if ( _stack_invalid_for_addresses() ) {
         _askf_word_failed( 
             (ascii *)": -> cell width must match architecture word width", 50 );
@@ -1845,12 +1905,17 @@ static void askf_word_colon( void ) {
     }
 
     askf_word_align();
+    ascii* new_str = askf_alloc( word_name.length );
+    COPY( word_name.base, new_str, (sizeof(ascii) * word_name.length) );
+    word_name.base = new_str;
+
+    askf_word_align();
     askf_dic_add_word_threaded( dic, word_name );
 
     vm->interpret_state  = ASKF_COMPILE;
 }
 
-static void askf_word_colon_noname( void ) { 
+PROC_WORD( COLON_NONAME, askf_word_colon_noname ) {
     if ( _stack_invalid_for_addresses() ) {
         _askf_word_failed( 
             (ascii *)":NONAME -> cell width must match architecture word width", 56 );
@@ -1882,16 +1947,17 @@ static void askf_word_colon_noname( void ) {
     vm->interpret_state  = ASKF_COMPILE;
 }
 
-static void askf_word_semicolon( void ) { 
+PROC_WORD( SEMICOLON, askf_word_semicolon ) {
     askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_endword );
+    askf_compile_threaded_memory( (u64)ASKF_WORD_REDZONE );
     vm->interpret_state  = ASKF_INTERPRET;
 }
 
-static void askf_word_exit( void ) {
+PROC_WORD( EXIT, askf_word_exit ) {
     askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_endword );
 }
 
-static void askf_word_immediate( void ) { 
+PROC_WORD( IMMEDIATE, askf_word_immediate ) {
     if ( !( (AskForth_Library*)vm->lib )->curr_compiling.word ) {
         _askf_word_failed( (ascii*)"IMMEDIATE -> No last word definition found", 42 );
         return;
@@ -1899,7 +1965,7 @@ static void askf_word_immediate( void ) {
     ( (AskForth_Library*)vm->lib )->curr_compiling.word->is_immediate = TRUE;
 }
 
-static void askf_word_isimmediate( void ) { 
+PROC_WORD( IS_IMMEDIATE, askf_word_isimmediate ) {
     if ( vm->stack->index < 1 ) {
         _askf_word_failed( (ascii*)"?IMMEDIATE -> Expects ( xt -- flag )", 36 );
         return;
@@ -1912,7 +1978,7 @@ static void askf_word_isimmediate( void ) {
     askf_stack_push( global_c00, vm->stack );
 }
 
-static void askf_word_inline( void ) {
+PROC_WORD( INLINE, askf_word_inline ) {
     if ( !( (AskForth_Library*)vm->lib )->curr_compiling.word ) {
         _askf_word_failed( (ascii*)"INLINE -> No last word definition found", 39 );
         return;
@@ -1920,7 +1986,7 @@ static void askf_word_inline( void ) {
     ( (AskForth_Library*)vm->lib )->curr_compiling.word->is_inline = TRUE;
 }
 
-static void askf_word_optimize( void ) {
+PROC_WORD( OPTIMIZE, askf_word_optimize ) {
     if ( !( (AskForth_Library*)vm->lib )->curr_compiling.word ) {
         _askf_word_failed( (ascii*)"OPTIMIZE -> No last word definition found", 41 );
         return;
@@ -1936,7 +2002,7 @@ static void askf_word_optimize( void ) {
 
 }
 
-static void askf_word_add_line_toblock( void ) {
+PROC_WORD( A, askf_word_add_line_toblock ) {
     if ( vm->stack->index < 1 ) {
         _askf_word_failed( (ascii*)"a -> Expects ( block_addr )", 27 );
         return;
@@ -1964,7 +2030,7 @@ static void askf_word_add_line_toblock( void ) {
     askf_stack_push( addr, vm->stack );
 }
 
-static void askf_word_load( void ) {
+PROC_WORD( LOADBLOCK, askf_word_load ) {
     if ( vm->stack->index < 1 ) {
         _askf_word_failed( (ascii*)"LOAD -> Expects ( n_block )", 27 );
         return;
@@ -1987,7 +2053,7 @@ static void askf_word_load( void ) {
     askf_istack_push( vm->istack, block, vm->blocks->block_size, 0, addr->val._64u, 0, NULL, 0 );
 }
 
-static void askf_word_add_dic( void ) { 
+PROC_WORD( DICTIONARY, askf_word_add_dic ) {
     if ( ( vm->stack->cell_scale / 8  ) != sizeof( askf_addr_t ) ) {
         _askf_word_failed( 
             (ascii *)"ADD-DIC -> cell width must match architecture word width", 56 );
@@ -2013,10 +2079,14 @@ static void askf_word_add_dic( void ) {
     }
 
     askf_word_align();
-    askf_create_dic( vm, (ascii*)addr->val._64u, len->val._64u );
+    ascii* new_str = askf_alloc( len->val._64u );
+    COPY( ((u8*)addr->val._64u), new_str, len->val._64u )
+
+    askf_word_align();
+    askf_create_dic( vm, new_str, len->val._64u );
 }
 
-static void askf_word_forget_dic( void ) { 
+PROC_WORD( FORGET_DICT, askf_word_forget_dic ) {
     if ( ( vm->stack->cell_scale / 8  ) != sizeof( askf_addr_t ) ) {
         _askf_word_failed( 
             (ascii *)"FORGET-DICT -> cell width must match architecture word width", 60 );
@@ -2039,15 +2109,48 @@ static void askf_word_forget_dic( void ) {
         return;
     }
 
+    // clean library
+    AskForth_Library* lib = (AskForth_Library*)vm->lib;
+
     if ( dict->prev && dict->next ) {
         dict->prev->next = dict->next;
         dict->next->prev = dict->prev;
     } else if ( dict->prev && !dict->next ) 
         dict->prev->next = NULL;
 
+    if ( dict->prev && dict->next ) {
+        dict->prev->next = dict->next;
+        dict->next->prev = dict->prev;
+    } else if ( dict->prev && !dict->next )  {
+        dict->prev->next = NULL;
+        lib->recent_dic = dict->prev;
+    } else if ( !dict->prev && dict->next ) {
+        dict->next->prev = NULL;
+        lib->dictionaries_base = dict->next;
+    } else if ( !dict->prev && !dict->next ) {
+        return;
+    }
+
+    // add to shadow library 
+    
+    AskForth_ShadowLibrary* slib = (AskForth_ShadowLibrary*)vm->shadow_lib;
+    dict->next = NULL;
+    dict->prev = NULL;
+
+    if ( slib->dict_base == NULL ) {
+        slib->dict_base = dict;
+        slib->dict_recent = slib->dict_base;
+    } else {
+        AskForth_Dictionary* old_shadow_dict = slib->dict_recent;
+
+        old_shadow_dict->next   = dict;
+        slib->dict_recent       = dict;
+        slib->dict_recent->prev = old_shadow_dict;
+        slib->dict_recent->next = NULL;
+    }
 }
 
-static void askf_word_remember_dic( void ) { 
+PROC_WORD( REMEMBER_DICT, askf_word_remember_dic ) {
     if ( ( vm->stack->cell_scale / 8  ) != sizeof( askf_addr_t ) ) {
         _askf_word_failed( 
             (ascii *)"REMEMBER-DICT -> cell width must match architecture word width", 62 );
@@ -2070,16 +2173,58 @@ static void askf_word_remember_dic( void ) {
         return;
     }
 
+    // remove from the shadow library
+
+    AskForth_ShadowLibrary* slib = (AskForth_ShadowLibrary*)vm->shadow_lib;
+    AskForth_Dictionary* sbase = slib->dict_base;
+
+    while ( sbase ) {
+        if ( (askf_addr_t)sbase == (askf_addr_t)dict )
+            break;
+        sbase = sbase->next;
+    }
+    if ( sbase == NULL ) {
+        _askf_word_failed( (ascii*)"REMEBER-DICT -> Not a valid dict_xt", 35 );
+        return;
+    }
+
+    if ( sbase->prev && sbase->next ) {
+        sbase->prev->next = sbase->next;
+        sbase->next->prev = sbase->prev;
+    } else if ( sbase->prev && !sbase->next ) 
+        sbase->prev->next = NULL;
+
+    if ( (u64)sbase == (u64)slib->dict_recent ) {
+        if ( sbase->prev ) {
+            slib->dict_recent = sbase->prev;
+        } else {
+            slib->dict_base = NULL;
+            slib->dict_recent = NULL;
+        }
+    } else if ( (u64)sbase == (u64)slib->dict_base ) {
+        slib->dict_base = NULL;
+        slib->dict_recent = NULL;
+    }
+
+    // add back to library
+
     AskForth_Library* lib = (AskForth_Library*)vm->lib;
 
     dict->next = NULL;
-    dict->prev  = lib->recent_dic;
-
     lib->recent_dic->next = dict;
+    dict->prev = lib->recent_dic;
     lib->recent_dic = dict;
+
+    // set to be first dict to search
+    // lib->dictionaries_base->prev = dict;
+    // dict->next                   = lib->dictionaries_base;
+    // dict->prev                   = NULL;
+    // lib->dictionaries_base       = dict;
+
+
 }
 
-static void askf_word_promote_dic( void ) { 
+PROC_WORD( PROMOTE_DICT, askf_word_promote_dic ) {
     if ( ( vm->stack->cell_scale / 8  ) != sizeof( askf_addr_t ) ) {
         _askf_word_failed( 
             (ascii *)"PROMOTE-DICT -> cell width must match architecture word width", 61 );
@@ -2118,7 +2263,7 @@ static void askf_word_promote_dic( void ) {
     lib->dictionaries_base       = dict;
 }
 
-static void askf_word_abort( void ) { 
+PROC_WORD( ABORT, askf_word_abort ) {
     if ( vm->interpret_state == ASKF_COMPILE )
         vm->interpret_state = ASKF_INTERPRET;
 
@@ -2137,11 +2282,11 @@ static void askf_word_abort( void ) {
     vm->tframes_stack->index = 0;
 }
 
-static void askf_word_bye( void ) { 
+PROC_WORD( BYE, askf_word_bye ) {
     askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_SHUTDOWN_REQUEST );
 }
 
-static void askf_word_iscomptime( void ) { 
+PROC_WORD( ISCOMPTIME, askf_word_iscomptime ) {
     AskForth_Cell* mode  = global_c00;
 
     mode->val._64u       = vm->interpret_state == ASKF_COMPILE ? -1 : 0 ;
@@ -2149,7 +2294,7 @@ static void askf_word_iscomptime( void ) {
     askf_stack_push( mode, vm->stack );
 }
 
-static void askf_word_isinterptime( void ) { 
+PROC_WORD( ISINTERPTIME, askf_word_isinterptime ) {
     AskForth_Cell* mode  = global_c00;
 
     mode->val._64u       = vm->interpret_state == ASKF_INTERPRET ? -1 : 0 ;
@@ -2157,7 +2302,7 @@ static void askf_word_isinterptime( void ) {
     askf_stack_push( mode, vm->stack );
 }
 
-static void askf_word_state( void ) {
+PROC_WORD( STATE, askf_word_state ) {
     AskForth_Cell* mode  = global_c00;
 
     mode->val._addr_t = ( askf_addr_t )&vm->interpret_state;
@@ -2165,7 +2310,7 @@ static void askf_word_state( void ) {
     askf_stack_push( mode, vm->stack );
 }
 
-static void askf_word_is_sys_windows( void ) { 
+PROC_WORD( IS_WINDOWS, askf_word_is_sys_windows ) {
     AskForth_Cell* mode  = global_c00;
 
     #if defined( TARGET_WINDOWS )
@@ -2177,7 +2322,7 @@ static void askf_word_is_sys_windows( void ) {
     askf_stack_push( mode, vm->stack );
 }
 
-static void askf_word_is_sys_linux( void ) { 
+PROC_WORD( IS_LINUX, askf_word_is_sys_linux ) {
     AskForth_Cell* mode  = global_c00;
 
     #if defined( TARGET_LINUX )
@@ -2189,7 +2334,7 @@ static void askf_word_is_sys_linux( void ) {
     askf_stack_push( mode, vm->stack );
 }
 
-static void askf_word_what_arq_bits( void ) { 
+PROC_WORD( WHAT_ARQ_BITS, askf_word_what_arq_bits ) {
     AskForth_Cell* mode  = global_c00;
 
     #if   defined( ARQBITS64 )
@@ -2268,7 +2413,7 @@ static void askf_word_branch( void ) {
         _askf_word_failed( (ascii*)"BRANCH can only be used by compiled code ", 41 );
 }
 
-static void askf_word_if( void ) {
+PROC_WORD( IF, askf_word_if ) {
     if ( vm->interpret_state != ASKF_COMPILE ) {
         _askf_word_failed( (ascii*)"IF -> Can only be used in compiled code", 39 );
         return;
@@ -2280,7 +2425,7 @@ static void askf_word_if( void ) {
         _askf_word_failed( (ascii*)"IF -> branch failed", 19 ); 
 }
 
-static void askf_word_else( void ) {
+PROC_WORD( ELSE, askf_word_else ) {
     if ( vm->interpret_state != ASKF_COMPILE ) {
         _askf_word_failed( (ascii*)"ELSE -> Can only be used in compiled code", 41 );
         return;
@@ -2292,7 +2437,7 @@ static void askf_word_else( void ) {
         _askf_word_failed( (ascii*)"ELSE -> branch failed", 21 ); 
 }
 
-static void askf_word_then( void ) {
+PROC_WORD( THEN, askf_word_then ) {
     AskForth_Library* lib       = (AskForth_Library*)vm->lib;
 
     if ( vm->interpret_state != ASKF_COMPILE ) {
@@ -2308,7 +2453,7 @@ static void askf_word_then( void ) {
     *((u64*)previous_offset_ptr->val._64u) = offset;
 }
 
-static void askf_word_begin( void ) {
+PROC_WORD( BEGIN, askf_word_begin ) {
     AskForth_Library* lib       = (AskForth_Library*)vm->lib;
 
     if ( vm->interpret_state != ASKF_COMPILE ) {
@@ -2322,7 +2467,7 @@ static void askf_word_begin( void ) {
     askf_stack_push( global_c00, vm->cf_stack );
 }
 
-static void askf_word_while( void ) {
+PROC_WORD( WHILE, askf_word_while ) {
     if ( vm->interpret_state != ASKF_COMPILE ) {
         _askf_word_failed( (ascii*)"WHILE -> Can only be used in compiled code", 42 );
         return;
@@ -2334,7 +2479,7 @@ static void askf_word_while( void ) {
         _askf_word_failed( (ascii*)"WHILE", 5 ); 
 }
 
-static void askf_word_repeat( void ) {
+PROC_WORD( REPEAT, askf_word_repeat ) {
     AskForth_Library* lib = ( AskForth_Library* )vm->lib;
 
     if ( vm->interpret_state != ASKF_COMPILE ) {
@@ -2361,7 +2506,7 @@ static void askf_word_repeat( void ) {
     *( ( u64* )while_placeholder->val._64u )  = offset;
 }
 
-static void askf_word_bracket_open( void ) {
+PROC_WORD( BRACKET_OPEN, askf_word_bracket_open ) {
     if ( vm->interpret_state != ASKF_COMPILE ) {
         _askf_word_failed( (ascii*)"[ -> Must be called in compile time", 35 );
         return;
@@ -2370,7 +2515,7 @@ static void askf_word_bracket_open( void ) {
     vm->interpret_state = ASKF_INTERPRET;
 }
 
-static void askf_word_bracket_close( void ) {
+PROC_WORD( BRACKET_CLOSE, askf_word_bracket_close ) {
     if ( vm->interpret_state != ASKF_INTERPRET ) {
         _askf_word_failed( (ascii*)"] -> Must be called in interpret time", 37 );
         return;
@@ -2379,7 +2524,7 @@ static void askf_word_bracket_close( void ) {
     vm->interpret_state = ASKF_COMPILE;
 }
 
-static void askf_word_single_quote( void ) {
+PROC_WORD( SINGLE_QUOTE, askf_word_single_quote ) {
     if ( ( vm->stack->cell_scale / 8  ) != sizeof( askf_addr_t ) ) {
         _askf_word_failed( 
             (ascii *)"'-> cell width must match architecture word width", 49 );
@@ -2423,7 +2568,7 @@ static void askf_word_single_quote( void ) {
     askf_stack_push( global_c02, vm->stack );
 }
 
-static void askf_word_execute( void ) {
+PROC_WORD( EXECUTE, askf_word_execute ) {
     if ( vm->stack->index < 1 ) {
         _askf_word_failed( (ascii*)"EXECUTE -> Expects addr", 23 );
         return;
@@ -2470,7 +2615,7 @@ static void askf_word_execute( void ) {
     }
 }
 
-static void askf_word_compile_comma( void )  {
+PROC_WORD( COMPILE_COMMA, askf_word_compile_comma ) {
     if ( vm->stack->index < 1 ) {
         _askf_word_failed( (ascii*)"COMPILE, -> Expects addr", 24 );
         return;
@@ -2499,12 +2644,16 @@ static void askf_word_compile_comma( void )  {
             askf_compile_threaded_memory( (u64)word->source.source.threaded_code_start_addr);
             askf_compile_threaded_memory( (u64)word );
             break;
+        case ASKF_WORD_NATIVE_FOREIGN:
+            askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_native_foreign );
+            askf_compile_threaded_memory( (u64)word );
+            break;
         default:
             break;
     }
 }
 
-static void askf_word_literal( void ) {
+PROC_WORD( LITERAL, askf_word_literal ) {
     if ( vm->interpret_state != ASKF_COMPILE ) {
         _askf_word_failed( (ascii*)"LITERAL -> Must be used in compile code", 39 );
         return;
@@ -2523,7 +2672,26 @@ static void askf_word_literal( void ) {
     askf_compile_threaded_memory( val->val._64u );
 }
 
-static void askf_word_postpone( void ) {
+PROC_WORD( RLITERAL, askf_word_rliteral ) {
+    if ( vm->interpret_state != ASKF_COMPILE ) {
+        _askf_word_failed( (ascii*)"RLITERAL -> Must be used in compile code", 40 );
+        return;
+    }
+
+    if ( vm->stack->index < 1 ) {
+        _askf_word_failed( (ascii*)"RLITERAL -> Expects ( n - )", 27 );
+        return;
+    }
+
+    AskForth_Cell* val = global_c00;
+
+    askf_stack_pop( val, vm->stack );
+
+    askf_compile_threaded_memory( (u64)vm->dispatch_calls.op_literal_relocatable );
+    askf_compile_threaded_memory( val->val._64u );
+}
+
+PROC_WORD( POSTPONE, askf_word_postpone ) {
     if ( vm->interpret_state != ASKF_COMPILE ) {
         _askf_word_failed( (ascii*)"POSTPONE -> Must be used in compile code", 40 );
         return;
@@ -2586,7 +2754,7 @@ static void askf_word_postpone( void ) {
     }
 }
 
-void askf_word_push_rstack( void ) {
+PROC_WORD( PUSH_RSTACK, askf_word_push_rstack ) {
     AskForth_Cell* val = global_c00;
     
     if ( !askf_stack_pop( val, vm->stack ) ) {
@@ -2597,7 +2765,7 @@ void askf_word_push_rstack( void ) {
     askf_stack_push( val, vm->rstack );
 }
 
-void askf_word_pop_rstack( void ) {
+PROC_WORD( POP_RSTACK, askf_word_pop_rstack ) {
     AskForth_Cell* val = global_c00;
     
     if ( !askf_stack_pop( val, vm->rstack ) ) {
@@ -2608,7 +2776,7 @@ void askf_word_pop_rstack( void ) {
     askf_stack_push( val, vm->stack );
 }
 
-void askf_word_peek_rstack( void ) {
+PROC_WORD( PEEK_RSTACK, askf_word_peek_rstack ) {
     AskForth_Cell* val = global_c00;
 
     if ( vm->rstack->index < 1 ) {
@@ -2621,7 +2789,7 @@ void askf_word_peek_rstack( void ) {
     askf_stack_push( val, vm->stack );
 }
 
-void askf_word_see( void ) {
+PROC_WORD( SEE, askf_word_see ) {
     if ( _stack_invalid_for_addresses() ) {
         _askf_word_failed( 
             (ascii *)"see -> cell width must match architecture word width", 52 );
@@ -2729,7 +2897,14 @@ void askf_word_see( void ) {
             global_c00->val._64u = *ip;
             askf_print_cell( global_c00 );
             ip++;
-        } 
+        }  
+        else if ( flag == (u64)vm->dispatch_calls.op_literal_relocatable ) {
+            global_c00->val._64u = *ip;
+            askf_print( (ascii*)"RELOCATABLE<", 12);
+            askf_print_cell( global_c00 );
+            askf_print( (ascii*)">", 1);
+            ip++;
+        }
         else if ( flag == (u64)vm->dispatch_calls.op_native ) {
             ip++;
             AskForth_Word* word = (AskForth_Word*)*ip;
@@ -2771,11 +2946,13 @@ void askf_word_see( void ) {
             askf_print( (ascii*)"OPT_TYPE_STRING:",  16 );
         } 
         else if ( flag == (u64)vm->dispatch_calls.op_endword  ) {
+            askf_print( (ascii*)"EXIT", 4);
+        } else if ( flag == (u64)vm->dispatch_calls.op_dispatch_error ) {
+            askf_print( (ascii*)"OP_DISPATCH_ERROR", 17 );
+        } else if ( flag == ASKF_WORD_REDZONE ) {
             askf_print_char( '\n' );
             askf_print( (ascii*)"; ", 2);
             break;
-        } else if ( flag == (u64)vm->dispatch_calls.op_dispatch_error ) {
-            askf_print( (ascii*)"OP_DISPATCH_ERROR", 17 );
         }
 
         askf_print( (ascii*)" ", 1 );
@@ -2791,7 +2968,8 @@ void askf_word_see( void ) {
 }
 
 #if defined( TARGET_LINUX ) || defined( TARGET_WINDOWS )
-static void askf_word_foreign( void ) {
+
+PROC_WORD( FOREIGN, askf_word_foreign ) {
     if ( _stack_invalid_for_addresses() ) {
         _askf_word_failed( 
                 (ascii *)"FOREIGN -> cell width must match architecture word width", 56 );
@@ -2810,11 +2988,11 @@ static void askf_word_foreign( void ) {
     askf_stack_pop( len, vm->stack );
     askf_stack_pop( addr, vm->stack );
 
-    if ( !askf_load_foreign_object( (const ascii*)addr->val._addr_t, len->val._64u ) ) 
+    if ( !askf_load_foreign_object( (const ascii*)addr->val._64u, len->val._64u ) ) 
         _askf_word_failed( (ascii*)"FOREIGN -> Could not load foreign object (shared library)", 57 );
 }
 
-static void askf_word_freeforeign( void ) {
+PROC_WORD( FREEFOREIGN, askf_word_freeforeign ) {
     if ( _stack_invalid_for_addresses() ) {
         _askf_word_failed( 
                 (ascii *)"FREEFOREIGN -> cell width must match architecture word width", 60 );
@@ -2837,7 +3015,7 @@ static void askf_word_freeforeign( void ) {
         _askf_word_failed( (ascii*)"FREEFOREIGN -> Foreign object (shared library) not found", 56 );
 }
 
-void askf_word_dot_foreign( void ) {
+PROC_WORD( DOTFOREIGN, askf_word_dot_foreign ) {
     AskForthForeignObject* base = vm->foreign_manager->objects;
 
     #if defined( TARGET_LINUX )
@@ -2852,13 +3030,7 @@ void askf_word_dot_foreign( void ) {
 }
 
 
-static boolean _strequal( ascii* str, ascii* to_compare, u64 len ) {
-    for ( u64 x = 0; x < len; x++ )
-        if ( str[x] != to_compare[x] )
-            return FALSE;
 
-    return TRUE;
-}
 
 boolean _askf_interp_ffi_params_and_result_to_global_sig( void ) {
     AskForth_InputSource* source = askf_istack_peek( vm->istack );
@@ -2961,9 +3133,8 @@ boolean _askf_interp_ffi_params_and_result_to_global_sig( void ) {
     return TRUE;
 }
 
-#endif
 
-void askf_word_function( void ) {
+PROC_WORD( FUNCTION, askf_word_function ) {
     if ( _stack_invalid_for_addresses() ) {
         _askf_word_failed( 
                 (ascii *)"FUNCTION: -> cell width must match architecture word width", 58 );
@@ -3033,10 +3204,14 @@ void askf_word_function( void ) {
     if ( !askf_bind_function( function_name.base, function_name.length, global_ffi_sig ) ) 
         _askf_word_failed( (ascii*)"FUNCTION: -> Could not bind to the C function", 45 );
 
+    ascii* new_str = askf_alloc( sizeof(ascii) * function_name.length );
+    COPY( function_name.base, new_str, function_name.length );
+    function_name.base  = new_str;
     askf_dic_add_word_foreign_native( dic_name, global_ffi_sig, function_name );
 }
+#endif
 
-static void askf_word_evaluate( void ) {
+PROC_WORD( EVALUATE, askf_word_evaluate ) {
     if ( vm->stack->index < 2 ) {
         _askf_word_failed( (ascii*)"EVALUATE -> Expects ( addr u -- ) ", 34 );
         return;
@@ -3046,6 +3221,35 @@ static void askf_word_evaluate( void ) {
     askf_stack_pop( global_c01, vm->stack );
 
     askf_istack_push( vm->istack, (ascii*)global_c01->val._addr_t, global_c00->val._64u+1, -1, 0, 0, NULL, 0 );
+}
+
+PROC_WORD( STARTER, askf_word_starter ) {
+    askf_word_single_quote();
+    if ( vm->outer_state != ASKF_VM_OUTER_STATE_EXECUTE )
+        return;
+
+    askf_stack_pop( global_c00, vm->stack );
+    askf_new_starterword( global_c00->val._addr_t );
+}
+
+PROC_WORD( PROGRAM, askf_word_program ) {
+    askf_word_parse_name();
+
+    if ( vm->stack->index < 2 ) {
+        _askf_word_failed( (ascii*)"PROGRAM -> Path must be included", 32 );
+        return;
+    }
+
+    AskForth_Cell* len   = global_c00;
+    AskForth_Cell* path  = global_c01;
+
+    askf_stack_pop( len, vm->stack );
+    askf_stack_pop( path, vm->stack );
+
+    if ( !askf_save_image( vm, (ascii*)path->val._addr_t, len->val._addr_t ) ) {
+        _askf_word_failed( (ascii*)"PROGRAM -> Failed to save new AskForth Image", 44 );
+        return;
+    }
 }
 
 #if defined( TARGET_LINUX ) || defined( TARGET_WINDOWS )
@@ -3093,7 +3297,7 @@ static u64 _askf_custom_fgets( ascii* buff, u64 cap, FILE* stream, int* is_eof )
 }
 
 
-static void askf_word_include( void ) { 
+PROC_WORD( INCLUDE, askf_word_include ) {
         askf_word_parse_name();
 
         if ( vm->stack->index < 2 ) {
@@ -3139,7 +3343,7 @@ static void askf_word_include( void ) {
         source->in_max = base_idx;
 }
 
-static void askf_word_included( void ) { 
+PROC_WORD( INCLUDED, askf_word_included ) {
         if ( vm->stack->index < 2 ) {
             _askf_word_failed( (ascii*)"INCLUDED -> Expects ( c-addr u -- )", 35 );
             return;
@@ -3184,7 +3388,7 @@ static void askf_word_included( void ) {
 }
 #endif
 
-void askf_word_refill( void )  {
+PROC_WORD( REFILL, askf_word_refill ) {
     AskForth_InputSource* source = askf_istack_peek( vm->istack );
 
     // input source EVALUATE return false
@@ -3239,7 +3443,7 @@ void _askf_print_failed_add_word( AskForthToken* tkn ) {
     askf_print( (ascii*)"' word to 'Core' Dictionary\n", 29 );
 }
 
-void askf_add_core_words( void ) {
+void askf_initialize_core( void ) {
     vm                  = askf_get_global_vm();
     AskForth_Cell cell  = askf_new_cell_payload( vm->stack );
 
@@ -3263,1442 +3467,527 @@ void askf_add_core_words( void ) {
 
     // trickery to set jump labels set (happens on first run)
     _askf_execute_threaded_frames( vm->istack->index );
+}
 
+enum { MAX_WID = __COUNTER__-1 };
+
+#define IS_IMMEDIATE 1
+#define NOT_IMMEDIATE 0
+
+// could be a function but i dont want to pass more arguments xd
+// only works inside the 'askf_add_core_words' local scope
+#define NEW_NATIVE_WORD( str,is_immediate, addr )    \
+    scratch_word_name.base            = (ascii*)(str);                                          \
+    counter = 0;                                                                                \
+    while ( *(str) != 0 ) {                                                                       \
+        counter++;  \
+        (str)++;                                                                       \
+    }                                                                                           \
+    scratch_word_name.length          = counter;                                                \
+                                                                                                \
+    res =                                                                                       \
+        askf_dic_add_word_native( core_dic_name, (is_immediate), addr, scratch_word_name );   \
+                                                                                                \
+    if ( !res )                                                                                 \
+        _askf_print_failed_add_word( &scratch_word_name );                                      \
+
+// we are keeping track of these strings so we can relocate them after an askforth image boot up
+ascii* str_names_table[] = {
+    [WID(ALIGNED)]              = FSTR("ALIGNED"),
+    [WID(ALIGN)]                = FSTR("ALIGN"),
+    [WID(DOT)]                  = FSTR("."),
+    [WID(SOURCE)]               = FSTR("SOURCE"),
+    [WID(SOURCEID)]             = FSTR("SOURCE-ID"),
+    [WID(SOURCEIN)]             = FSTR(">IN"),
+    [WID(BLK)]                  = FSTR("blk"),
+    [WID(DEPTH)]                = FSTR("depth"),
+    [WID(BASE)]                 = FSTR("BASE"),
+    [WID(DECIMAL)]              = FSTR("DECIMAL"),
+    [WID(HEXADECIMAL)]          = FSTR("HEX"),
+    [WID(OCTAL)]                = FSTR("OCTAL"),
+    [WID(DOT_STACK)]            = FSTR(".s"),
+    [WID(DUP)]                  = FSTR("dup"),
+    [WID(MAYBE_DUP)]            = FSTR("?dup"),
+    [WID(2DUP)]                 = FSTR("2dup"),
+    [WID(SWAP)]                 = FSTR("swap"),
+    [WID(2SWAP)]                = FSTR("2swap"),
+    [WID(NIP)]                  = FSTR("nip"),
+    [WID(TUCK)]                 = FSTR("tuck"),
+    [WID(DROP)]                 = FSTR("drop"),
+    [WID(2DROP)]                = FSTR("2drop"),
+    [WID(OVER)]                 = FSTR("over"),
+    [WID(2OVER)]                = FSTR("2over"),
+    [WID(NEGATE)]               = FSTR("negate"),
+    [WID(LIB)]                  = FSTR("LIB"),
+    [WID(FROM)]                 = FSTR("[FROM]"),
+    [WID(FIND)]                 = FSTR("[FIND]"),
+    [WID(SFIND)]                = FSTR("FIND"),
+    [WID(PARSE_NAME)]           = FSTR("PARSE-NAME"),
+    [WID(FORGET)]               = FSTR("[FORGET]"),
+    [WID(XTFORGET)]             = FSTR("FORGET"),
+    [WID(WORDS)]                = FSTR("words:"),
+    [WID(ADD)]                  = FSTR("+"),
+    [WID(MINUS)]                = FSTR("-"),
+    [WID(MULTIPLY)]             = FSTR("*"),
+    [WID(SLASHMOD)]             = FSTR("/mod"),
+    [WID(EQUALS)]               = FSTR("="),
+    [WID(EQUALS_ZERO)]          = FSTR("0="),
+    [WID(LESS_THAN)]            = FSTR("<"),
+    [WID(LESS_THAN_OR_EQUAL)]   = FSTR("<="),
+    [WID(LESS_THAN_ZERO)]       = FSTR("0<"),
+    [WID(MORE_THAN)]            = FSTR(">"),
+    [WID(MORE_THAN_OR_EQUAL)]   = FSTR(">="),
+    [WID(MORE_THAN_ZERO)]       = FSTR("0>"),
+    [WID(NOT_EQUAL)]            = FSTR("<>"),
+    [WID(NOT_EQUAL_ZERO)]       = FSTR("0<>"),
+    [WID(SIGNED)]               = FSTR("SIGNED"),
+    [WID(UNSIGNED)]             = FSTR("UNSIGNED"),
+    [WID(BITS)]                 = FSTR("BITS"),
+    [WID(WHATBITS)]             = FSTR("?BITS"),
+    [WID(TYPE)]                 = FSTR("TYPE"),
+    [WID(STORE)]                = FSTR("!"),
+    [WID(BYTE_STORE)]           = FSTR("c!"),
+    [WID(LOAD)]                 = FSTR("@"),
+    [WID(BYTE_LOAD)]            = FSTR("c@"),
+    [WID(HERE)]                 = FSTR("HERE"),
+    [WID(ALLOT)]                = FSTR("ALLOT"),
+    [WID(UNUSED)]               = FSTR("UNUSED"),
+    [WID(PRINT_STRING)]         = FSTR(".\""),
+    [WID(STORE_STRING)]         = FSTR("s\""),
+    [WID(ERROR_WITH_STRING)]    = FSTR("error\""),
+    [WID(CR)]                   = FSTR("cr"),
+    [WID(EMIT)]                 = FSTR("EMIT"),
+    [WID(LSHIFT)]               = FSTR("lshift"),
+    [WID(RSHIFT)]               = FSTR("rshift"),
+    [WID(XOR)]                  = FSTR("xor"),
+    [WID(AND)]                  = FSTR("and"),
+    [WID(ROT)]                  = FSTR("rot"),
+    [WID(OR)]                   = FSTR("or"),
+    [WID(INVERT)]               = FSTR("invert"),
+    [WID(0SP)]                  = FSTR("0SP"),
+    [WID(TRUE)]                 = FSTR("TRUE"),
+    [WID(FALSE)]                = FSTR("FALSE"),
+    [WID(CELLS)]                = FSTR("cells"),
+    [WID(CELLS_ADD)]            = FSTR("cell+"),
+    [WID(CHARS)]                = FSTR("chars"),
+    [WID(CHARS_ADD)]            = FSTR("char+"),
+    [WID(FILL)]                 = FSTR("FILL"),
+    [WID(COPY)]                 = FSTR("COPY"),
+    [WID(COMMENT_PAREN)]        = FSTR("("),
+    [WID(COMMENT_SLASH)]        = FSTR("\\"),
+    [WID(FLUSH)]                = FSTR("FLUSH"),
+    [WID(LIST)]                 = FSTR("LIST"),
+    [WID(LOADBLOCK)]            = FSTR("LOAD"),
+    [WID(BLOCK)]                = FSTR("BLOCK"),
+    [WID(BLOCK_SIZE)]           = FSTR("BLOCK-SIZE"),
+    [WID(LINE)]                 = FSTR("LINE"),
+    [WID(A)]                    = FSTR("a"),
+    [WID(MAX_LINES)]            = FSTR("MAX-LINES"),
+
+    #if defined( TARGET_LINUX ) || defined( TARGET_WINDOWS )
+        [WID(INCLUDED)]         = FSTR("INCLUDED"),
+        [WID(INCLUDE)]          = FSTR("INCLUDE"),
+    #endif
+    [WID(CREATE_WORD)]          = FSTR("CREATE-WORD"),
+    [WID(COLON)]                = FSTR(":"),
+    [WID(COLON_NONAME)]         = FSTR(":NONAME"),
+    [WID(SEMICOLON)]            = FSTR(";"),
+    [WID(IMMEDIATE)]            = FSTR("IMMEDIATE"),
+    [WID(IS_IMMEDIATE)]         = FSTR("?IMMEDIATE"),
+    [WID(OPTIMIZE)]             = FSTR("OPTIMIZE"),
+    [WID(INLINE)]               = FSTR("INLINE"),
+    [WID(DICTIONARY)]           = FSTR("DICTIONARY"),
+    [WID(FORGET_DICT)]          = FSTR("FORGET-DICT"),
+    [WID(REMEMBER_DICT)]        = FSTR("REMEMBER-DICT"),
+    [WID(PROMOTE_DICT)]         = FSTR("PROMOTE-DICT"),
+    [WID(ABORT)]                = FSTR("ABORT"),
+    [WID(EXIT)]                 = FSTR("EXIT"),
+    [WID(BYE)]                  = FSTR("bye"),
+    [WID(ISCOMPTIME)]           = FSTR("?COMPTIME"),
+    [WID(ISINTERPTIME)]         = FSTR("?INTERPTIME"),
+    [WID(STATE)]                = FSTR("STATE"),
+    [WID(IS_WINDOWS)]           = FSTR("?SYSTEM-WINDOWS"),
+    [WID(IS_LINUX)]             = FSTR("?SYSTEM-LINUX"),
+    [WID(WHAT_ARQ_BITS)]        = FSTR("?ARQ-BITS"),
+    [WID(REFILL)]               = FSTR("REFILL"),
+    [WID(IF)]                   = FSTR("IF"),
+    [WID(ELSE)]                 = FSTR("ELSE"),
+    [WID(THEN)]                 = FSTR("THEN"),
+    [WID(BEGIN)]                = FSTR("BEGIN"),
+    [WID(WHILE)]                = FSTR("WHILE"),
+    [WID(REPEAT)]               = FSTR("REPEAT"),
+    [WID(BRACKET_OPEN)]         = FSTR("["),
+    [WID(BRACKET_CLOSE)]        = FSTR("]"),
+    [WID(SINGLE_QUOTE)]         = FSTR("'"),
+    [WID(LITERAL)]              = FSTR("LITERAL"),
+    [WID(RLITERAL)]             = FSTR("RLITERAL"),
+    [WID(POSTPONE)]             = FSTR("POSTPONE"),
+    [WID(EVALUATE)]             = FSTR("EVALUATE"),
+    [WID(EXECUTE)]              = FSTR("EXECUTE"),
+    [WID(COMPILE_COMMA)]        = FSTR("COMPILE,"),
+    [WID(PUSH_RSTACK)]          = FSTR(">R"),
+    [WID(POP_RSTACK)]           = FSTR("R>"),
+    [WID(PEEK_RSTACK)]          = FSTR("R@"),
+    [WID(SEE)]                  = FSTR("see"),
+    [WID(STARTER)]              = FSTR("STARTER"),
+    [WID(PROGRAM)]              = FSTR("PROGRAM"),
+
+    #if defined( TARGET_LINUX ) || defined( TARGET_WINDOWS )
+        [WID(FOREIGN)]          = FSTR("FOREIGN"),
+        [WID(DOTFOREIGN)]       = FSTR(".FOREIGN"),
+        [WID(FREEFOREIGN)]      = FSTR("FREEFOREIGN"),
+        [WID(FUNCTION)]         = FSTR("FUNCTION:"),
+    #endif
+};
+
+#define GET_WID_STR(WID)  (str_names_table[(WID)])
+
+ascii* askf_get_wid_word_address( askf_addr_t wid ) {
+    if ( wid > MAX_WID ) 
+        return NULL;
+
+    return GET_WID_STR(wid);
+}
+
+askf_addr_t askf_get_word_id( ascii* name, askf_addr_t len ) {
+    if ( name == NULL )
+        return -1;
+
+    for ( askf_addr_t x = 0; x < MAX_WID; x++ ) {
+        if ( _strequal( name, str_names_table[x], len) )
+            return x;
+    }
+
+    return -1;
+}
+
+void askf_add_core_words( void ) {
     AskForthToken core_dic_name = {0};
     core_dic_name.base          = (ascii*)"core";
     core_dic_name.length        = 4;
 
     AskForthToken scratch_word_name = {0};
 
-    // SOURCE
-    scratch_word_name.base            = (ascii*)"SOURCE";
-    scratch_word_name.length          = 6;
-
-    boolean added_stack_input_source = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_input_source, scratch_word_name );
-
-    if ( !added_stack_input_source )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // SOURCE-ID
-    scratch_word_name.base            = (ascii*)"SOURCE-ID";
-    scratch_word_name.length          = 9;
-
-    boolean added_stack_input_source_id = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_input_source_id, scratch_word_name );
-
-    if ( !added_stack_input_source_id )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // >IN
-    scratch_word_name.base            = (ascii*)">IN";
-    scratch_word_name.length          = 3;
-
-    boolean added_stack_input_source_in = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_input_source_in, scratch_word_name );
-
-    if ( !added_stack_input_source_in )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // blk
-    scratch_word_name.base            = (ascii*)"blk";
-    scratch_word_name.length          = 3;
-
-    boolean added_stack_input_source_blk = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_input_source_blk, scratch_word_name );
-
-    if ( !added_stack_input_source_blk )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // REFILL
-    scratch_word_name.base            = (ascii*)"REFILL";
-    scratch_word_name.length          = 6;
-
-    boolean added_refill = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_refill, scratch_word_name );
-
-    if ( !added_refill )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-
-    // ALIGNED
-    scratch_word_name.base            = (ascii*)"ALIGNED";
-    scratch_word_name.length          = 7;
-
-    boolean added_aligned = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_aligned, scratch_word_name );
-
-    if ( !added_aligned )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // ALIGN
-    scratch_word_name.base            = (ascii*)"ALIGN";
-    scratch_word_name.length          = 5;
-
-    boolean added_align = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_align, scratch_word_name );
-
-    if ( !added_align )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-
-    // DOT 
-    scratch_word_name.base          = (ascii*)".";
-    scratch_word_name.length        = 1;
-
-    boolean added_dot = 
-        askf_dic_add_word_native( core_dic_name, FALSE ,askf_word_dot, scratch_word_name );
-
-    if ( !added_dot )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // DEPTH
-    scratch_word_name.base            = (ascii*)"depth";
-    scratch_word_name.length          = 5;
-
-    boolean added_stack_depth = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_stack_depth, scratch_word_name );
-
-    if ( !added_stack_depth )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // BASE
-    scratch_word_name.base            = (ascii*)"BASE";
-    scratch_word_name.length          = 4;
-
-    boolean added_base = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_base, scratch_word_name );
-
-    if ( !added_base )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // DECIMAL
-    scratch_word_name.base            = (ascii*)"DECIMAL";
-    scratch_word_name.length          = 7;
-
-    boolean added_decimal = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_decimal, scratch_word_name );
-
-    if ( !added_decimal )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // HEX
-    scratch_word_name.base            = (ascii*)"HEX";
-    scratch_word_name.length          = 3;
-
-    boolean added_hex = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_hexadecimal, scratch_word_name );
-
-    if ( !added_hex )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // OCTAL
-    scratch_word_name.base            = (ascii*)"OCTAL";
-    scratch_word_name.length          = 5;
-
-    boolean added_octal = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_octal, scratch_word_name );
-
-    if ( !added_octal )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-
-    // DOT STACK 
-    scratch_word_name.base            = (ascii*)".s";
-    scratch_word_name.length          = 2;
-
-    boolean added_dot_stack = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_dot_stack, scratch_word_name );
-
-    if ( !added_dot_stack )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // DUP
-    scratch_word_name.base            = (ascii*)"dup";
-    scratch_word_name.length          = 3;
-
-    boolean added_dup = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_dup, scratch_word_name );
-
-    if ( !added_dup )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // ?DUP
-    scratch_word_name.base            = (ascii*)"?dup";
-    scratch_word_name.length          = 4;
-
-    boolean added_maybe_dup = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_maybe_dup, scratch_word_name );
-
-    if ( !added_maybe_dup )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-
-    // 2DUP
-    scratch_word_name.base            = (ascii*)"2dup";
-    scratch_word_name.length          = 4;
-
-    boolean added_2dup = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_2dup, scratch_word_name );
-
-    if ( !added_2dup )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-
-    // SWAP
-    scratch_word_name.base            = (ascii*)"swap";
-    scratch_word_name.length          = 4;
-
-    boolean added_swap = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_swap, scratch_word_name );
-
-    if ( !added_swap )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // 2SWAP
-    scratch_word_name.base            = (ascii*)"2swap";
-    scratch_word_name.length          = 5;
-
-    boolean added_2swap = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_2swap, scratch_word_name );
-
-    if ( !added_2swap )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-
-    // nip
-    scratch_word_name.base            = (ascii*)"nip";
-    scratch_word_name.length          = 3;
-
-    boolean added_nip = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_nip, scratch_word_name );
-
-    if ( !added_nip )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // tuck
-    scratch_word_name.base            = (ascii*)"tuck";
-    scratch_word_name.length          = 4;
-
-    boolean added_tuck = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_tuck, scratch_word_name );
-
-    if ( !added_tuck )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // DROP
-    scratch_word_name.base            = (ascii*)"drop";
-    scratch_word_name.length          = 4;
-
-    boolean added_drop = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_drop, scratch_word_name );
-
-    if ( !added_drop )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // 2DROP
-    scratch_word_name.base            = (ascii*)"2drop";
-    scratch_word_name.length          = 5;
-
-    boolean added_2drop = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_2drop, scratch_word_name );
-
-    if ( !added_2drop )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-
-    // OVER
-    scratch_word_name.base            = (ascii*)"over";
-    scratch_word_name.length          = 4;
-
-    boolean added_over = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_over, scratch_word_name );
-
-    if ( !added_over )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // 2OVER
-    scratch_word_name.base            = (ascii*)"2over";
-    scratch_word_name.length          = 5;
-
-    boolean added_2over = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_2over, scratch_word_name );
-
-    if ( !added_2over )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-
-    // negate
-    scratch_word_name.base            = (ascii*)"negate";
-    scratch_word_name.length          = 6;
-
-    boolean added_negate = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_negate, scratch_word_name );
-
-    if ( !added_negate )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // LIB 
-    scratch_word_name.base            = (ascii*)"LIB";
-    scratch_word_name.length          = 3;
-
-    boolean added_lib = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_lib, scratch_word_name );
-
-    if ( !added_lib )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // [FROM]
-    scratch_word_name.base            = (ascii*)"[FROM]";
-    scratch_word_name.length          = 6;
-
-    boolean added_from = 
-        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_from, scratch_word_name );
-
-    if ( !added_from )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // [FIND]
-    scratch_word_name.base            = (ascii*)"[FIND]";
-    scratch_word_name.length          = 6;
-
-    boolean added_find = 
-        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_find, scratch_word_name );
-
-    if ( !added_find )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // FIND
-    scratch_word_name.base            = (ascii*)"FIND";
-    scratch_word_name.length          = 4;
-
-    boolean added_sfind = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_sfind, scratch_word_name );
-
-    if ( !added_sfind )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // [FORGET]
-    scratch_word_name.base            = (ascii*)"[FORGET]";
-    scratch_word_name.length          = 8;
-
-    boolean added_forget = 
-        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_forget, scratch_word_name );
-
-    if ( !added_forget )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // FORGET
-    scratch_word_name.base            = (ascii*)"FORGET";
-    scratch_word_name.length          = 6;
-
-    boolean added_xtforget = 
-        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_xtforget, scratch_word_name );
-
-    if ( !added_xtforget )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-
-
-    // PARSE-NAME
-    scratch_word_name.base            = (ascii*)"PARSE-NAME";
-    scratch_word_name.length          = 10;
-
-    boolean added_parse_name = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_parse_name, scratch_word_name );
-
-    if ( !added_parse_name )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // words
-    scratch_word_name.base            = (ascii*)"words:";
-    scratch_word_name.length          = 6;
-
-    boolean added_words = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_words, scratch_word_name );
-
-    if ( !added_words )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // +
-    scratch_word_name.base            = (ascii*)"+";
-    scratch_word_name.length          = 1;
-
-    boolean added_add = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_add, scratch_word_name );
-
-    if ( !added_add )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // -
-    scratch_word_name.base            = (ascii*)"-";
-    scratch_word_name.length          = 1;
-
-    boolean added_minus = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_minus, scratch_word_name );
-
-    if ( !added_minus )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // *
-    scratch_word_name.base            = (ascii*)"*";
-    scratch_word_name.length          = 1;
-
-    boolean added_multiply = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_multiply, scratch_word_name );
-
-    if ( !added_multiply )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // /mod
-    scratch_word_name.base            = (ascii*)"/mod";
-    scratch_word_name.length          = 4;
-
-    boolean added_slashmod = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_slashmod, scratch_word_name );
-
-    if ( !added_slashmod )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // =
-    scratch_word_name.base            = (ascii*)"=";
-    scratch_word_name.length          = 1;
-
-    boolean added_equals = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_equals, scratch_word_name );
-
-    if ( !added_equals )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // 0=
-    scratch_word_name.base            = (ascii*)"0=";
-    scratch_word_name.length          = 2;
-
-    boolean added_equals_zero = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_equals_zero, scratch_word_name );
-
-    if ( !added_equals_zero )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-
-    // <
-    scratch_word_name.base            = (ascii*)"<";
-    scratch_word_name.length          = 1;
-
-    boolean added_less_than = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_less_than, scratch_word_name );
-
-    if ( !added_less_than )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // <=
-    scratch_word_name.base            = (ascii*)"<=";
-    scratch_word_name.length          = 2;
-
-    boolean added_less_than_or_equal = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_less_than_or_equal, scratch_word_name );
-
-    if ( !added_less_than_or_equal )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-
-    // 0<
-    scratch_word_name.base            = (ascii*)"0<";
-    scratch_word_name.length          = 2;
-
-    boolean added_less_than_zero = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_less_than_zero, scratch_word_name );
-
-    if ( !added_less_than_zero )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-
-    // >
-    scratch_word_name.base            = (ascii*)">";
-    scratch_word_name.length          = 1;
-
-    boolean added_more_than = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_more_than, scratch_word_name );
-
-    if ( !added_more_than)
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // >=
-    scratch_word_name.base            = (ascii*)">=";
-    scratch_word_name.length          = 2;
-
-    boolean added_more_than_or_equal = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_more_than_or_equal, scratch_word_name );
-
-    if ( !added_more_than_or_equal )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-
-    // 0>
-    scratch_word_name.base            = (ascii*)"0>";
-    scratch_word_name.length          = 2;
-
-    boolean added_more_than_zero = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_more_than_zero, scratch_word_name );
-
-    if ( !added_more_than_zero )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-
-    // <>
-    scratch_word_name.base            = (ascii*)"<>";
-    scratch_word_name.length          = 2;
-
-    boolean added_not_equal = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_not_equal, scratch_word_name );
-
-    if ( !added_not_equal )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // 0<>
-    scratch_word_name.base            = (ascii*)"0<>";
-    scratch_word_name.length          = 3;
-
-    boolean added_not_equal_zero = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_not_equal_zero, scratch_word_name );
-
-    if ( !added_not_equal_zero )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-
-    // SIGNED
-    scratch_word_name.base            = (ascii*)"SIGNED";
-    scratch_word_name.length          = 6;
-
-    boolean added_stacksigned = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_make_stack_signed , scratch_word_name );
-
-    if ( !added_stacksigned )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // UNSIGNED
-    scratch_word_name.base            = (ascii*)"UNSIGNED";
-    scratch_word_name.length          = 8;
-
-    boolean added_stackunsigned = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_make_stack_unsigned , scratch_word_name );
-
-    if ( !added_stackunsigned )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // BITS
-    scratch_word_name.base            = (ascii*)"BITS";
-    scratch_word_name.length          = 4;
-
-    boolean added_bits = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_bits , scratch_word_name );
-
-    if ( !added_bits )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // ?BITS
-    scratch_word_name.base            = (ascii*)"?BITS";
-    scratch_word_name.length          = 5;
-
-    boolean added_whatbits = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_whatbits, scratch_word_name );
-
-    if ( !added_whatbits )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // TYPE
-    scratch_word_name.base            = (ascii*)"TYPE";
-    scratch_word_name.length          = 4;
-
-    boolean added_type = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_type , scratch_word_name );
-
-    if ( !added_type )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // !
-    scratch_word_name.base            = (ascii*)"!";
-    scratch_word_name.length          = 1;
-
-    boolean added_store = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_store , scratch_word_name );
-
-    if ( !added_store )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // c!
-    scratch_word_name.base            = (ascii*)"c!";
-    scratch_word_name.length          = 2;
-
-    boolean added_byte_store = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_byte_store , scratch_word_name );
-
-    if ( !added_byte_store )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-
-    // @
-    scratch_word_name.base            = (ascii*)"@";
-    scratch_word_name.length          = 1;
-
-    boolean added_load_ptr = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_load_ptr , scratch_word_name );
-
-    if ( !added_load_ptr )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // c@
-    scratch_word_name.base            = (ascii*)"c@";
-    scratch_word_name.length          = 2;
-
-    boolean added_load_byte_ptr = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_load_byte_ptr , scratch_word_name );
-
-    if ( !added_load_byte_ptr )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-
-    // HERE
-    scratch_word_name.base            = (ascii*)"HERE";
-    scratch_word_name.length          = 4;
-
-    boolean added_here = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_here , scratch_word_name );
-
-    if ( !added_here )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // ALLOT
-    scratch_word_name.base            = (ascii*)"ALLOT";
-    scratch_word_name.length          = 5;
-
-    boolean added_allot = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_allot , scratch_word_name );
-
-    if ( !added_allot )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // UNUSED
-    scratch_word_name.base            = (ascii*)"UNUSED";
-    scratch_word_name.length          = 6;
-
-    boolean added_unused = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_unused , scratch_word_name );
-
-    if ( !added_unused )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // ."
-    scratch_word_name.base            = (ascii*)".\"";
-    scratch_word_name.length          = 2;
-
-    boolean added_print_string = 
-        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_print_string , scratch_word_name );
-
-    if ( !added_print_string )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // s"
-    scratch_word_name.base            = (ascii*)"s\"";
-    scratch_word_name.length          = 2;
-
-    boolean added_store_string = 
-        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_store_string , scratch_word_name );
-
-    if ( !added_store_string )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // error"
-    scratch_word_name.base            = (ascii*)"error\"";
-    scratch_word_name.length          = 6;
-
-    boolean added_error_with_string = 
-        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_error_with_string , scratch_word_name );
-
-    if ( !added_error_with_string )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // cr
-    scratch_word_name.base            = (ascii*)"cr";
-    scratch_word_name.length          = 2;
-
-    boolean added_cr = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_cr, scratch_word_name );
-
-    if ( !added_cr )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // EMIT
-    scratch_word_name.base            = (ascii*)"EMIT";
-    scratch_word_name.length          = 4;
-
-    boolean added_emit = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_emit, scratch_word_name );
-
-    if ( !added_emit )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // lshift
-    scratch_word_name.base            = (ascii*)"lshift";
-    scratch_word_name.length          = 6;
-
-    boolean added_lshift = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_lshift, scratch_word_name );
-
-    if ( !added_lshift )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // rshift
-    scratch_word_name.base            = (ascii*)"rshift";
-    scratch_word_name.length          = 6;
-
-    boolean added_rshift = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_rshift, scratch_word_name );
-
-    if ( !added_rshift )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // xor
-    scratch_word_name.base            = (ascii*)"xor";
-    scratch_word_name.length          = 3;
-
-    boolean added_xor = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_xor, scratch_word_name );
-
-    if ( !added_xor )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // and
-    scratch_word_name.base            = (ascii*)"and";
-    scratch_word_name.length          = 3;
-
-    boolean added_and = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_and, scratch_word_name );
-
-    if ( !added_and )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // rot
-    scratch_word_name.base            = (ascii*)"rot";
-    scratch_word_name.length          = 3;
-
-    boolean added_rot = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_rot, scratch_word_name );
-
-    if ( !added_rot )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // or
-    scratch_word_name.base            = (ascii*)"or";
-    scratch_word_name.length          = 2;
-
-    boolean added_or = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_or, scratch_word_name );
-
-    if ( !added_or )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // invert
-    scratch_word_name.base            = (ascii*)"invert";
-    scratch_word_name.length          = 6;
-
-    boolean added_invert = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_invert, scratch_word_name );
-
-    if ( !added_invert )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-
-    // 0SP
-    scratch_word_name.base            = (ascii*)"0SP";
-    scratch_word_name.length          = 3;
-
-    boolean added_clearstack = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_clearstack, scratch_word_name );
-
-    if ( !added_clearstack )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // TRUE
-    scratch_word_name.base            = (ascii*)"TRUE";
-    scratch_word_name.length          = 4;
-
-    boolean added_true = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_true, scratch_word_name );
-
-    if ( !added_true )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // FALSE
-    scratch_word_name.base            = (ascii*)"FALSE";
-    scratch_word_name.length          = 5;
-
-    boolean added_false = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_false, scratch_word_name );
-
-    if ( !added_false )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // cells
-    scratch_word_name.base            = (ascii*)"cells";
-    scratch_word_name.length          = 5;
-
-    boolean added_cells = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_cells, scratch_word_name );
-
-    if ( !added_cells )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // cell+
-    scratch_word_name.base            = (ascii*)"cell+";
-    scratch_word_name.length          = 5;
-
-    boolean added_cell_add = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_cell_add, scratch_word_name );
-
-    if ( !added_cell_add )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // chars
-    scratch_word_name.base            = (ascii*)"chars";
-    scratch_word_name.length          = 5;
-
-    boolean added_chars = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_chars, scratch_word_name );
-
-    if ( !added_chars )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // char+
-    scratch_word_name.base            = (ascii*)"char+";
-    scratch_word_name.length          = 5;
-
-    boolean added_char_add = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_char_add, scratch_word_name );
-
-    if ( !added_char_add )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // FILL
-    scratch_word_name.base            = (ascii*)"FILL";
-    scratch_word_name.length          = 4;
-
-    boolean added_fill = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_fill, scratch_word_name );
-
-    if ( !added_fill )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // COPY
-    scratch_word_name.base            = (ascii*)"COPY";
-    scratch_word_name.length          = 4;
-
-    boolean added_copy = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_copy, scratch_word_name );
-
-    if ( !added_copy )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // (
-    scratch_word_name.base            = (ascii*)"(";
-    scratch_word_name.length          = 1;
-
-    boolean added_comment_paren = 
-        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_comment_parenteshis, scratch_word_name );
-
-    if ( !added_comment_paren )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // slash comment 
-    scratch_word_name.base            = (ascii*)"\\";
-    scratch_word_name.length          = 1;
-
-    boolean added_comment_slash = 
-        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_comment_slash, scratch_word_name );
-
-    if ( !added_comment_slash )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // FLUSH
-    scratch_word_name.base            = (ascii*)"FLUSH";
-    scratch_word_name.length          = 5;
-
-    boolean added_flush = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_flush, scratch_word_name );
-
-    if ( !added_flush )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // LIST
-    scratch_word_name.base            = (ascii*)"LIST";
-    scratch_word_name.length          = 4;
-
-    boolean added_list = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_list, scratch_word_name );
-
-    if ( !added_list )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // BLOCK
-    scratch_word_name.base            = (ascii*)"BLOCK";
-    scratch_word_name.length          = 5;
-
-    boolean added_block = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_block, scratch_word_name );
-
-    if ( !added_block )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // BLOCK-SIZE
-    scratch_word_name.base            = (ascii*)"BLOCK-SIZE";
-    scratch_word_name.length          = 10;
-
-    boolean added_block_size = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_block_size, scratch_word_name );
-
-    if ( !added_block_size )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // LINE
-    scratch_word_name.base            = (ascii*)"LINE";
-    scratch_word_name.length          = 4;
-
-    boolean added_line = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_line, scratch_word_name );
-
-    if ( !added_line )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // a
-    scratch_word_name.base            = (ascii*)"a";
-    scratch_word_name.length          = 1;
-
-    boolean added_atoblock = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_add_line_toblock, scratch_word_name );
-
-    if ( !added_atoblock )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-
-    // MAX-LINES
-    scratch_word_name.base            = (ascii*)"MAX-LINES";
-    scratch_word_name.length          = 9;
-
-    boolean added_max_lines = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_max_lines, scratch_word_name );
-
-    if ( !added_max_lines )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // CREATE-WORD
-    scratch_word_name.base            = (ascii*)"CREATE-WORD";
-    scratch_word_name.length          = 11;
-
-    boolean added_create_word = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_create_word, scratch_word_name );
-
-    if ( !added_create_word )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // :
-    scratch_word_name.base            = (ascii*)":";
-    scratch_word_name.length          = 1;
-
-    boolean added_colon = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_colon, scratch_word_name );
-
-    if ( !added_colon )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // :NONAME
-    scratch_word_name.base            = (ascii*)":NONAME";
-    scratch_word_name.length          = 7;
-
-    boolean added_colon_noname = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_colon_noname, scratch_word_name );
-
-    if ( !added_colon_noname )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-
-    // ;
-    scratch_word_name.base            = (ascii*)";";
-    scratch_word_name.length          = 1;
-
-    boolean added_semicolon = 
-        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_semicolon, scratch_word_name );
-
-    if ( !added_semicolon )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // IMMEDIATE
-    scratch_word_name.base            = (ascii*)"IMMEDIATE";
-    scratch_word_name.length          = 9;
-
-    boolean added_immediate = 
-        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_immediate, scratch_word_name );
-
-    if ( !added_immediate )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // ?IMMEDIATE
-    scratch_word_name.base            = (ascii*)"?IMMEDIATE";
-    scratch_word_name.length          = 10;
-
-    boolean added_isimmediate = 
-        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_isimmediate, scratch_word_name );
-
-    if ( !added_isimmediate )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-
-    // OPTIMIZE
-    scratch_word_name.base            = (ascii*)"OPTIMIZE";
-    scratch_word_name.length          = 8;
-
-    boolean added_optimize = 
-        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_optimize, scratch_word_name );
-
-    if ( !added_optimize )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // INLINE
-    scratch_word_name.base            = (ascii*)"INLINE";
-    scratch_word_name.length          = 6;
-
-    boolean added_inline = 
-        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_inline, scratch_word_name );
-
-    if ( !added_inline )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-
+    boolean res = FALSE;
+    // for counting strlen
+    u8 counter  = 0;
+
+    NEW_NATIVE_WORD( GET_WID_STR(WID(SOURCE)),     NOT_IMMEDIATE, askf_word_input_source       );
+
+    NEW_NATIVE_WORD( GET_WID_STR(WID(SOURCEID)),   NOT_IMMEDIATE, askf_word_input_source_id    );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(SOURCEIN)),   NOT_IMMEDIATE, askf_word_input_source_in    );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(BLK)),        NOT_IMMEDIATE, askf_word_input_source_blk   );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(REFILL)),     NOT_IMMEDIATE, askf_word_refill             );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(ALIGNED)),    NOT_IMMEDIATE, askf_word_aligned            );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(ALIGN)),      NOT_IMMEDIATE, askf_word_align              );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(DOT)),        NOT_IMMEDIATE, askf_word_dot                );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(DEPTH)),      NOT_IMMEDIATE, askf_word_stack_depth        );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(BASE)),        NOT_IMMEDIATE, askf_word_base               );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(DECIMAL)),     NOT_IMMEDIATE, askf_word_decimal            );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(HEXADECIMAL)), NOT_IMMEDIATE, askf_word_hexadecimal        );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(OCTAL)),       NOT_IMMEDIATE, askf_word_octal              );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(DOT_STACK)),   NOT_IMMEDIATE, askf_word_dot_stack          );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(DUP)),         NOT_IMMEDIATE, askf_word_dup                );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(MAYBE_DUP)),   NOT_IMMEDIATE, askf_word_maybe_dup          );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(2DUP)),        NOT_IMMEDIATE, askf_word_2dup               );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(SWAP)),        NOT_IMMEDIATE, askf_word_swap               );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(2SWAP)),       NOT_IMMEDIATE, askf_word_2swap              );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(NIP)),         NOT_IMMEDIATE, askf_word_nip                );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(TUCK)),        NOT_IMMEDIATE, askf_word_tuck               );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(DROP)),        NOT_IMMEDIATE, askf_word_drop               );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(2DROP)),       NOT_IMMEDIATE, askf_word_2drop              );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(OVER)),        NOT_IMMEDIATE, askf_word_over               );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(2OVER)),       NOT_IMMEDIATE, askf_word_2over              );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(NEGATE)),      NOT_IMMEDIATE, askf_word_negate             );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(LIB)),         NOT_IMMEDIATE, askf_word_lib                );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(FROM)),       IS_IMMEDIATE, askf_word_from               );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(FIND)),       IS_IMMEDIATE, askf_word_find               );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(SFIND)),        NOT_IMMEDIATE, askf_word_sfind              );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(FORGET)),     IS_IMMEDIATE, askf_word_forget             );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(XTFORGET)),      NOT_IMMEDIATE, askf_word_xtforget           );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(PARSE_NAME)),  NOT_IMMEDIATE, askf_word_parse_name         );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(WORDS)),      NOT_IMMEDIATE, askf_word_words              );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(ADD)),           NOT_IMMEDIATE, askf_word_add                );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(MINUS)),           NOT_IMMEDIATE, askf_word_minus              );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(MULTIPLY)),           NOT_IMMEDIATE, askf_word_multiply           );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(SLASHMOD)),        NOT_IMMEDIATE, askf_word_slashmod           );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(EQUALS)),           NOT_IMMEDIATE, askf_word_equals             );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(EQUALS_ZERO)),          NOT_IMMEDIATE, askf_word_equals_zero        );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(LESS_THAN)),           NOT_IMMEDIATE, askf_word_less_than          );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(LESS_THAN_OR_EQUAL)),          NOT_IMMEDIATE, askf_word_less_than_or_equal );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(LESS_THAN_ZERO)),          NOT_IMMEDIATE, askf_word_less_than_zero     );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(MORE_THAN)),           NOT_IMMEDIATE, askf_word_more_than          );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(MORE_THAN_OR_EQUAL)),          NOT_IMMEDIATE, askf_word_more_than_or_equal );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(MORE_THAN_ZERO)),          NOT_IMMEDIATE, askf_word_more_than_zero     );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(NOT_EQUAL)),          NOT_IMMEDIATE, askf_word_not_equal          );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(NOT_EQUAL_ZERO)),         NOT_IMMEDIATE, askf_word_not_equal_zero     );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(SIGNED)),      NOT_IMMEDIATE, askf_word_make_stack_signed  );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(UNSIGNED)),    NOT_IMMEDIATE, askf_word_make_stack_unsigned );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(BITS)),        NOT_IMMEDIATE, askf_word_bits               );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(WHATBITS)),       NOT_IMMEDIATE, askf_word_whatbits           );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(TYPE)),        NOT_IMMEDIATE, askf_word_type               );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(STORE)),           NOT_IMMEDIATE, askf_word_store              );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(BYTE_STORE)),          NOT_IMMEDIATE, askf_word_byte_store         );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(LOAD)),           NOT_IMMEDIATE, askf_word_load_ptr           );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(BYTE_LOAD)),          NOT_IMMEDIATE, askf_word_load_byte_ptr      );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(HERE)),        NOT_IMMEDIATE, askf_word_here               );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(ALLOT)),       NOT_IMMEDIATE, askf_word_allot              );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(UNUSED)),      NOT_IMMEDIATE, askf_word_unused             );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(PRINT_STRING)),          IS_IMMEDIATE, askf_word_print_string       );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(STORE_STRING)),          IS_IMMEDIATE, askf_word_store_string       );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(ERROR_WITH_STRING)),      IS_IMMEDIATE, askf_word_error_with_string  );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(CR)),          NOT_IMMEDIATE, askf_word_cr                 );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(EMIT)),        NOT_IMMEDIATE, askf_word_emit               );
+
+    NEW_NATIVE_WORD( GET_WID_STR(WID(LSHIFT)),      NOT_IMMEDIATE, askf_word_lshift             );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(RSHIFT)),      NOT_IMMEDIATE, askf_word_rshift             );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(XOR)),         NOT_IMMEDIATE, askf_word_xor                );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(AND)),         NOT_IMMEDIATE, askf_word_and                );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(ROT)),         NOT_IMMEDIATE, askf_word_rot                );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(OR)),          NOT_IMMEDIATE, askf_word_or                 );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(INVERT)),      NOT_IMMEDIATE, askf_word_invert             );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(0SP)),         NOT_IMMEDIATE, askf_word_clearstack         );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(TRUE)),        NOT_IMMEDIATE, askf_word_true               );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(FALSE)),       NOT_IMMEDIATE, askf_word_false              );
+
+    NEW_NATIVE_WORD( GET_WID_STR(WID(CELLS)),       NOT_IMMEDIATE, askf_word_cells              );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(CELLS_ADD)),       NOT_IMMEDIATE, askf_word_cell_add           );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(CHARS)),       NOT_IMMEDIATE, askf_word_chars              );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(CHARS_ADD)),       NOT_IMMEDIATE, askf_word_char_add           );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(FILL)),        NOT_IMMEDIATE, askf_word_fill               );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(COPY)),        NOT_IMMEDIATE, askf_word_copy               );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(COMMENT_PAREN)),            IS_IMMEDIATE, askf_word_comment_parenteshis );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(COMMENT_SLASH)),           IS_IMMEDIATE, askf_word_comment_slash      );
+
+    // block words
+    // TODO: remove native block words for forth equivalent implementation
+    NEW_NATIVE_WORD( GET_WID_STR(WID(FLUSH)),       NOT_IMMEDIATE, askf_word_flush              );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(LIST)),        NOT_IMMEDIATE, askf_word_list               );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(LOADBLOCK)),        NOT_IMMEDIATE, askf_word_load               );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(BLOCK)),       NOT_IMMEDIATE, askf_word_block              );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(BLOCK_SIZE)),  NOT_IMMEDIATE, askf_word_block_size         );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(LINE)),        NOT_IMMEDIATE, askf_word_line               );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(A)),           NOT_IMMEDIATE, askf_word_add_line_toblock   );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(MAX_LINES)),   NOT_IMMEDIATE, askf_word_max_lines          );
+    // TODO: remove native include words for forth equivalent implementation
     #if defined( TARGET_LINUX ) || defined( TARGET_WINDOWS )
-        // INCLUDED
-        scratch_word_name.base            = (ascii*)"INCLUDED";
-        scratch_word_name.length          = 8;
-
-        boolean added_included = 
-            askf_dic_add_word_native( core_dic_name, FALSE, askf_word_included, scratch_word_name );
-
-        if ( !added_included )
-            _askf_print_failed_add_word( &scratch_word_name );
-
-        // INCLUDE
-        scratch_word_name.base            = (ascii*)"INCLUDE";
-        scratch_word_name.length          = 7;
-
-        boolean added_include = 
-            askf_dic_add_word_native( core_dic_name, FALSE, askf_word_include, scratch_word_name );
-
-        if ( !added_include )
-            _askf_print_failed_add_word( &scratch_word_name );
-
+        NEW_NATIVE_WORD( GET_WID_STR(WID(INCLUDED)),        NOT_IMMEDIATE, askf_word_included   );
+        NEW_NATIVE_WORD( GET_WID_STR(WID(INCLUDE)),         NOT_IMMEDIATE, askf_word_include    );
     #endif
 
-    // LOAD
-    scratch_word_name.base            = (ascii*)"LOAD";
-    scratch_word_name.length          = 4;
-
-    boolean added_load = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_load, scratch_word_name );
-
-    if ( !added_load )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // DICTIONARY
-    scratch_word_name.base            = (ascii*)"DICTIONARY";
-    scratch_word_name.length          = 10;
-
-    boolean added_add_dic = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_add_dic, scratch_word_name );
-
-    if ( !added_add_dic )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // FORGET-DICT
-    scratch_word_name.base            = (ascii*)"FORGET-DICT";
-    scratch_word_name.length          = 11;
-
-    boolean added_forget_dic = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_forget_dic, scratch_word_name );
-
-    if ( !added_forget_dic )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // REMEMBER-DICT
-    scratch_word_name.base            = (ascii*)"REMEMBER-DICT";
-    scratch_word_name.length          = 13;
-
-    boolean added_remeber_dic = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_remember_dic, scratch_word_name );
-
-    if ( !added_remeber_dic )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // PROMOTE-DICT
-    scratch_word_name.base            = (ascii*)"PROMOTE-DICT";
-    scratch_word_name.length          = 12;
-
-    boolean added_promote_dic = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_promote_dic, scratch_word_name );
-
-    if ( !added_promote_dic )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // ABORT
-    scratch_word_name.base            = (ascii*)"ABORT";
-    scratch_word_name.length          = 5;
-
-    boolean added_abort = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_abort, scratch_word_name );
-
-    if ( !added_abort )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // EXIT
-    scratch_word_name.base            = (ascii*)"EXIT";
-    scratch_word_name.length          = 4;
-
-    boolean added_exit = 
-        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_exit, scratch_word_name );
-
-    if ( !added_exit )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // bye
-    scratch_word_name.base            = (ascii*)"bye";
-    scratch_word_name.length          = 3;
-
-    boolean added_bye = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_bye, scratch_word_name );
-
-    if ( !added_bye )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // ?COMPTIME
-    scratch_word_name.base            = (ascii*)"?COMPTIME";
-    scratch_word_name.length          = 9;
-
-    boolean added_iscomptime = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_iscomptime, scratch_word_name );
-
-    if ( !added_iscomptime )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // ?INTERPTIME
-    scratch_word_name.base            = (ascii*)"?INTERPTIME";
-    scratch_word_name.length          = 11;
-
-    boolean added_isinterp = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_isinterptime, scratch_word_name );
-
-    if ( !added_isinterp )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // STATE
-    scratch_word_name.base            = (ascii*)"STATE";
-    scratch_word_name.length          = 5;
-
-    boolean added_state = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_state, scratch_word_name );
-
-    if ( !added_state )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // ?SYSTEM-WINDOWS
-    scratch_word_name.base            = (ascii*)"?SYSTEM-WINDOWS";
-    scratch_word_name.length          = 15;
-
-    boolean added_is_sys_windows  = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_is_sys_windows, scratch_word_name );
-
-    if ( !added_is_sys_windows )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // ?SYSTEM-LINUX
-    scratch_word_name.base            = (ascii*)"?SYSTEM-LINUX";
-    scratch_word_name.length          = 13;
-
-    boolean added_is_sys_linux  = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_is_sys_linux, scratch_word_name );
-
-    if ( !added_is_sys_linux )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // ?ARQ-BITS
-    scratch_word_name.base            = (ascii*)"?ARQ-BITS";
-    scratch_word_name.length          = 9;
-
-    boolean added_what_arq_bits  = 
-        askf_dic_add_word_native( core_dic_name, FALSE, askf_word_what_arq_bits, scratch_word_name );
-
-    if ( !added_what_arq_bits )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-
-
+    NEW_NATIVE_WORD( GET_WID_STR(WID(CREATE_WORD)),     NOT_IMMEDIATE, askf_word_create_word    );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(COLON)),               NOT_IMMEDIATE, askf_word_colon          );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(COLON_NONAME)),         NOT_IMMEDIATE, askf_word_colon_noname   );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(SEMICOLON)),                IS_IMMEDIATE, askf_word_semicolon      );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(IMMEDIATE)),        IS_IMMEDIATE, askf_word_immediate      );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(IS_IMMEDIATE)),      NOT_IMMEDIATE, askf_word_isimmediate    );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(OPTIMIZE)),         IS_IMMEDIATE, askf_word_optimize       );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(INLINE)),           IS_IMMEDIATE, askf_word_inline         );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(DICTIONARY)),      NOT_IMMEDIATE, askf_word_add_dic        );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(FORGET_DICT)),     NOT_IMMEDIATE, askf_word_forget_dic     );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(REMEMBER_DICT)),   NOT_IMMEDIATE, askf_word_remember_dic   );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(PROMOTE_DICT)),    NOT_IMMEDIATE, askf_word_promote_dic    );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(ABORT)),           NOT_IMMEDIATE, askf_word_abort          );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(EXIT)),             IS_IMMEDIATE, askf_word_exit           );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(BYE)),             NOT_IMMEDIATE, askf_word_bye            );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(ISCOMPTIME)),       NOT_IMMEDIATE, askf_word_iscomptime     );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(ISINTERPTIME)),     NOT_IMMEDIATE, askf_word_isinterptime   );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(STATE)),           NOT_IMMEDIATE, askf_word_state          );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(IS_WINDOWS)), NOT_IMMEDIATE, askf_word_is_sys_windows );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(IS_LINUX)),   NOT_IMMEDIATE, askf_word_is_sys_linux   );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(WHAT_ARQ_BITS)),       NOT_IMMEDIATE, askf_word_what_arq_bits  );
+    
     // INFO: totally valid words to include on the core dic BUT im not sure if i want so
     UNUSED( askf_word_0branch );
     UNUSED( askf_word_branch  );
     
-    // // 0BRANCH
-    // scratch_word_name.base            = (ascii*)"0BRANCH";
-    // scratch_word_name.length          = 7;
-    //
-    // boolean added_0branch = 
-    //     askf_dic_add_word_native( core_dic_name, FALSE, askf_word_0branch, scratch_word_name );
-    //
-    // if ( !added_0branch )
-    //     _askf_print_failed_add_word( &scratch_word_name );
-    //
-    // // BRANCH
-    // scratch_word_name.base            = (ascii*)"BRANCH";
-    // scratch_word_name.length          = 6;
-    //
-    // boolean added_branch = 
-    //     askf_dic_add_word_native( core_dic_name, FALSE, askf_word_branch, scratch_word_name );
-    //
-    // if ( !added_branch )
-    //     _askf_print_failed_add_word( &scratch_word_name );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(IF)),          IS_IMMEDIATE, askf_word_if      );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(ELSE)),        IS_IMMEDIATE, askf_word_else    );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(THEN)),        IS_IMMEDIATE, askf_word_then    );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(BEGIN)),       IS_IMMEDIATE, askf_word_begin   );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(WHILE)),       IS_IMMEDIATE, askf_word_while   );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(REPEAT)),      IS_IMMEDIATE, askf_word_repeat  );
 
-    // IF
-    scratch_word_name.base            = (ascii*)"IF";
-    scratch_word_name.length          = 2;
+    NEW_NATIVE_WORD( GET_WID_STR(WID(BRACKET_OPEN)),           IS_IMMEDIATE, askf_word_bracket_open    );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(BRACKET_CLOSE)),           IS_IMMEDIATE, askf_word_bracket_close   );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(SINGLE_QUOTE)),           IS_IMMEDIATE, askf_word_single_quote    );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(LITERAL)),     IS_IMMEDIATE, askf_word_literal         );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(RLITERAL)),     IS_IMMEDIATE, askf_word_rliteral         );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(POSTPONE)),    IS_IMMEDIATE, askf_word_postpone        );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(EVALUATE)),   NOT_IMMEDIATE, askf_word_evaluate        );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(EXECUTE)),    NOT_IMMEDIATE, askf_word_execute         );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(COMPILE_COMMA)),   NOT_IMMEDIATE, askf_word_compile_comma   );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(PUSH_RSTACK)),         NOT_IMMEDIATE, askf_word_push_rstack     );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(POP_RSTACK)),         NOT_IMMEDIATE, askf_word_pop_rstack      );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(PEEK_RSTACK)),         NOT_IMMEDIATE, askf_word_peek_rstack     );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(SEE)),         IS_IMMEDIATE, askf_word_see             );
 
-    boolean added_if = 
-        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_if, scratch_word_name );
-
-    if ( !added_if )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // ELSE
-    scratch_word_name.base            = (ascii*)"ELSE";
-    scratch_word_name.length          = 4;
-
-    boolean added_else = 
-        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_else, scratch_word_name );
-
-    if ( !added_else )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // THEN
-    scratch_word_name.base            = (ascii*)"THEN";
-    scratch_word_name.length          = 4;
-
-    boolean added_then = 
-        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_then, scratch_word_name );
-
-    if ( !added_then )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // BEGIN
-    scratch_word_name.base            = (ascii*)"BEGIN";
-    scratch_word_name.length          = 5;
-
-    boolean added_begin = 
-        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_begin, scratch_word_name );
-
-    if ( !added_begin )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // WHILE
-    scratch_word_name.base            = (ascii*)"WHILE";
-    scratch_word_name.length          = 5;
-
-    boolean added_while = 
-        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_while, scratch_word_name );
-
-    if ( !added_while )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // REPEAT
-    scratch_word_name.base            = (ascii*)"REPEAT";
-    scratch_word_name.length          = 6;
-
-    boolean added_repeat = 
-        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_repeat, scratch_word_name );
-
-    if ( !added_repeat )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-
-    // [
-    scratch_word_name.base            = (ascii*)"[";
-    scratch_word_name.length          = 1;
-
-    boolean added_open_bracket = 
-        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_bracket_open, scratch_word_name );
-
-    if ( !added_open_bracket )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // ]
-    scratch_word_name.base            = (ascii*)"]";
-    scratch_word_name.length          = 1;
-
-    boolean added_close_bracket = 
-        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_bracket_close, scratch_word_name );
-
-    if ( !added_close_bracket )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // '
-    scratch_word_name.base            = (ascii*)"'";
-    scratch_word_name.length          = 1;
-
-    boolean added_single_quote = 
-        askf_dic_add_word_native( core_dic_name, TRUE, askf_word_single_quote, scratch_word_name );
-
-    if ( !added_single_quote )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // LITERAL
-    scratch_word_name.base            = (ascii*)"LITERAL";
-    scratch_word_name.length          = 7;
-
-    boolean added_literal = 
-        askf_dic_add_word_native( 
-                core_dic_name, TRUE, askf_word_literal, scratch_word_name );
-
-    if ( !added_literal )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // POSTPONE
-    scratch_word_name.base            = (ascii*)"POSTPONE";
-    scratch_word_name.length          = 8;
-
-    boolean added_postpone = 
-        askf_dic_add_word_native( 
-                core_dic_name, TRUE, askf_word_postpone, scratch_word_name );
-
-    if ( !added_postpone )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // EVALUATE
-    scratch_word_name.base            = (ascii*)"EVALUATE";
-    scratch_word_name.length          = 8;
-
-    boolean added_evaluate = 
-        askf_dic_add_word_native( 
-                core_dic_name, FALSE, askf_word_evaluate, scratch_word_name );
-
-    if ( !added_evaluate )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-
-    // EXECUTE
-    scratch_word_name.base            = (ascii*)"EXECUTE";
-    scratch_word_name.length          = 7;
-
-    boolean added_execute = 
-        askf_dic_add_word_native( 
-                core_dic_name, FALSE, askf_word_execute, scratch_word_name );
-
-    if ( !added_execute )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // COMPILE,
-    scratch_word_name.base            = (ascii*)"COMPILE,";
-    scratch_word_name.length          = 8;
-
-    boolean added_compile_comma = 
-        askf_dic_add_word_native( 
-                core_dic_name, FALSE, askf_word_compile_comma, scratch_word_name );
-
-    if ( !added_compile_comma )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // >R
-    scratch_word_name.base            = (ascii*)">R";
-    scratch_word_name.length          = 2;
-
-    boolean added_push_rstack = 
-        askf_dic_add_word_native( 
-                core_dic_name, FALSE, askf_word_push_rstack, scratch_word_name );
-
-    if ( !added_push_rstack )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // R>
-    scratch_word_name.base            = (ascii*)"R>";
-    scratch_word_name.length          = 2;
-
-    boolean added_pop_rstack = 
-        askf_dic_add_word_native( 
-                core_dic_name, FALSE, askf_word_pop_rstack, scratch_word_name );
-
-    if ( !added_pop_rstack )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // R@
-    scratch_word_name.base            = (ascii*)"R@";
-    scratch_word_name.length          = 2;
-
-    boolean added_peek_rstack = 
-        askf_dic_add_word_native( 
-                core_dic_name, FALSE, askf_word_peek_rstack, scratch_word_name );
-
-    if ( !added_peek_rstack )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // see
-    scratch_word_name.base            = (ascii*)"see";
-    scratch_word_name.length          = 3;
-
-    boolean added_see = 
-        askf_dic_add_word_native( 
-                core_dic_name, FALSE, askf_word_see, scratch_word_name );
-
-    if ( !added_see )
-        _askf_print_failed_add_word( &scratch_word_name );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(STARTER)),     IS_IMMEDIATE, askf_word_starter         );
+    NEW_NATIVE_WORD( GET_WID_STR(WID(PROGRAM)),     IS_IMMEDIATE, askf_word_program         );
 
     #if defined( TARGET_LINUX ) || defined( TARGET_WINDOWS )
-
-    // FOREIGN
-    scratch_word_name.base            = (ascii*)"FOREIGN";
-    scratch_word_name.length          = 7;
-
-    boolean added_foreign = 
-        askf_dic_add_word_native( 
-                core_dic_name, FALSE, askf_word_foreign, scratch_word_name );
-
-    if ( !added_foreign )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // .FOREIGN
-    scratch_word_name.base            = (ascii*)".FOREIGN";
-    scratch_word_name.length          = 8;
-
-    boolean added_dot_foreign = 
-        askf_dic_add_word_native( 
-                core_dic_name, FALSE, askf_word_dot_foreign, scratch_word_name );
-
-    if ( !added_dot_foreign )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-
-    // FREEFOREIGN
-    scratch_word_name.base            = (ascii*)"FREEFOREIGN";
-    scratch_word_name.length          = 11;
-
-    boolean added_freeforeign = 
-        askf_dic_add_word_native( 
-                core_dic_name, FALSE, askf_word_freeforeign, scratch_word_name );
-
-    if ( !added_freeforeign )
-        _askf_print_failed_add_word( &scratch_word_name );
-
-    // FUNCTION:
-    scratch_word_name.base            = (ascii*)"FUNCTION:";
-    scratch_word_name.length          = 9;
-
-    boolean added_function = 
-        askf_dic_add_word_native( 
-                core_dic_name, TRUE, askf_word_function, scratch_word_name );
-
-    if ( !added_function )
-        _askf_print_failed_add_word( &scratch_word_name );
-
+        NEW_NATIVE_WORD( GET_WID_STR(WID(FOREIGN)),      IS_IMMEDIATE, askf_word_foreign        );
+        NEW_NATIVE_WORD( GET_WID_STR(WID(DOTFOREIGN)),    NOT_IMMEDIATE, askf_word_dot_foreign    );
+        NEW_NATIVE_WORD( GET_WID_STR(WID(FREEFOREIGN)), NOT_IMMEDIATE, askf_word_freeforeign    );
+        NEW_NATIVE_WORD( GET_WID_STR(WID(FUNCTION)),    IS_IMMEDIATE, askf_word_function       );
     #endif
+}
+
+AskForth_NativeWordRelocation* askf_get_relocation_array( void ) {
+    AskForth_NativeWordRelocation* arr = malloc(sizeof(AskForth_NativeWordRelocation) * (MAX_WID+1) );
+
+    if ( arr == NULL )
+        return arr;
+
+    arr[WID(ALIGNED)].native_address              = (askf_addr_t)askf_word_aligned;
+    arr[WID(ALIGN)].native_address                = (askf_addr_t)askf_word_align;
+    arr[WID(DOT)].native_address                  = (askf_addr_t)askf_word_dot;
+    arr[WID(SOURCE)].native_address               = (askf_addr_t)askf_word_input_source;
+    arr[WID(SOURCEID)].native_address             = (askf_addr_t)askf_word_input_source_id;
+    arr[WID(SOURCEIN)].native_address             = (askf_addr_t)askf_word_input_source_in;
+    arr[WID(BLK)].native_address                  = (askf_addr_t)askf_word_input_source_blk;
+    arr[WID(DEPTH)].native_address                = (askf_addr_t)askf_word_stack_depth;
+    arr[WID(BASE)].native_address                 = (askf_addr_t)askf_word_base;
+    arr[WID(DECIMAL)].native_address              = (askf_addr_t)askf_word_decimal;
+    arr[WID(HEXADECIMAL)].native_address          = (askf_addr_t)askf_word_hexadecimal;
+    arr[WID(OCTAL)].native_address                = (askf_addr_t)askf_word_octal;
+    arr[WID(DOT_STACK)].native_address            = (askf_addr_t)askf_word_dot_stack;
+    arr[WID(DUP)].native_address                  = (askf_addr_t)askf_word_dup;
+    arr[WID(MAYBE_DUP)].native_address            = (askf_addr_t)askf_word_maybe_dup;
+    arr[WID(2DUP)].native_address                 = (askf_addr_t)askf_word_2dup;
+    arr[WID(SWAP)].native_address                 = (askf_addr_t)askf_word_swap;
+    arr[WID(2SWAP)].native_address                = (askf_addr_t)askf_word_2swap;
+    arr[WID(NIP)].native_address                  = (askf_addr_t)askf_word_nip;
+    arr[WID(TUCK)].native_address                 = (askf_addr_t)askf_word_tuck;
+    arr[WID(DROP)].native_address                 = (askf_addr_t)askf_word_drop;
+    arr[WID(2DROP)].native_address                = (askf_addr_t)askf_word_2drop;
+    arr[WID(OVER)].native_address                 = (askf_addr_t)askf_word_over;
+    arr[WID(2OVER)].native_address                = (askf_addr_t)askf_word_2over;
+    arr[WID(NEGATE)].native_address               = (askf_addr_t)askf_word_negate;
+    arr[WID(LIB)].native_address                  = (askf_addr_t)askf_word_lib;
+    arr[WID(FROM)].native_address                 = (askf_addr_t)askf_word_from;
+    arr[WID(FIND)].native_address                 = (askf_addr_t)askf_word_find;
+    arr[WID(SFIND)].native_address                = (askf_addr_t)askf_word_sfind;
+    arr[WID(PARSE_NAME)].native_address           = (askf_addr_t)askf_word_parse_name;
+    arr[WID(FORGET)].native_address               = (askf_addr_t)askf_word_forget;
+    arr[WID(XTFORGET)].native_address             = (askf_addr_t)askf_word_xtforget;
+    arr[WID(WORDS)].native_address                = (askf_addr_t)askf_word_words;
+    arr[WID(ADD)].native_address                  = (askf_addr_t)askf_word_add;
+    arr[WID(MINUS)].native_address                = (askf_addr_t)askf_word_minus;
+    arr[WID(MULTIPLY)].native_address             = (askf_addr_t)askf_word_multiply;
+    arr[WID(SLASHMOD)].native_address             = (askf_addr_t)askf_word_slashmod;
+    arr[WID(EQUALS)].native_address               = (askf_addr_t)askf_word_equals;
+    arr[WID(EQUALS_ZERO)].native_address          = (askf_addr_t)askf_word_equals_zero;
+    arr[WID(LESS_THAN)].native_address            = (askf_addr_t)askf_word_less_than;
+    arr[WID(LESS_THAN_OR_EQUAL)].native_address   = (askf_addr_t)askf_word_less_than_or_equal;
+    arr[WID(LESS_THAN_ZERO)].native_address       = (askf_addr_t)askf_word_less_than_zero;
+    arr[WID(MORE_THAN)].native_address            = (askf_addr_t)askf_word_more_than;
+    arr[WID(MORE_THAN_OR_EQUAL)].native_address   = (askf_addr_t)askf_word_more_than_or_equal;
+    arr[WID(MORE_THAN_ZERO)].native_address       = (askf_addr_t)askf_word_more_than_zero;
+    arr[WID(NOT_EQUAL)].native_address            = (askf_addr_t)askf_word_not_equal;
+    arr[WID(NOT_EQUAL_ZERO)].native_address       = (askf_addr_t)askf_word_not_equal_zero;
+    arr[WID(SIGNED)].native_address               = (askf_addr_t)askf_word_make_stack_signed;
+    arr[WID(UNSIGNED)].native_address             = (askf_addr_t)askf_word_make_stack_unsigned;
+    arr[WID(BITS)].native_address                 = (askf_addr_t)askf_word_bits;
+    arr[WID(WHATBITS)].native_address             = (askf_addr_t)askf_word_whatbits;
+    arr[WID(TYPE)].native_address                 = (askf_addr_t)askf_word_type;
+    arr[WID(STORE)].native_address                = (askf_addr_t)askf_word_store;
+    arr[WID(BYTE_STORE)].native_address           = (askf_addr_t)askf_word_byte_store;
+    arr[WID(LOAD)].native_address                 = (askf_addr_t)askf_word_load_ptr;
+    arr[WID(BYTE_LOAD)].native_address            = (askf_addr_t)askf_word_load_byte_ptr;
+    arr[WID(HERE)].native_address                 = (askf_addr_t)askf_word_here;
+    arr[WID(ALLOT)].native_address                = (askf_addr_t)askf_word_allot;
+    arr[WID(UNUSED)].native_address               = (askf_addr_t)askf_word_unused;
+    arr[WID(PRINT_STRING)].native_address         = (askf_addr_t)askf_word_print_string;
+    arr[WID(STORE_STRING)].native_address         = (askf_addr_t)askf_word_store_string;
+    arr[WID(ERROR_WITH_STRING)].native_address    = (askf_addr_t)askf_word_error_with_string;
+    arr[WID(CR)].native_address                   = (askf_addr_t)askf_word_cr;
+    arr[WID(EMIT)].native_address                 = (askf_addr_t)askf_word_emit;
+    arr[WID(LSHIFT)].native_address               = (askf_addr_t)askf_word_lshift;
+    arr[WID(RSHIFT)].native_address               = (askf_addr_t)askf_word_rshift;
+    arr[WID(XOR)].native_address                  = (askf_addr_t)askf_word_xor;
+    arr[WID(AND)].native_address                  = (askf_addr_t)askf_word_and;
+    arr[WID(ROT)].native_address                  = (askf_addr_t)askf_word_rot;
+    arr[WID(OR)].native_address                   = (askf_addr_t)askf_word_or;
+    arr[WID(INVERT)].native_address               = (askf_addr_t)askf_word_invert;
+    arr[WID(0SP)].native_address                  = (askf_addr_t)askf_word_clearstack;
+    arr[WID(TRUE)].native_address                 = (askf_addr_t)askf_word_true;
+    arr[WID(FALSE)].native_address                = (askf_addr_t)askf_word_false;
+    arr[WID(CELLS)].native_address                = (askf_addr_t)askf_word_cells;
+    arr[WID(CELLS_ADD)].native_address            = (askf_addr_t)askf_word_cell_add;
+    arr[WID(CHARS)].native_address                = (askf_addr_t)askf_word_chars;
+    arr[WID(CHARS_ADD)].native_address            = (askf_addr_t)askf_word_char_add;
+    arr[WID(FILL)].native_address                 = (askf_addr_t)askf_word_fill;
+    arr[WID(COPY)].native_address                 = (askf_addr_t)askf_word_copy;
+    arr[WID(COMMENT_PAREN)].native_address        = (askf_addr_t)askf_word_comment_parenteshis;
+    arr[WID(COMMENT_SLASH)].native_address        = (askf_addr_t)askf_word_comment_slash;
+    arr[WID(FLUSH)].native_address                = (askf_addr_t)askf_word_flush;
+    arr[WID(LIST)].native_address                 = (askf_addr_t)askf_word_list;
+    arr[WID(LOADBLOCK)].native_address            = (askf_addr_t)askf_word_load;
+    arr[WID(BLOCK)].native_address                = (askf_addr_t)askf_word_block;
+    arr[WID(BLOCK_SIZE)].native_address           = (askf_addr_t)askf_word_block_size;
+    arr[WID(LINE)].native_address                 = (askf_addr_t)askf_word_line;
+    arr[WID(A)].native_address                    = (askf_addr_t)askf_word_add_line_toblock;
+    arr[WID(MAX_LINES)].native_address            = (askf_addr_t)askf_word_max_lines;
+
+    #if defined( TARGET_LINUX ) || defined( TARGET_WINDOWS )
+        arr[WID(INCLUDED)].native_address         = (askf_addr_t)askf_word_included;
+        arr[WID(INCLUDE)].native_address          = (askf_addr_t)askf_word_include;
+    #endif
+    arr[WID(CREATE_WORD)].native_address          = (askf_addr_t)askf_word_create_word;
+    arr[WID(COLON)].native_address                = (askf_addr_t)askf_word_colon;
+    arr[WID(COLON_NONAME)].native_address         = (askf_addr_t)askf_word_colon_noname;
+    arr[WID(SEMICOLON)].native_address            = (askf_addr_t)askf_word_semicolon;
+    arr[WID(IMMEDIATE)].native_address            = (askf_addr_t)askf_word_immediate;
+    arr[WID(IS_IMMEDIATE)].native_address         = (askf_addr_t)askf_word_isimmediate;
+    arr[WID(OPTIMIZE)].native_address             = (askf_addr_t)askf_word_optimize;
+    arr[WID(INLINE)].native_address               = (askf_addr_t)askf_word_inline;
+    arr[WID(DICTIONARY)].native_address           = (askf_addr_t)askf_word_add_dic;
+    arr[WID(FORGET_DICT)].native_address          = (askf_addr_t)askf_word_forget_dic;
+    arr[WID(REMEMBER_DICT)].native_address        = (askf_addr_t)askf_word_remember_dic;
+    arr[WID(PROMOTE_DICT)].native_address         = (askf_addr_t)askf_word_promote_dic;
+    arr[WID(ABORT)].native_address                = (askf_addr_t)askf_word_abort;
+    arr[WID(EXIT)].native_address                 = (askf_addr_t)askf_word_exit;
+    arr[WID(BYE)].native_address                  = (askf_addr_t)askf_word_bye;
+    arr[WID(ISCOMPTIME)].native_address           = (askf_addr_t)askf_word_iscomptime;
+    arr[WID(ISINTERPTIME)].native_address         = (askf_addr_t)askf_word_isinterptime;
+    arr[WID(STATE)].native_address                = (askf_addr_t)askf_word_state;
+    arr[WID(IS_WINDOWS)].native_address           = (askf_addr_t)askf_word_is_sys_windows;
+    arr[WID(IS_LINUX)].native_address             = (askf_addr_t)askf_word_is_sys_linux;
+    arr[WID(WHAT_ARQ_BITS)].native_address        = (askf_addr_t)askf_word_what_arq_bits;
+    arr[WID(LITERAL)].native_address              = (askf_addr_t)askf_word_literal;
+    arr[WID(REFILL)].native_address               = (askf_addr_t)askf_word_refill;
+    arr[WID(IF)].native_address                   = (askf_addr_t)askf_word_if;
+    arr[WID(ELSE)].native_address                 = (askf_addr_t)askf_word_else;
+    arr[WID(THEN)].native_address                 = (askf_addr_t)askf_word_then;
+    arr[WID(BEGIN)].native_address                = (askf_addr_t)askf_word_begin;
+    arr[WID(WHILE)].native_address                = (askf_addr_t)askf_word_while;
+    arr[WID(REPEAT)].native_address               = (askf_addr_t)askf_word_repeat;
+    arr[WID(BRACKET_OPEN)].native_address         = (askf_addr_t)askf_word_bracket_open;
+    arr[WID(BRACKET_CLOSE)].native_address        = (askf_addr_t)askf_word_bracket_close;
+    arr[WID(SINGLE_QUOTE)].native_address         = (askf_addr_t)askf_word_single_quote;
+    arr[WID(LITERAL)].native_address              = (askf_addr_t)askf_word_literal;
+    arr[WID(RLITERAL)].native_address             = (askf_addr_t)askf_word_rliteral;
+    arr[WID(POSTPONE)].native_address             = (askf_addr_t)askf_word_postpone;
+    arr[WID(EVALUATE)].native_address             = (askf_addr_t)askf_word_evaluate;
+    arr[WID(EXECUTE)].native_address              = (askf_addr_t)askf_word_execute;
+    arr[WID(COMPILE_COMMA)].native_address        = (askf_addr_t)askf_word_compile_comma;
+    arr[WID(PUSH_RSTACK)].native_address          = (askf_addr_t)askf_word_push_rstack;
+    arr[WID(POP_RSTACK)].native_address           = (askf_addr_t)askf_word_pop_rstack;
+    arr[WID(PEEK_RSTACK)].native_address          = (askf_addr_t)askf_word_peek_rstack;
+    arr[WID(SEE)].native_address                  = (askf_addr_t)askf_word_see;
+    arr[WID(STARTER)].native_address              = (askf_addr_t)askf_word_starter;
+    arr[WID(PROGRAM)].native_address              = (askf_addr_t)askf_word_program;
+
+    #if defined( TARGET_LINUX ) || defined( TARGET_WINDOWS )
+        arr[WID(FOREIGN)].native_address          = (askf_addr_t)askf_word_foreign;
+        arr[WID(DOTFOREIGN)].native_address       = (askf_addr_t)askf_word_dot_foreign;
+        arr[WID(FREEFOREIGN)].native_address      = (askf_addr_t)askf_word_freeforeign;
+        arr[WID(FUNCTION)].native_address         = (askf_addr_t)askf_word_function;
+    #endif
+
+    return arr;
+}
+void askf_free_relocation_array( AskForth_NativeWordRelocation* array ) {
+    free( array );
 }

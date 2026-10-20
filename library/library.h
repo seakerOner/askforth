@@ -9,6 +9,9 @@
     #define ASKF_MAX_DICS     10 
     #define ASKF_MAX_NAME_LEN 28
 #endif
+
+// at the end of any threaded word
+#define ASKF_WORD_REDZONE POISON // 0XDEDEDE...
  
 typedef struct AskForth_Word_t AskForth_Word;
 
@@ -24,13 +27,14 @@ typedef struct {
         void (*native_code)(void);
         u64  threaded_code_start_addr;
         AskForthForeignFuncSig* foreign_sig;
+        u64  wid;
     } source;
 } AskForth_WordSource;
 
 typedef struct AskForth_Dictionary_t AskForth_Dictionary;
 
 typedef struct AskForth_Word_t {
-    ascii name[ASKF_MAX_NAME_LEN];
+    ascii* name;
     u64   name_len;
 
     AskForth_WordSource source;
@@ -47,7 +51,7 @@ typedef struct AskForth_Dictionary_t {
     AskForth_Word*          recent_word;
     AskForth_Dictionary*    next;
     AskForth_Dictionary*    prev;
-    ascii                   name[ASKF_MAX_NAME_LEN];
+    ascii*                  name;
     u64                     name_len;
 } AskForth_Dictionary;
 
@@ -63,10 +67,24 @@ typedef struct {
     AskForth_WordCompiling  curr_compiling;
 } AskForth_Library;
 
+// shadow library keeps track of dictionary/word pointers that are 'forgotten' from the main library.
+// this is done so when creating an image for a new binary we can have a reliable source of truth of what is in memory .
+//
+// the 'next'/'prev' struct members of dictionaries/words are used in the shadow library to it can traverse the pointers.
+// this makes the Shadow Library able to operate on its on as a linked list.
+//
+// a word/dictionary must not be inside the main library and inside the shadow library at the same time.
+typedef struct {
+    AskForth_Dictionary* dict_base;
+    AskForth_Dictionary* dict_recent;
+    AskForth_Word*       word_base;
+    AskForth_Word*       word_recent;
+} AskForth_ShadowLibrary;
 
 AskForth_Library*       askf_create_library( AskForthVm* vm );
+AskForth_ShadowLibrary* askf_create_shadowlibrary( AskForthVm* vm );
 
-AskForth_Dictionary*    askf_create_dic( AskForthVm* vm, ascii name[ASKF_MAX_NAME_LEN], u64 name_len );
+AskForth_Dictionary*    askf_create_dic( AskForthVm* vm, ascii* name, u64 name_len );
 
 AskForth_Dictionary* askf_library_find_dic( AskForthVm* vm, AskForthToken* token );
 

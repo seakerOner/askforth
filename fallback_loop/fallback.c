@@ -53,9 +53,6 @@ static void _askf_fallback_cmd_status( AskForthVm* vm ) {
         case ASKF_VM_OUTER_STATE_EXECUTE:
             askf_print( (ascii*)"ASKF_VM_OUTER_STATE_EXECUTE", 27 );
             break;
-        case ASKF_VM_OUTER_STATE_EXECUTE_CONTINUE:
-            askf_print( (ascii*)"ASKF_VM_OUTER_STATE_EXECUTE_CONTINUE", 36 );
-            break;
         case ASKF_VM_OUTER_STATE_FAILED_CRITICAL:
             askf_print( (ascii*)"ASKF_VM_OUTER_STATE_FAILED_CRITICAL", 35 );
             break;
@@ -432,7 +429,6 @@ static void _askf_fallback_cmd_input( AskForthVm* vm ) {
 static void _askf_fallback_cmd_continue( AskForthVm* vm ) {
     // reset tracer
     vm->error_tracer->head = 0;
-    //askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_EXECUTE_CONTINUE );
     askf_vm_change_outer_state( ASKF_VM_OUTER_STATE_EXECUTE );
 }
 
